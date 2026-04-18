@@ -1,0 +1,9 @@
+{
+  "name": "@bakery-os/api",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "echo 'API dev script placeholder'",
+    "build": "echo 'API build script placeholder'"
+  }
+}
