@@ -16,8 +16,9 @@
                 "quantity": 15
             }
         ],
-        "stock": 191,
-        "price": 18.0
+        "stock": 62,
+        "price": 18.0,
+        "icon": "\ud83e\udd50"
     },
     {
         "id": "p2",
@@ -36,8 +37,9 @@
                 "quantity": 20
             }
         ],
-        "stock": 58,
-        "price": 22.0
+        "stock": 48,
+        "price": 22.0,
+        "icon": "\ud83e\udd6f"
     },
     {
         "id": "p3",
@@ -52,7 +54,108 @@
                 "quantity": 20
             }
         ],
-        "stock": 120,
-        "price": 12.0
+        "stock": 118,
+        "price": 12.0,
+        "icon": "\ud83c\udf61"
+    },
+    {
+        "id": "p4",
+        "name": "\u00c9clair",
+        "ingredients": [
+            {
+                "name": "Flour",
+                "quantity": 40
+            },
+            {
+                "name": "Eggs",
+                "quantity": 2
+            },
+            {
+                "name": "Chocolate",
+                "quantity": 30
+            },
+            {
+                "name": "Milk",
+                "quantity": 100
+            }
+        ],
+        "stock": 35,
+        "price": 25.0,
+        "icon": "\ud83e\udd56"
+    },
+    {
+        "id": "p5",
+        "name": "Tarte au Citron",
+        "ingredients": [
+            {
+                "name": "Flour",
+                "quantity": 150
+            },
+            {
+                "name": "Butter",
+                "quantity": 80
+            },
+            {
+                "name": "Sugar",
+                "quantity": 60
+            },
+            {
+                "name": "Eggs",
+                "quantity": 3
+            }
+        ],
+        "stock": 15,
+        "price": 35.0,
+        "icon": "\ud83c\udf4b"
+    },
+    {
+        "id": "p6",
+        "name": "Mille-Feuille",
+        "ingredients": [
+            {
+                "name": "Flour",
+                "quantity": 200
+            },
+            {
+                "name": "Butter",
+                "quantity": 150
+            },
+            {
+                "name": "Milk",
+                "quantity": 200
+            },
+            {
+                "name": "Sugar",
+                "quantity": 50
+            }
+        ],
+        "stock": 12,
+        "price": 45.0,
+        "icon": "\ud83c\udf70"
+    },
+    {
+        "id": "p7",
+        "name": "Brioche",
+        "ingredients": [
+            {
+                "name": "Flour",
+                "quantity": 250
+            },
+            {
+                "name": "Butter",
+                "quantity": 120
+            },
+            {
+                "name": "Eggs",
+                "quantity": 4
+            },
+            {
+                "name": "Yeast",
+                "quantity": 10
+            }
+        ],
+        "stock": 20,
+        "price": 30.0,
+        "icon": "\ud83c\udf5e"
     }
 ]

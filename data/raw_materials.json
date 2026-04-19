@@ -1,24 +1,24 @@
 {
     "Flour": {
-        "stock": 50000,
+        "stock": 38800,
         "price": 0.01,
         "unit": "g",
         "min_threshold": 5000
     },
     "Butter": {
-        "stock": 10000,
+        "stock": 4500,
         "price": 0.08,
         "unit": "g",
         "min_threshold": 1000
     },
     "Sugar": {
-        "stock": 20000,
+        "stock": 19100,
         "price": 0.015,
         "unit": "g",
         "min_threshold": 2000
     },
     "Chocolate": {
-        "stock": 5000,
+        "stock": 4200,
         "price": 0.12,
         "unit": "g",
         "min_threshold": 500

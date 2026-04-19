@@ -1,146 +1,119 @@
 [
     {
-        "id": "d9dc89a0-4cd7-4eb3-aca6-ab6fc650640f",
-        "timestamp": "2026-04-17T22:59:24.358226",
+        "id": "TX1",
+        "timestamp": "2026-04-12T10:00:00",
+        "type": "sale",
+        "revenue": 1500,
+        "cost": 800,
+        "profit": 700,
+        "margin": 46.6
+    },
+    {
+        "id": "TX2",
+        "timestamp": "2026-04-13T11:00:00",
+        "type": "sale",
+        "revenue": 1800,
+        "cost": 900,
+        "profit": 900,
+        "margin": 50.0
+    },
+    {
+        "id": "TX3",
+        "timestamp": "2026-04-14T09:30:00",
+        "type": "sale",
+        "revenue": 2200,
+        "cost": 1100,
+        "profit": 1100,
+        "margin": 50.0
+    },
+    {
+        "id": "TX4",
+        "timestamp": "2026-04-15T14:20:00",
+        "type": "sale",
+        "revenue": 1200,
+        "cost": 650,
+        "profit": 550,
+        "margin": 45.8
+    },
+    {
+        "id": "TX5",
+        "timestamp": "2026-04-16T16:45:00",
+        "type": "sale",
+        "revenue": 2500,
+        "cost": 1300,
+        "profit": 1200,
+        "margin": 48.0
+    },
+    {
+        "id": "TX6",
+        "timestamp": "2026-04-17T08:15:00",
+        "type": "sale",
+        "revenue": 3100,
+        "cost": 1500,
+        "profit": 1600,
+        "margin": 51.6
+    },
+    {
+        "id": "TX7",
+        "timestamp": "2026-04-18T10:00:00",
+        "type": "sale",
+        "revenue": 2800,
+        "cost": 1400,
+        "profit": 1400,
+        "margin": 50.0
+    },
+    {
+        "id": "D5071D3C",
+        "timestamp": "2026-04-19T14:01:27.552475",
         "type": "production",
         "product": "Croissant",
         "quantity": 10,
         "cost": 57.25,
-        "revenue": 180.0
+        "revenue": 0
     },
     {
-        "id": "bdaf5449-cce2-4a85-8086-ef2a21105d26",
-        "timestamp": "2026-04-17T23:20:17.392236",
+        "id": "D09CD4C8",
+        "timestamp": "2026-04-19T14:01:28.463879",
         "type": "production",
         "product": "Croissant",
         "quantity": 10,
         "cost": 57.25,
-        "revenue": 180.0
+        "revenue": 0
     },
     {
-        "id": "fc0f746f-e92a-422d-a7fd-d0065b8b3e48",
-        "timestamp": "2026-04-17T23:20:18.152877",
-        "type": "production",
-        "product": "Croissant",
-        "quantity": 10,
-        "cost": 57.25,
-        "revenue": 180.0
-    },
-    {
-        "id": "378774d4-575b-4ccf-8bab-46ccd58da93e",
-        "timestamp": "2026-04-17T23:20:18.347687",
-        "type": "production",
-        "product": "Croissant",
-        "quantity": 10,
-        "cost": 57.25,
-        "revenue": 180.0
-    },
-    {
-        "id": "4cc67e0f-dc96-4cbc-86ff-7c37372a02b5",
-        "timestamp": "2026-04-17T23:20:18.528424",
-        "type": "production",
-        "product": "Croissant",
-        "quantity": 10,
-        "cost": 57.25,
-        "revenue": 180.0
-    },
-    {
-        "id": "3ec252c6-dfc4-4584-8e66-5473ba92aafb",
-        "timestamp": "2026-04-17T23:20:19.490703",
-        "type": "production",
-        "product": "Croissant",
-        "quantity": 10,
-        "cost": 57.25,
-        "revenue": 180.0
-    },
-    {
-        "id": "733166cf-92b0-4f4f-95c1-65e2ba984826",
-        "timestamp": "2026-04-17T23:20:20.475615",
+        "id": "89CEA1EB",
+        "timestamp": "2026-04-19T14:01:29.503814",
         "type": "production",
         "product": "Pain au Chocolat",
         "quantity": 10,
         "cost": 79.5,
-        "revenue": 220.0
+        "revenue": 0
     },
     {
-        "id": "d10d0a2e-fa80-4dff-ade6-26c854a7ca6a",
-        "timestamp": "2026-04-17T23:20:20.642266",
+        "id": "A07FDE95",
+        "timestamp": "2026-04-19T14:01:30.305052",
         "type": "production",
         "product": "Pain au Chocolat",
         "quantity": 10,
         "cost": 79.5,
-        "revenue": 220.0
-    },
-    {
-        "id": "bf3dbdbf-88bc-4a97-9f83-ea1cd35d548f",
-        "timestamp": "2026-04-17T23:20:20.809357",
-        "type": "production",
-        "product": "Pain au Chocolat",
-        "quantity": 10,
-        "cost": 79.5,
-        "revenue": 220.0
-    },
-    {
-        "id": "C457A07D",
-        "timestamp": "2026-04-18T00:18:06.328620",
-        "type": "production",
-        "product": "Croissant",
-        "quantity": 10,
-        "cost": 57.25,
         "revenue": 0
     },
     {
-        "id": "571A0C2A",
-        "timestamp": "2026-04-18T00:18:07.176959",
-        "type": "production",
-        "product": "Croissant",
-        "quantity": 10,
-        "cost": 57.25,
-        "revenue": 0
-    },
-    {
-        "id": "C084B677",
-        "timestamp": "2026-04-18T00:18:08.058239",
-        "type": "production",
-        "product": "Croissant",
-        "quantity": 10,
-        "cost": 57.25,
-        "revenue": 0
-    },
-    {
-        "id": "B119FD53",
-        "timestamp": "2026-04-18T00:18:09.683001",
-        "type": "production",
-        "product": "Croissant",
-        "quantity": 50,
-        "cost": 286.25,
-        "revenue": 0
-    },
-    {
-        "id": "0E3AD480",
-        "timestamp": "2026-04-18T00:18:10.835402",
-        "type": "production",
-        "product": "Croissant",
-        "quantity": 10,
-        "cost": 57.25,
-        "revenue": 0
-    },
-    {
-        "id": "DE28C6A4",
-        "timestamp": "2026-04-18T00:21:03.786290",
+        "id": "30EE6A6C",
+        "timestamp": "2026-04-19T14:01:47.954824",
         "type": "sale",
         "items": [
             {
-                "id": "p1",
-                "name": "Croissant",
-                "qty": 1,
-                "price": 18.0,
-                "cost": 5.725
+                "id": "p3",
+                "name": "Macaron",
+                "qty": 2,
+                "price": 12.0,
+                "cost": 0.575
             }
         ],
-        "revenue": 18.0,
-        "cost": 5.725,
-        "profit": 12.275,
-        "margin": 68.19444444444444
+        "revenue": 24.0,
+        "cost": 1.15,
+        "profit": 22.85,
+        "margin": 95.20833333333334
     }
 ]

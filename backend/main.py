@@ -275,6 +275,37 @@ async def analytics():
         "chartData": daily_data
     }
 
+@app.get("/api/alerts")
+async def get_alerts():
+    data = engine.get_full_data()
+    materials = data["materials"]
+    products = data["products"]
+    
+    alerts = []
+    
+    # Stock alerts
+    for name, m in materials.items():
+        if m["stock"] < m.get("min_threshold", 1000):
+            alerts.append({
+                "type": "stock",
+                "severity": "high" if m["stock"] < m.get("min_threshold", 1000) / 2 else "medium",
+                "message": f"Low stock: {name} ({m['stock']}{m['unit']})",
+                "id": f"stock-{name}"
+            })
+            
+    # Margin alerts
+    for p in products:
+        margin = ((p['price'] - p['live_cost']) / p['price'] * 100) if p['price'] > 0 else 0
+        if margin < 30:
+            alerts.append({
+                "type": "margin",
+                "severity": "medium",
+                "message": f"Low margin on {p['name']}: {round(margin, 1)}%",
+                "id": f"margin-{p['id']}"
+            })
+            
+    return alerts
+
 @app.post("/api/simulate_price")
 async def simulate_price(materials_update: Dict[str, float]):
     materials = engine._load('raw_materials.json')
