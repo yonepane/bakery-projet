@@ -109,9 +109,21 @@ const Dashboard: React.FC = () => {
   const [simPrices, setSimPrices] = useState<Record<string, number>>({});
   const [simulationResult, setSimulationResult] = useState<any[]>([]);
 
+  // Management States
+  const [showAddProduct, setShowAddProduct] = useState(false);
+  const [showAddMaterial, setShowAddMaterial] = useState(false);
+  const [newProduct, setNewProduct] = useState<any>({ id: '', name: '', price: 0, icon: '🥐', ingredients: [] });
+  const [newMaterial, setNewMaterial] = useState<any>({ name: '', price: 0, unit: 'g', min_threshold: 1000 });
+
   const formatPrice = (amount: number) => {
     const rate = settings?.conversions?.[activeCurrency] || 1;
     return (amount * rate).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ' + activeCurrency;
+  };
+
+  const displayUnit = (value: number, unit: string) => {
+    if (unit === 'g' && value >= 1000) return (value / 1000).toFixed(2) + ' kg';
+    if (unit === 'ml' && value >= 1000) return (value / 1000).toFixed(2) + ' L';
+    return value.toFixed(0) + ' ' + unit;
   };
 
   const fetchData = async () => {
@@ -195,6 +207,45 @@ const Dashboard: React.FC = () => {
       } catch (e) { console.error(e); }
   };
 
+  const handleAddMaterial = async () => {
+    try {
+      await axios.post(`${API_BASE}/materials`, newMaterial);
+      setShowAddMaterial(false);
+      fetchData();
+    } catch (e: any) { alert(e.response?.data?.detail || "Failed to add material"); }
+  };
+
+  const handleDeleteMaterial = async (name: string) => {
+    if (!confirm(`Delete ${name}?`)) return;
+    try {
+      await axios.delete(`${API_BASE}/materials/${name}`);
+      fetchData();
+    } catch (e: any) { alert(e.response?.data?.detail || "Failed to delete material"); }
+  };
+
+  const handleAddProduct = async () => {
+    try {
+      await axios.post(`${API_BASE}/products`, newProduct);
+      setShowAddProduct(false);
+      fetchData();
+    } catch (e: any) { alert(e.response?.data?.detail || "Failed to add product"); }
+  };
+
+  const handleDeleteProduct = async (id: string) => {
+    if (!confirm("Delete this product?")) return;
+    try {
+      await axios.delete(`${API_BASE}/products/${id}`);
+      fetchData();
+    } catch (e: any) { alert(e.response?.data?.detail || "Failed to delete product"); }
+  };
+
+  const handleUpdateProductIngredients = async (productId: string, ingredients: any[]) => {
+    try {
+      await axios.put(`${API_BASE}/products/${productId}`, { ingredients });
+      fetchData();
+    } catch (e: any) { alert(e.response?.data?.detail || "Failed to update recipe"); }
+  };
+
   if (loading) return (
     <div className="h-screen w-screen flex flex-col items-center justify-center bg-charcoal text-gold">
        <div className="w-16 h-16 border-4 border-gold/20 border-t-gold rounded-full animate-spin mb-4"></div>
@@ -211,8 +262,10 @@ const Dashboard: React.FC = () => {
             <div className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-lg ${isDarkMode ? 'bg-gold shadow-gold-glow' : 'bg-slate-900 shadow-slate-200'}`}>
               <Box className={`${isDarkMode ? 'text-charcoal' : 'text-white'} w-6 h-6`} />
             </div>
-            <h1 className={`text-2xl font-bold luxury-font tracking-tight ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Bakery<span className="text-gold">OS</span></h1>
-            <span className="text-[10px] bg-gold/10 text-gold px-2 py-0.5 rounded-full font-black">v2.1</span>
+            <div>
+                <h1 className={`text-2xl font-bold luxury-font tracking-tight ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Bakery<span className="text-gold">OS</span></h1>
+                <span className="text-[10px] bg-gold/10 text-gold px-2 py-0.5 rounded-full font-black">v2.2</span>
+            </div>
           </div>
 
           <nav className="space-y-1">
@@ -292,7 +345,14 @@ const Dashboard: React.FC = () => {
           </div>
         </header>
 
-        <div key={activeTab}>
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={activeTab}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.3 }}
+          >
             {activeTab === 'dashboard' && (
               <div className="space-y-8">
                 <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
@@ -391,46 +451,71 @@ const Dashboard: React.FC = () => {
             )}
 
             {activeTab === 'inventory' && (
-              <div className={`rounded-[2rem] border overflow-hidden transition-colors ${isDarkMode ? 'border-white/5 bg-black/20' : 'border-slate-200 bg-white shadow-sm'}`}>
-                <table className="w-full text-left">
-                  <thead>
-                    <tr className={`border-b text-[10px] font-black uppercase tracking-[0.2em] ${isDarkMode ? 'border-white/5 text-cream/40' : 'border-slate-100 text-slate-400'}`}>
-                      <th className="px-8 py-6">Entity</th>
-                      <th className="px-8 py-6">Unit Price</th>
-                      <th className="px-8 py-6">In Stock</th>
-                      <th className="px-8 py-6 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className={`divide-y ${isDarkMode ? 'divide-white/5' : 'divide-slate-100'}`}>
-                    {inventory.products.map(p => (
-                      <tr key={p.id} className="group hover:bg-white/[0.02] transition-colors">
-                        <td className="px-8 py-6">
-                          <div className="flex items-center gap-4">
-                            <span className="text-3xl">{p.icon}</span>
-                            <div><p className={`font-bold ${isDarkMode ? 'text-cream' : 'text-slate-900'}`}>{p.name}</p><p className={`text-[10px] uppercase font-bold tracking-widest ${isDarkMode ? 'text-cream/20' : 'text-slate-300'}`}>BOM ID: {p.id}</p></div>
-                          </div>
-                        </td>
-                        <td className="px-8 py-6">
-                          {editMode ? 
-                            <input type="number" defaultValue={p.price} className={`w-24 border rounded px-2 py-1 font-bold outline-none ${isDarkMode ? 'bg-gold/10 border-gold/30 text-gold' : 'bg-slate-50 border-slate-200 text-slate-900'}`} />
-                            : <span className={`font-bold ${isDarkMode ? 'text-gold' : 'text-slate-900'}`}>{formatPrice(p.price)}</span>
-                          }
-                        </td>
-                        <td className="px-8 py-6">
-                          {editMode ? 
-                            <input type="number" defaultValue={p.stock} className={`w-20 border rounded px-2 py-1 font-bold outline-none ${isDarkMode ? 'bg-white/5 border-white/10 text-cream' : 'bg-slate-50 border-slate-200 text-slate-900'}`} />
-                            : <span className={`font-bold ${isDarkMode ? 'text-cream/80' : 'text-slate-600'}`}>{p.stock} Units</span>
-                          }
-                        </td>
-                        <td className="px-8 py-6 text-right">
-                          <div className="flex justify-end gap-3">
-                            <button onClick={() => handleProduce(p.id, 10)} className={`px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${isDarkMode ? 'bg-white/5 hover:bg-gold hover:text-charcoal' : 'bg-slate-100 hover:bg-slate-900 hover:text-white'}`}>Restock +10</button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="space-y-8 animate-in fade-in duration-500">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                  <div className={`rounded-[2rem] border overflow-hidden transition-colors ${isDarkMode ? 'border-white/5 bg-black/20' : 'border-slate-200 bg-white shadow-sm'}`}>
+                    <div className="p-8 border-b border-white/5 flex justify-between items-center">
+                        <h3 className={`text-xl font-bold luxury-font uppercase ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Finished Goods</h3>
+                        <button onClick={() => setShowAddProduct(true)} className={`p-2 rounded-lg transition-all ${isDarkMode ? 'bg-gold/10 text-gold' : 'bg-slate-100 text-slate-900'}`}><Plus size={16}/></button>
+                    </div>
+                    <table className="w-full text-left">
+                        <thead>
+                            <tr className={`border-b text-[10px] font-black uppercase tracking-[0.2em] ${isDarkMode ? 'border-white/5 text-cream/40' : 'border-slate-100 text-slate-400'}`}>
+                                <th className="px-8 py-6">Entity</th>
+                                <th className="px-8 py-6">Stock</th>
+                                <th className="px-8 py-6 text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody className={`divide-y ${isDarkMode ? 'divide-white/5' : 'divide-slate-100'}`}>
+                            {inventory.products.map(p => (
+                                <tr key={p.id} className="group hover:bg-white/[0.02] transition-colors">
+                                    <td className="px-8 py-6">
+                                        <div className="flex items-center gap-4">
+                                            <span className="text-3xl">{p.icon}</span>
+                                            <p className={`font-bold ${isDarkMode ? 'text-cream' : 'text-slate-900'}`}>{p.name}</p>
+                                        </div>
+                                    </td>
+                                    <td className="px-8 py-6"><span className={`font-bold ${isDarkMode ? 'text-cream/80' : 'text-slate-600'}`}>{p.stock} Units</span></td>
+                                    <td className="px-8 py-6 text-right">
+                                        <button onClick={() => handleProduce(p.id, 10)} className={`px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${isDarkMode ? 'bg-white/5 hover:bg-gold hover:text-charcoal' : 'bg-slate-100 hover:bg-slate-900 hover:text-white'}`}>Restock +10</button>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                  </div>
+
+                  <div className={`rounded-[2rem] border overflow-hidden transition-colors ${isDarkMode ? 'border-white/5 bg-black/20' : 'border-slate-200 bg-white shadow-sm'}`}>
+                    <div className="p-8 border-b border-white/5 flex justify-between items-center">
+                        <h3 className={`text-xl font-bold luxury-font uppercase ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Raw Materials</h3>
+                        <button onClick={() => setShowAddMaterial(true)} className={`p-2 rounded-lg transition-all ${isDarkMode ? 'bg-gold/10 text-gold' : 'bg-slate-100 text-slate-900'}`}><Plus size={16}/></button>
+                    </div>
+                    <table className="w-full text-left">
+                        <thead>
+                            <tr className={`border-b text-[10px] font-black uppercase tracking-[0.2em] ${isDarkMode ? 'border-white/5 text-cream/40' : 'border-slate-100 text-slate-400'}`}>
+                                <th className="px-8 py-6">Ingredient</th>
+                                <th className="px-8 py-6">Level</th>
+                                <th className="px-8 py-6 text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody className={`divide-y ${isDarkMode ? 'divide-white/5' : 'divide-slate-100'}`}>
+                            {Object.entries(inventory.materials).map(([name, data]) => (
+                                <tr key={name} className="group hover:bg-white/[0.02] transition-colors">
+                                    <td className="px-8 py-6 font-bold">{name}</td>
+                                    <td className="px-8 py-6">
+                                        <span className={`font-bold ${data.stock < data.min_threshold ? 'text-rose-500' : (isDarkMode ? 'text-gold' : 'text-slate-900')}`}>
+                                            {displayUnit(data.stock, data.unit)}
+                                        </span>
+                                    </td>
+                                    <td className="px-8 py-6 text-right">
+                                        <button onClick={() => handleDeleteMaterial(name)} className="text-rose-500/20 hover:text-rose-500 transition-colors"><Trash2 size={16}/></button>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                  </div>
+                </div>
               </div>
             )}
 
@@ -446,22 +531,68 @@ const Dashboard: React.FC = () => {
                       </div>
                     </div>
                     <div className="space-y-4 mb-8">
-                      {p.ingredients.map(ing => (
-                        <div key={ing.name} className="flex justify-between items-center text-xs">
+                      {p.ingredients.map((ing, idx) => (
+                        <div key={ing.name} className="flex justify-between items-center text-xs group/ing">
                           <span className={isDarkMode ? 'text-cream/40' : 'text-slate-500'}>{ing.name}</span>
-                          <span className={`font-bold ${isDarkMode ? 'text-cream/80' : 'text-slate-700'}`}>{ing.quantity}{inventory.materials[ing.name]?.unit || 'g'}</span>
+                          <div className="flex items-center gap-3">
+                            <input 
+                              type="number" 
+                              value={ing.quantity}
+                              onChange={(e) => {
+                                const newIngs = [...p.ingredients];
+                                newIngs[idx].quantity = parseFloat(e.target.value);
+                                handleUpdateProductIngredients(p.id, newIngs);
+                              }}
+                              className={`w-16 text-right font-bold bg-transparent outline-none border-b border-transparent focus:border-gold/30 ${isDarkMode ? 'text-cream/80' : 'text-slate-700'}`}
+                            />
+                            <span className="opacity-40">{inventory.materials[ing.name]?.unit || 'g'}</span>
+                            <button 
+                              onClick={() => {
+                                const newIngs = p.ingredients.filter((_, i) => i !== idx);
+                                handleUpdateProductIngredients(p.id, newIngs);
+                              }}
+                              className="opacity-0 group-hover/ing:opacity-100 text-rose-500 transition-opacity"
+                            >
+                              <X size={12}/>
+                            </button>
+                          </div>
                         </div>
                       ))}
+                      
+                      <div className="pt-4">
+                        <select 
+                          className={`w-full bg-transparent border-b border-white/5 text-[10px] font-bold uppercase tracking-widest py-2 outline-none ${isDarkMode ? 'text-gold/40' : 'text-slate-400'}`}
+                          value=""
+                          onChange={(e) => {
+                            if (!e.target.value) return;
+                            if (p.ingredients.some(ing => ing.name === e.target.value)) return;
+                            const newIngs = [...p.ingredients, { name: e.target.value, quantity: 0 }];
+                            handleUpdateProductIngredients(p.id, newIngs);
+                          }}
+                        >
+                          <option value="">+ Add Ingredient</option>
+                          {Object.keys(inventory.materials).map(m => (
+                            <option key={m} value={m}>{m}</option>
+                          ))}
+                        </select>
+                      </div>
                     </div>
                     <div className={`pt-6 border-t flex justify-between items-center ${isDarkMode ? 'border-white/5' : 'border-slate-100'}`}>
                       <div>
                         <p className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-emerald-500/50' : 'text-emerald-600'}`}>Projected Margin</p>
                         <p className="text-xl font-bold text-emerald-500">{p.price > 0 ? (((p.price - (p.live_cost || 0)) / p.price) * 100).toFixed(1) : 0}%</p>
                       </div>
-                      <button className={`p-3 rounded-xl transition-all ${isDarkMode ? 'bg-white/5 text-white hover:bg-white/10' : 'bg-slate-100 text-slate-900 hover:bg-slate-200'}`}><Edit2 size={16}/></button>
+                      <button onClick={() => handleDeleteProduct(p.id)} className="text-rose-500/20 hover:text-rose-500 transition-colors"><Trash2 size={16}/></button>
                     </div>
                   </div>
                 ))}
+                
+                <div onClick={() => setShowAddProduct(true)} className={`p-8 rounded-[2.5rem] border border-dashed flex flex-col items-center justify-center cursor-pointer hover:border-gold/40 group transition-all min-h-[300px] ${isDarkMode ? 'border-white/10 bg-black/5' : 'border-slate-300 bg-slate-50'}`}>
+                    <div className="w-16 h-16 rounded-full border-2 border-dashed border-white/10 flex items-center justify-center group-hover:border-gold/40 group-hover:scale-110 transition-all mb-4">
+                        <Plus className="opacity-20 group-hover:opacity-100 group-hover:text-gold transition-all" />
+                    </div>
+                    <p className="font-black text-[10px] uppercase tracking-[0.2em] opacity-20 group-hover:opacity-100 group-hover:text-gold transition-all">New Entity</p>
+                </div>
               </div>
             )}
 
@@ -583,8 +714,79 @@ const Dashboard: React.FC = () => {
                 </div>
               </div>
             )}
-          </div>
+          </motion.div>
+        </AnimatePresence>
       </main>
+
+      {/* Add Product Modal */}
+      {showAddProduct && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
+            <div className={`w-full max-w-md p-8 rounded-[2.5rem] border shadow-2xl ${isDarkMode ? 'bg-[#121214] border-white/10' : 'bg-white border-slate-200'}`}>
+                <h3 className={`text-2xl font-bold luxury-font mb-8 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>New Entity</h3>
+                <div className="space-y-6">
+                    <div>
+                        <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">Identifier</label>
+                        <input type="text" placeholder="e.g. p4" value={newProduct.id} onChange={(e)=>setNewProduct({...newProduct, id: e.target.value})} className={`w-full bg-transparent border-b py-2 outline-none font-bold ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`} />
+                    </div>
+                    <div>
+                        <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">Display Name</label>
+                        <input type="text" placeholder="e.g. Baguette" value={newProduct.name} onChange={(e)=>setNewProduct({...newProduct, name: e.target.value})} className={`w-full bg-transparent border-b py-2 outline-none font-bold ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`} />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">Price (MAD)</label>
+                            <input type="number" value={newProduct.price} onChange={(e)=>setNewProduct({...newProduct, price: parseFloat(e.target.value)})} className={`w-full bg-transparent border-b py-2 outline-none font-bold ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`} />
+                        </div>
+                        <div>
+                            <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">Icon</label>
+                            <input type="text" value={newProduct.icon} onChange={(e)=>setNewProduct({...newProduct, icon: e.target.value})} className={`w-full bg-transparent border-b py-2 outline-none font-bold ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`} />
+                        </div>
+                    </div>
+                    <div className="flex gap-3 pt-6">
+                        <button onClick={() => setShowAddProduct(false)} className={`flex-1 py-4 rounded-xl font-bold text-[10px] uppercase tracking-widest ${isDarkMode ? 'bg-white/5 text-white' : 'bg-slate-100 text-slate-900'}`}>Cancel</button>
+                        <button onClick={handleAddProduct} className="flex-1 py-4 rounded-xl font-black text-[10px] uppercase tracking-widest bg-gold text-charcoal shadow-gold-glow">Register</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+      )}
+
+      {/* Add Material Modal */}
+      {showAddMaterial && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
+            <div className={`w-full max-w-md p-8 rounded-[2.5rem] border shadow-2xl ${isDarkMode ? 'bg-[#121214] border-white/10' : 'bg-white border-slate-200'}`}>
+                <h3 className={`text-2xl font-bold luxury-font mb-8 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>New Ingredient</h3>
+                <div className="space-y-6">
+                    <div>
+                        <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">Ingredient Name</label>
+                        <input type="text" placeholder="e.g. Milk" value={newMaterial.name} onChange={(e)=>setNewMaterial({...newMaterial, name: e.target.value})} className={`w-full bg-transparent border-b py-2 outline-none font-bold ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`} />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">Base Unit</label>
+                            <select value={newMaterial.unit} onChange={(e)=>setNewMaterial({...newMaterial, unit: e.target.value})} className={`w-full bg-transparent border-b py-2 outline-none font-bold ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`}>
+                                <option value="g">Grams (g)</option>
+                                <option value="ml">Milliliters (ml)</option>
+                                <option value="unit">Unit</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">Unit Price</label>
+                            <input type="number" step="0.001" value={newMaterial.price} onChange={(e)=>setNewMaterial({...newMaterial, price: parseFloat(e.target.value)})} className={`w-full bg-transparent border-b py-2 outline-none font-bold ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`} />
+                        </div>
+                    </div>
+                    <div>
+                        <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">Min. Threshold</label>
+                        <input type="number" value={newMaterial.min_threshold} onChange={(e)=>setNewMaterial({...newMaterial, min_threshold: parseFloat(e.target.value)})} className={`w-full bg-transparent border-b py-2 outline-none font-bold ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`} />
+                    </div>
+                    <div className="flex gap-3 pt-6">
+                        <button onClick={() => setShowAddMaterial(false)} className={`flex-1 py-4 rounded-xl font-bold text-[10px] uppercase tracking-widest ${isDarkMode ? 'bg-white/5 text-white' : 'bg-slate-100 text-slate-900'}`}>Cancel</button>
+                        <button onClick={handleAddMaterial} className="flex-1 py-4 rounded-xl font-black text-[10px] uppercase tracking-widest bg-gold text-charcoal shadow-gold-glow">Register</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+      )}
     </div>
   );
 };

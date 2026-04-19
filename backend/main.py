@@ -40,6 +40,25 @@ class SaleItem(BaseModel):
 class SaleRequest(BaseModel):
     cart: List[SaleItem]
 
+class MaterialCreate(BaseModel):
+    name: str
+    price: float
+    unit: str
+    min_threshold: float
+
+class ProductCreate(BaseModel):
+    id: str
+    name: str
+    price: float
+    icon: str
+    ingredients: List[IngredientItem]
+
+class ProductUpdate(BaseModel):
+    name: Optional[str] = None
+    price: Optional[float] = None
+    icon: Optional[str] = None
+    ingredients: Optional[List[IngredientItem]] = None
+
 class BakeryEngine:
     def __init__(self):
         self.initialize_data()
@@ -363,6 +382,64 @@ async def update_material_prices(materials_update: Dict[str, float]):
             materials[name]['price'] = new_price
     engine._save('raw_materials.json', materials)
     return {"success": True}
+
+@app.post("/api/materials")
+async def add_material(mat: MaterialCreate):
+    materials = engine._load('raw_materials.json')
+    if mat.name in materials:
+        raise HTTPException(status_code=400, detail="Material already exists")
+    materials[mat.name] = {
+        "stock": 0,
+        "price": mat.price,
+        "unit": mat.unit,
+        "min_threshold": mat.min_threshold
+    }
+    engine._save('raw_materials.json', materials)
+    return {"success": True}
+
+@app.delete("/api/materials/{name}")
+async def delete_material(name: str):
+    materials = engine._load('raw_materials.json')
+    if name in materials:
+        del materials[name]
+        engine._save('raw_materials.json', materials)
+        return {"success": True}
+    raise HTTPException(status_code=404, detail="Material not found")
+
+@app.post("/api/products")
+async def add_product(prod: ProductCreate):
+    products = engine._load('recipes.json')
+    if any(p['id'] == prod.id for p in products):
+        raise HTTPException(status_code=400, detail="Product ID already exists")
+    new_prod = prod.dict()
+    new_prod['stock'] = 0
+    products.append(new_prod)
+    engine._save('recipes.json', products)
+    return {"success": True}
+
+@app.put("/api/products/{id}")
+async def update_product(id: str, update: ProductUpdate):
+    products = engine._load('recipes.json')
+    for p in products:
+        if p['id'] == id:
+            if update.name is not None: p['name'] = update.name
+            if update.price is not None: p['price'] = update.price
+            if update.icon is not None: p['icon'] = update.icon
+            if update.ingredients is not None:
+                p['ingredients'] = [ing.dict() for ing in update.ingredients]
+            engine._save('recipes.json', products)
+            return {"success": True}
+    raise HTTPException(status_code=404, detail="Product not found")
+
+@app.delete("/api/products/{id}")
+async def delete_product(id: str):
+    products = engine._load('recipes.json')
+    initial_len = len(products)
+    products = [p for p in products if p['id'] != id]
+    if len(products) < initial_len:
+        engine._save('recipes.json', products)
+        return {"success": True}
+    raise HTTPException(status_code=404, detail="Product not found")
 
 # Mount static files
 if os.path.exists(FRONTEND_DIR):
