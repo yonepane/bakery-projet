@@ -366,13 +366,23 @@ async def update_material_prices(materials_update: Dict[str, float]):
 
 # Mount static files
 if os.path.exists(FRONTEND_DIR):
-    app.mount("/assets", StaticFiles(directory=os.path.join(FRONTEND_DIR, "assets")), name="assets")
+    assets_path = os.path.join(FRONTEND_DIR, "dist", "assets")
+    if os.path.exists(assets_path):
+        app.mount("/assets", StaticFiles(directory=assets_path), name="assets")
+    else:
+        app.mount("/assets", StaticFiles(directory=os.path.join(FRONTEND_DIR, "assets")), name="assets")
 
 @app.get("/{full_path:path}")
 async def serve_frontend(full_path: str):
     if full_path.startswith("api"):
         raise HTTPException(status_code=404)
         
+    # Serve from dist folder for production build
+    index_path = os.path.join(FRONTEND_DIR, "dist", "index.html")
+    if os.path.exists(index_path):
+        return FileResponse(index_path, headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"})
+        
+    # Fallback to source for development (though browsers can't run .tsx directly)
     index_path = os.path.join(FRONTEND_DIR, "index.html")
     if os.path.exists(index_path):
         return FileResponse(index_path)

@@ -1,4 +1,9 @@
 {
     "currency": "MAD",
-    "tax_rate": 0.2
+    "tax_rate": 0.20,
+    "conversions": {
+        "MAD": 1,
+        "EUR": 0.092,
+        "USD": 0.10
+    }
 }

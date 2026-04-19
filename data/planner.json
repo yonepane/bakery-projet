@@ -1,1 +1,9 @@
-[]
+[
+    {
+        "id": "pl1",
+        "date": "2026-04-20",
+        "product_id": "p1",
+        "quantity": 100,
+        "status": "pending"
+    }
+]
