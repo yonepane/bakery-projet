@@ -1,0 +1,9 @@
+[
+    {"id": "TX1", "timestamp": "2026-04-12T10:00:00", "type": "sale", "revenue": 1500, "cost": 800, "profit": 700, "margin": 46.6},
+    {"id": "TX2", "timestamp": "2026-04-13T11:00:00", "type": "sale", "revenue": 1800, "cost": 900, "profit": 900, "margin": 50.0},
+    {"id": "TX3", "timestamp": "2026-04-14T09:30:00", "type": "sale", "revenue": 2200, "cost": 1100, "profit": 1100, "margin": 50.0},
+    {"id": "TX4", "timestamp": "2026-04-15T14:20:00", "type": "sale", "revenue": 1200, "cost": 650, "profit": 550, "margin": 45.8},
+    {"id": "TX5", "timestamp": "2026-04-16T16:45:00", "type": "sale", "revenue": 2500, "cost": 1300, "profit": 1200, "margin": 48.0},
+    {"id": "TX6", "timestamp": "2026-04-17T08:15:00", "type": "sale", "revenue": 3100, "cost": 1500, "profit": 1600, "margin": 51.6},
+    {"id": "TX7", "timestamp": "2026-04-18T10:00:00", "type": "sale", "revenue": 2800, "cost": 1400, "profit": 1400, "margin": 50.0}
+]

@@ -1,9 +1,0 @@
-{
-  "name": "@bakery-os/web",
-  "version": "0.1.0",
-  "private": true,
-  "scripts": {
-    "dev": "echo 'Web dev script placeholder'",
-    "build": "echo 'Web build script placeholder'"
-  }
-}

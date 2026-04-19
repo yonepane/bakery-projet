@@ -1,0 +1,58 @@
+[
+    {
+        "id": "p1",
+        "name": "Croissant",
+        "ingredients": [
+            {
+                "name": "Flour",
+                "quantity": 110
+            },
+            {
+                "name": "Butter",
+                "quantity": 55
+            },
+            {
+                "name": "Sugar",
+                "quantity": 15
+            }
+        ],
+        "stock": 191,
+        "price": 18.0
+    },
+    {
+        "id": "p2",
+        "name": "Pain au Chocolat",
+        "ingredients": [
+            {
+                "name": "Flour",
+                "quantity": 115
+            },
+            {
+                "name": "Butter",
+                "quantity": 55
+            },
+            {
+                "name": "Chocolate",
+                "quantity": 20
+            }
+        ],
+        "stock": 58,
+        "price": 22.0
+    },
+    {
+        "id": "p3",
+        "name": "Macaron",
+        "ingredients": [
+            {
+                "name": "Sugar",
+                "quantity": 25
+            },
+            {
+                "name": "Flour",
+                "quantity": 20
+            }
+        ],
+        "stock": 120,
+        "price": 12.0
+    }
+]

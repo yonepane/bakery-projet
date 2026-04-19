@@ -1,0 +1,50 @@
+{
+    "Flour": {
+        "stock": 50000,
+        "price": 0.01,
+        "unit": "g",
+        "min_threshold": 5000
+    },
+    "Butter": {
+        "stock": 10000,
+        "price": 0.08,
+        "unit": "g",
+        "min_threshold": 1000
+    },
+    "Sugar": {
+        "stock": 20000,
+        "price": 0.015,
+        "unit": "g",
+        "min_threshold": 2000
+    },
+    "Chocolate": {
+        "stock": 5000,
+        "price": 0.12,
+        "unit": "g",
+        "min_threshold": 500
+    },
+    "Eggs": {
+        "stock": 500,
+        "price": 1.5,
+        "unit": "pcs",
+        "min_threshold": 50
+    },
+    "Milk": {
+        "stock": 10000,
+        "price": 0.008,
+        "unit": "ml",
+        "min_threshold": 1000
+    },
+    "Cream": {
+        "stock": 5000,
+        "price": 0.04,
+        "unit": "ml",
+        "min_threshold": 500
+    },
+    "Yeast": {
+        "stock": 1000,
+        "price": 0.05,
+        "unit": "g",
+        "min_threshold": 100
+    }
+}
