@@ -246,6 +246,39 @@ const Dashboard: React.FC = () => {
     } catch (e: any) { alert(e.response?.data?.detail || "Failed to update recipe"); }
   };
 
+  const handlePlanBatch = async (productId: string, qty: number, date: string) => {
+    const newPlan = [...planner, {
+        id: Math.random().toString(36).substr(2, 9),
+        date,
+        product_id: productId,
+        quantity: qty,
+        status: 'pending'
+    }];
+    try {
+        await axios.post(`${API_BASE}/planner`, newPlan);
+        fetchData();
+    } catch (e) { console.error(e); }
+  };
+
+  const handleCompletePlan = async (planId: string) => {
+    const item = planner.find(p => p.id === planId);
+    if (!item) return;
+    
+    try {
+        // 1. Produce the batch
+        await axios.post(`${API_BASE}/produce`, { product_id: item.product_id, quantity: item.quantity });
+        
+        // 2. Mark as completed in planner
+        const newPlan = planner.map(p => p.id === planId ? { ...p, status: 'completed' } : p);
+        await axios.post(`${API_BASE}/planner`, newPlan);
+        
+        fetchData();
+        alert("Batch Produced and Plan Updated");
+    } catch (e: any) {
+        alert(e.response?.data?.detail || "Failed to complete production");
+    }
+  };
+
   if (loading) return (
     <div className="h-screen w-screen flex flex-col items-center justify-center bg-charcoal text-gold">
        <div className="w-16 h-16 border-4 border-gold/20 border-t-gold rounded-full animate-spin mb-4"></div>
@@ -678,18 +711,23 @@ const Dashboard: React.FC = () => {
                 <div className={`lg:col-span-2 p-8 rounded-[2.5rem] border transition-colors ${isDarkMode ? 'border-white/5 bg-black/20' : 'border-slate-200 bg-white shadow-sm'}`}>
                   <h3 className={`text-xl font-bold luxury-font uppercase mb-10 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Production Schedule</h3>
                   <div className="space-y-4">
-                    {planner.map(item => (
-                      <div key={item.id} className={`p-6 rounded-2xl border flex justify-between items-center ${isDarkMode ? 'bg-white/5 border-white/5' : 'bg-slate-50 border-slate-100'}`}>
+                    {planner.slice().reverse().map(item => (
+                      <div key={item.id} className={`p-6 rounded-2xl border flex justify-between items-center transition-all ${isDarkMode ? 'bg-white/5 border-white/5' : 'bg-slate-50 border-slate-100'}`}>
                         <div className="flex items-center gap-4">
-                          <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${isDarkMode ? 'bg-gold/10 text-gold' : 'bg-slate-200 text-slate-900'}`}><Calendar size={20}/></div>
+                          <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${item.status === 'completed' ? 'bg-emerald-500/10 text-emerald-500' : (isDarkMode ? 'bg-gold/10 text-gold' : 'bg-slate-200 text-slate-900')}`}><Calendar size={20}/></div>
                           <div>
                             <p className={`font-bold ${isDarkMode ? 'text-cream' : 'text-slate-900'}`}>{inventory.products.find(p => p.id === item.product_id)?.name}</p>
                             <p className="text-[10px] font-black uppercase tracking-widest text-gold">{item.date}</p>
                           </div>
                         </div>
-                        <div className="text-right">
-                          <p className={`font-bold ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{item.quantity} Units</p>
-                          <span className={`text-[10px] font-black uppercase tracking-widest ${item.status === 'completed' ? 'text-emerald-500' : 'text-gold'}`}>{item.status}</span>
+                        <div className="flex items-center gap-8">
+                            <div className="text-right">
+                            <p className={`font-bold ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{item.quantity} Units</p>
+                            <span className={`text-[10px] font-black uppercase tracking-widest ${item.status === 'completed' ? 'text-emerald-500' : 'text-gold'}`}>{item.status}</span>
+                            </div>
+                            {item.status === 'pending' && (
+                                <button onClick={() => handleCompletePlan(item.id)} className={`p-2 rounded-lg transition-all ${isDarkMode ? 'bg-gold/10 text-gold hover:bg-gold hover:text-charcoal' : 'bg-slate-900 text-white hover:bg-slate-700'}`}><Zap size={16}/></button>
+                            )}
                         </div>
                       </div>
                     ))}
@@ -698,19 +736,27 @@ const Dashboard: React.FC = () => {
                 </div>
                 <div className={`p-8 rounded-[2.5rem] border transition-colors ${isDarkMode ? 'border-gold/10 bg-black/20' : 'border-slate-200 bg-white shadow-sm'}`}>
                   <h3 className={`text-xl font-bold luxury-font uppercase mb-10 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Quick Plan</h3>
-                  <div className="space-y-6">
+                  <form onSubmit={(e) => {
+                      e.preventDefault();
+                      const form = e.target as any;
+                      handlePlanBatch(form.product.value, parseInt(form.qty.value), form.date.value);
+                  }} className="space-y-6">
                     <div>
                       <label className={`text-[10px] font-black uppercase tracking-widest mb-2 block ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>Select Entity</label>
-                      <select className={`w-full border rounded-xl px-4 py-3 font-bold outline-none transition-all ${isDarkMode ? 'bg-[#1a1a1c] border-white/10 text-cream focus:border-gold/40' : 'bg-slate-50 border-slate-200 text-slate-900 focus:border-slate-400'}`}>
+                      <select name="product" className={`w-full border rounded-xl px-4 py-3 font-bold outline-none transition-all ${isDarkMode ? 'bg-[#1a1a1c] border-white/10 text-cream focus:border-gold/40' : 'bg-slate-50 border-slate-200 text-slate-900 focus:border-slate-400'}`}>
                         {inventory.products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                       </select>
                     </div>
                     <div>
                       <label className={`text-[10px] font-black uppercase tracking-widest mb-2 block ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>Batch Size</label>
-                      <input type="number" defaultValue={50} className={`w-full border rounded-xl px-4 py-3 font-bold outline-none transition-all ${isDarkMode ? 'bg-[#1a1a1c] border-white/10 text-cream focus:border-gold/40' : 'bg-slate-50 border-slate-200 text-slate-900 focus:border-slate-400'}`} />
+                      <input name="qty" type="number" defaultValue={50} className={`w-full border rounded-xl px-4 py-3 font-bold outline-none transition-all ${isDarkMode ? 'bg-[#1a1a1c] border-white/10 text-cream focus:border-gold/40' : 'bg-slate-50 border-slate-200 text-slate-900 focus:border-slate-400'}`} />
                     </div>
-                    <button className={`w-full py-4 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${isDarkMode ? 'bg-gold text-charcoal shadow-gold-glow active:scale-95' : 'bg-slate-900 text-white shadow-xl active:scale-95'}`}>Schedule Batch</button>
-                  </div>
+                    <div>
+                      <label className={`text-[10px] font-black uppercase tracking-widest mb-2 block ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>Target Date</label>
+                      <input name="date" type="date" defaultValue={new Date().toISOString().split('T')[0]} className={`w-full border rounded-xl px-4 py-3 font-bold outline-none transition-all ${isDarkMode ? 'bg-[#1a1a1c] border-white/10 text-cream focus:border-gold/40' : 'bg-slate-50 border-slate-200 text-slate-900 focus:border-slate-400'}`} />
+                    </div>
+                    <button type="submit" className={`w-full py-4 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${isDarkMode ? 'bg-gold text-charcoal shadow-gold-glow active:scale-95' : 'bg-slate-900 text-white shadow-xl active:scale-95'}`}>Schedule Batch</button>
+                  </form>
                 </div>
               </div>
             )}
