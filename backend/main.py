@@ -441,6 +441,67 @@ async def delete_product(id: str):
         return {"success": True}
     raise HTTPException(status_code=404, detail="Product not found")
 
+import httpx
+
+@app.get("/api/external-recipes/search")
+async def search_external_recipes(query: str):
+    async with httpx.AsyncClient() as client:
+        # Use TheMealDB free tier for recipes
+        url = f"https://www.themealdb.com/api/json/v1/1/search.php?s={query}"
+        response = await client.get(url)
+        data = response.json()
+        
+        results = []
+        if data.get("meals"):
+            for meal in data["meals"]:
+                # Only include desserts/pastries if possible, or just all if specific query
+                results.append({
+                    "id": meal["idMeal"],
+                    "name": meal["strMeal"],
+                    "category": meal["strCategory"],
+                    "thumb": meal["strMealThumb"]
+                })
+        return results
+
+@app.get("/api/external-recipes/{recipe_id}/details")
+async def get_external_recipe_details(recipe_id: str):
+    async with httpx.AsyncClient() as client:
+        url = f"https://www.themealdb.com/api/json/v1/1/lookup.php?i={recipe_id}"
+        response = await client.get(url)
+        data = response.json()
+        
+        if not data.get("meals"):
+            raise HTTPException(status_code=404, detail="Recipe not found")
+            
+        meal = data["meals"][0]
+        ingredients = []
+        
+        # TheMealDB uses strIngredient1, strIngredient2... strIngredient20
+        for i in range(1, 21):
+            name = meal.get(f"strIngredient{i}")
+            measure = meal.get(f"strMeasure{i}")
+            
+            if name and name.strip():
+                # Extract numeric quantity if possible, otherwise default to 0
+                qty = 0
+                if measure:
+                    # Simple extraction: find the first number in the measure string
+                    import re
+                    match = re.search(r"(\d+)", measure)
+                    if match:
+                        qty = float(match.group(1))
+                
+                ingredients.append({
+                    "name": name.strip().title(),
+                    "quantity": qty
+                })
+        
+        return {
+            "name": meal["strMeal"],
+            "ingredients": ingredients,
+            "thumb": meal["strMealThumb"]
+        }
+
 # Mount static files
 if os.path.exists(FRONTEND_DIR):
     assets_path = os.path.join(FRONTEND_DIR, "dist", "assets")

@@ -115,6 +115,11 @@ const Dashboard: React.FC = () => {
   const [newProduct, setNewProduct] = useState<any>({ id: '', name: '', price: 0, icon: '🥐', ingredients: [] });
   const [newMaterial, setNewMaterial] = useState<any>({ name: '', price: 0, unit: 'g', min_threshold: 1000 });
 
+  // Recipe Search States
+  const [recipeSearchQuery, setRecipeSearchQuery] = useState('');
+  const [recipeSearchResults, setRecipeSearchResults] = useState<any[]>([]);
+  const [isSearchingRecipes, setIsSearchingRecipes] = useState(false);
+
   const formatPrice = (amount: number) => {
     const rate = settings?.conversions?.[activeCurrency] || 1;
     return (amount * rate).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ' + activeCurrency;
@@ -244,6 +249,35 @@ const Dashboard: React.FC = () => {
       await axios.put(`${API_BASE}/products/${productId}`, { ingredients });
       fetchData();
     } catch (e: any) { alert(e.response?.data?.detail || "Failed to update recipe"); }
+  };
+
+  const handleSearchRecipes = async () => {
+    if (!recipeSearchQuery.trim()) return;
+    setIsSearchingRecipes(true);
+    try {
+      const res = await axios.get(`${API_BASE}/external-recipes/search?query=${recipeSearchQuery}`);
+      setRecipeSearchResults(res.data);
+    } catch (e) { console.error(e); }
+    finally { setIsSearchingRecipes(false); }
+  };
+
+  const handleImportRecipe = async (recipeId: string) => {
+    try {
+      const res = await axios.get(`${API_BASE}/external-recipes/${recipeId}/details`);
+      const details = res.data;
+      
+      // Auto-fill the new product form
+      setNewProduct({
+        ...newProduct,
+        name: details.name,
+        ingredients: details.ingredients,
+        id: 'p' + (inventory.products.length + 1)
+      });
+      
+      // Clear search
+      setRecipeSearchResults([]);
+      setRecipeSearchQuery('');
+    } catch (e) { console.error(e); }
   };
 
   const handlePlanBatch = async (productId: string, qty: number, date: string) => {
@@ -764,33 +798,84 @@ const Dashboard: React.FC = () => {
         </AnimatePresence>
       </main>
 
-      {/* Add Product Modal */}
       {showAddProduct && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
-            <div className={`w-full max-w-md p-8 rounded-[2.5rem] border shadow-2xl ${isDarkMode ? 'bg-[#121214] border-white/10' : 'bg-white border-slate-200'}`}>
-                <h3 className={`text-2xl font-bold luxury-font mb-8 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>New Entity</h3>
-                <div className="space-y-6">
-                    <div>
-                        <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">Identifier</label>
-                        <input type="text" placeholder="e.g. p4" value={newProduct.id} onChange={(e)=>setNewProduct({...newProduct, id: e.target.value})} className={`w-full bg-transparent border-b py-2 outline-none font-bold ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`} />
-                    </div>
-                    <div>
-                        <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">Display Name</label>
-                        <input type="text" placeholder="e.g. Baguette" value={newProduct.name} onChange={(e)=>setNewProduct({...newProduct, name: e.target.value})} className={`w-full bg-transparent border-b py-2 outline-none font-bold ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`} />
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">Price (MAD)</label>
-                            <input type="number" value={newProduct.price} onChange={(e)=>setNewProduct({...newProduct, price: parseFloat(e.target.value)})} className={`w-full bg-transparent border-b py-2 outline-none font-bold ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`} />
+            <div className={`w-full max-w-2xl p-8 rounded-[2.5rem] border shadow-2xl flex flex-col max-h-[90vh] ${isDarkMode ? 'bg-[#121214] border-white/10' : 'bg-white border-slate-200'}`}>
+                <div className="flex justify-between items-start mb-8">
+                    <h3 className={`text-2xl font-bold luxury-font ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Register Entity</h3>
+                    <button onClick={() => setShowAddProduct(false)} className="text-white/20 hover:text-white"><X size={24}/></button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 overflow-y-auto pr-2 custom-scrollbar">
+                    {/* Left Side: Search & Import */}
+                    <div className="space-y-6">
+                        <div className={`p-6 rounded-2xl border ${isDarkMode ? 'bg-white/5 border-white/10' : 'bg-slate-50 border-slate-200'}`}>
+                            <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-4">Search Online Catalogue</label>
+                            <div className="flex gap-2 mb-4">
+                                <input 
+                                    type="text" 
+                                    placeholder="Search recipes..." 
+                                    value={recipeSearchQuery}
+                                    onChange={(e) => setRecipeSearchQuery(e.target.value)}
+                                    onKeyDown={(e) => e.key === 'Enter' && handleSearchRecipes()}
+                                    className={`flex-1 bg-transparent border-b py-2 outline-none font-bold text-sm ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`}
+                                />
+                                <button onClick={handleSearchRecipes} className="p-2 text-gold hover:scale-110 transition-transform"><Zap size={20}/></button>
+                            </div>
+
+                            <div className="space-y-2 max-h-[300px] overflow-y-auto custom-scrollbar">
+                                {isSearchingRecipes && <div className="py-10 flex justify-center animate-pulse text-gold text-xs font-black uppercase tracking-widest">Querying Global Matrix...</div>}
+                                {recipeSearchResults.map(recipe => (
+                                    <div key={recipe.id} onClick={() => handleImportRecipe(recipe.id)} className={`flex items-center gap-4 p-3 rounded-xl border cursor-pointer transition-all hover:border-gold/40 ${isDarkMode ? 'bg-black/20 border-white/5' : 'bg-white border-slate-100'}`}>
+                                        <img src={recipe.thumb} className="w-12 h-12 rounded-lg object-cover" alt={recipe.name} />
+                                        <div className="flex-1 min-w-0">
+                                            <p className={`font-bold text-xs truncate ${isDarkMode ? 'text-cream' : 'text-slate-900'}`}>{recipe.name}</p>
+                                            <p className="text-[10px] text-gold uppercase font-bold">{recipe.category}</p>
+                                        </div>
+                                        <Plus size={14} className="text-gold opacity-40" />
+                                    </div>
+                                ))}
+                            </div>
                         </div>
-                        <div>
-                            <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">Icon</label>
-                            <input type="text" value={newProduct.icon} onChange={(e)=>setNewProduct({...newProduct, icon: e.target.value})} className={`w-full bg-transparent border-b py-2 outline-none font-bold ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`} />
-                        </div>
                     </div>
-                    <div className="flex gap-3 pt-6">
-                        <button onClick={() => setShowAddProduct(false)} className={`flex-1 py-4 rounded-xl font-bold text-[10px] uppercase tracking-widest ${isDarkMode ? 'bg-white/5 text-white' : 'bg-slate-100 text-slate-900'}`}>Cancel</button>
-                        <button onClick={handleAddProduct} className="flex-1 py-4 rounded-xl font-black text-[10px] uppercase tracking-widest bg-gold text-charcoal shadow-gold-glow">Register</button>
+
+                    {/* Right Side: Manual Entry & Preview */}
+                    <div className="space-y-6">
+                        <div className="space-y-4">
+                            <div>
+                                <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-1">Identifier</label>
+                                <input type="text" placeholder="e.g. p4" value={newProduct.id} onChange={(e)=>setNewProduct({...newProduct, id: e.target.value})} className={`w-full bg-transparent border-b py-2 outline-none font-bold ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`} />
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-1">Display Name</label>
+                                <input type="text" placeholder="e.g. Baguette" value={newProduct.name} onChange={(e)=>setNewProduct({...newProduct, name: e.target.value})} className={`w-full bg-transparent border-b py-2 outline-none font-bold ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`} />
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-1">Price (MAD)</label>
+                                    <input type="number" value={newProduct.price} onChange={(e)=>setNewProduct({...newProduct, price: parseFloat(e.target.value)})} className={`w-full bg-transparent border-b py-2 outline-none font-bold ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`} />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-1">Icon</label>
+                                    <input type="text" value={newProduct.icon} onChange={(e)=>setNewProduct({...newProduct, icon: e.target.value})} className={`w-full bg-transparent border-b py-2 outline-none font-bold ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`} />
+                                </div>
+                            </div>
+                            
+                            <div className="pt-4">
+                                <p className="text-[10px] font-black uppercase tracking-widest text-gold mb-3">Ingredient Preview ({newProduct.ingredients.length})</p>
+                                <div className="space-y-2">
+                                    {newProduct.ingredients.slice(0, 5).map((ing: any, i: number) => (
+                                        <div key={i} className="flex justify-between text-[10px] font-bold uppercase tracking-widest opacity-40">
+                                            <span>{ing.name}</span>
+                                            <span>{ing.quantity}g</span>
+                                        </div>
+                                    ))}
+                                    {newProduct.ingredients.length > 5 && <p className="text-[10px] opacity-20">+{newProduct.ingredients.length - 5} more...</p>}
+                                </div>
+                            </div>
+                        </div>
+
+                        <button onClick={handleAddProduct} className="w-full py-5 rounded-2xl font-black text-xs uppercase tracking-widest bg-gold text-charcoal shadow-gold-glow active:scale-95 transition-all mt-4">Commit to Registry</button>
                     </div>
                 </div>
             </div>
