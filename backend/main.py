@@ -90,9 +90,15 @@ class BakeryEngine:
                 }
             ],
             'transactions.json': [],
+            'planner.json': [],
             'settings.json': {
                 "currency": "MAD",
-                "tax_rate": 0.20
+                "tax_rate": 0.20,
+                "conversions": {
+                    "MAD": 1,
+                    "EUR": 0.092,
+                    "USD": 0.10
+                }
             }
         }
         for filename, default_content in files.items():
@@ -125,6 +131,7 @@ class BakeryEngine:
         materials = self._load('raw_materials.json')
         products = self._load('recipes.json')
         transactions = self._load('transactions.json')
+        planner = self._load('planner.json')
         settings = self._load('settings.json')
         
         # Inject live cost calculation
@@ -135,6 +142,7 @@ class BakeryEngine:
             "materials": materials,
             "products": products,
             "transactions": transactions,
+            "planner": planner,
             "settings": settings
         }
 
@@ -180,8 +188,8 @@ class BakeryEngine:
         }
 
         transactions.append(transaction)
-        self._save('recipes', recipes)
-        self._save('transactions', transactions)
+        self._save('recipes.json', recipes)
+        self._save('transactions.json', transactions)
         return transaction
 
     def produce(self, product_id: str, batch_qty: int):
@@ -233,6 +241,26 @@ async def inventory():
 @app.get("/api/data")
 async def get_all_data():
     return engine.get_full_data()
+
+@app.get("/api/history")
+async def get_history():
+    data = engine.get_full_data()
+    return data["transactions"]
+
+@app.get("/api/planner")
+async def get_planner():
+    data = engine.get_full_data()
+    return data["planner"]
+
+@app.post("/api/planner")
+async def update_planner(plan: List[Dict]):
+    engine._save('planner.json', plan)
+    return {"success": True}
+
+@app.get("/api/settings")
+async def get_settings():
+    data = engine.get_full_data()
+    return data["settings"]
 
 @app.post("/api/produce")
 async def produce(batch: ProductionBatch):
