@@ -852,24 +852,38 @@ const Dashboard: React.FC = () => {
                             <p className={`text-[10px] font-black uppercase tracking-[0.2em] text-gold mb-1`}>{name}</p>
                             <p className={`text-xs font-bold ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>Current: {formatPrice(data.price)} / {data.unit}</p>
                           </div>
-                          <div className="text-right">
-                             <p className={`text-sm font-black ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{formatPrice(simPrices[name] || data.price)}</p>
+                          <div className="text-right flex flex-col items-end gap-2">
+                             <div className="flex items-center gap-2">
+                                <span className="text-[10px] font-black opacity-20 uppercase tracking-widest">New Price:</span>
+                                <input 
+                                    type="number" 
+                                    step="0.01"
+                                    value={simPrices[name] !== undefined ? simPrices[name] : data.price}
+                                    onChange={(e) => {
+                                        const val = parseFloat(e.target.value) || 0;
+                                        const newPrices = {...simPrices, [name]: val};
+                                        setSimPrices(newPrices);
+                                        if (simulationResult.length) runSimulation();
+                                    }}
+                                    className={`w-20 bg-transparent border-b border-gold/40 text-right font-black text-sm outline-none ${isDarkMode ? 'text-white' : 'text-slate-900'}`}
+                                />
+                                <span className="text-[10px] font-bold opacity-40">{activeCurrency}</span>
+                             </div>
                              <p className={`text-[10px] font-bold uppercase ${ (simPrices[name] || data.price) > data.price ? 'text-rose-500' : 'text-emerald-500'}`}>
-                                {(((simPrices[name] || data.price) - data.price) / data.price * 100).toFixed(1)}% Change
+                                {data.price > 0 ? ((((simPrices[name] || data.price) - data.price) / data.price * 100).toFixed(1)) : 'NEW'}% Change
                              </p>
                           </div>
                         </div>
                         
                         <input 
                           type="range" 
-                          min={data.price * 0.5} 
-                          max={data.price * 2} 
-                          step={data.price * 0.01}
-                          value={simPrices[name] || data.price}
+                          min={data.price > 0 ? data.price * 0.5 : 0} 
+                          max={data.price > 0 ? data.price * 2 : 100} 
+                          step={data.price > 0 ? data.price * 0.01 : 1}
+                          value={simPrices[name] !== undefined ? simPrices[name] : data.price}
                           onChange={(e) => {
                               const newPrices = {...simPrices, [name]: parseFloat(e.target.value)};
                               setSimPrices(newPrices);
-                              // Real-time update if results already exist
                               if (simulationResult.length) runSimulation();
                           }}
                           className="w-full h-1.5 bg-white/10 rounded-lg appearance-none cursor-pointer accent-gold"
