@@ -90,12 +90,16 @@ interface PlanItem {
 }
 
 const Dashboard: React.FC = () => {
+  const [user, setUser] = useState<{username: string, role: string} | null>(null);
+  const [loginForm, setLoginForm] = useState({ username: '', password: '' });
+  
   const [activeTab, setActiveTab] = useState('dashboard');
   const [inventory, setInventory] = useState<{ materials: Record<string, Ingredient>, products: Product[] }>({ materials: {}, products: [] });
   const [analytics, setAnalytics] = useState({ revenue: 0, cost: 0, currency: 'MAD', chartData: [] });
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [history, setHistory] = useState<Transaction[]>([]);
   const [planner, setPlanner] = useState<PlanItem[]>([]);
+  const [orders, setOrders] = useState<any[]>([]);
   const [settings, setSettings] = useState<any>({ conversions: { MAD: 1, EUR: 0.092, USD: 0.10 }, currency: 'MAD' });
   const [loading, setLoading] = useState(true);
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -112,8 +116,10 @@ const Dashboard: React.FC = () => {
   // Management States
   const [showAddProduct, setShowAddProduct] = useState(false);
   const [showAddMaterial, setShowAddMaterial] = useState(false);
+  const [showWasteModal, setShowWasteModal] = useState(false);
   const [newProduct, setNewProduct] = useState<any>({ id: '', name: '', price: 0, icon: '🥐', ingredients: [] });
   const [newMaterial, setNewMaterial] = useState<any>({ name: '', price: 0, unit: 'g', min_threshold: 1000 });
+  const [wasteForm, setWasteForm] = useState({ product_id: '', quantity: 1 });
 
   // Recipe Search States
   const [recipeSearchQuery, setRecipeSearchQuery] = useState('');
@@ -132,14 +138,16 @@ const Dashboard: React.FC = () => {
   };
 
   const fetchData = async () => {
+    if (!user) return;
     try {
-      const [invRes, anaRes, aleRes, histRes, planRes, settRes] = await Promise.all([
+      const [invRes, anaRes, aleRes, histRes, planRes, settRes, ordRes] = await Promise.all([
         axios.get(`${API_BASE}/inventory`),
         axios.get(`${API_BASE}/analytics`),
         axios.get(`${API_BASE}/alerts`),
         axios.get(`${API_BASE}/history`),
         axios.get(`${API_BASE}/planner`),
-        axios.get(`${API_BASE}/settings`)
+        axios.get(`${API_BASE}/settings`),
+        axios.get(`${API_BASE}/orders`)
       ]);
       setInventory(invRes.data);
       setAnalytics(anaRes.data);
@@ -147,6 +155,7 @@ const Dashboard: React.FC = () => {
       setHistory(histRes.data);
       setPlanner(planRes.data);
       setSettings(settRes.data);
+      setOrders(ordRes.data);
       
       const initialPrices: Record<string, number> = {};
       Object.entries(invRes.data.materials as Record<string, Ingredient>).forEach(([name, data]) => {
@@ -160,11 +169,70 @@ const Dashboard: React.FC = () => {
     }
   };
 
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const res = await axios.post(`${API_BASE}/auth/login`, loginForm);
+      setUser(res.data);
+    } catch (err) {
+      alert("Invalid credentials");
+    }
+  };
+
   useEffect(() => {
-    fetchData();
-    const interval = setInterval(fetchData, 30000);
-    return () => clearInterval(interval);
-  }, []);
+    if (user) {
+        fetchData();
+        const interval = setInterval(fetchData, 30000);
+        return () => clearInterval(interval);
+    }
+  }, [user]);
+
+  if (!user) {
+    return (
+      <div className={`min-h-screen flex items-center justify-center ${isDarkMode ? 'bg-[#0a0a0b] text-white' : 'bg-slate-50 text-slate-900'}`}>
+        <motion.div 
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className={`p-12 rounded-[3rem] border w-full max-w-md ${isDarkMode ? 'bg-black/40 border-gold/20 shadow-gold-glow' : 'bg-white border-slate-200 shadow-2xl'}`}
+        >
+          <div className="text-center mb-10">
+            <div className="text-6xl mb-6">🥐</div>
+            <h1 className="text-4xl font-bold luxury-font tracking-tighter uppercase mb-2">BakeryOS</h1>
+            <p className="text-[10px] font-black uppercase tracking-[0.3em] opacity-40">Luxe Enterprise Terminal</p>
+          </div>
+          
+          <form onSubmit={handleLogin} className="space-y-6">
+            <div>
+              <label className="text-[10px] font-black uppercase tracking-widest opacity-40 mb-2 block">Identifiant</label>
+              <input 
+                type="text" 
+                value={loginForm.username}
+                onChange={(e) => setLoginForm({...loginForm, username: e.target.value})}
+                className={`w-full p-4 rounded-2xl border outline-none font-bold transition-all ${isDarkMode ? 'bg-white/5 border-white/10 focus:border-gold/40' : 'bg-slate-50 border-slate-200 focus:border-slate-400'}`}
+                placeholder="Username"
+              />
+            </div>
+            <div>
+              <label className="text-[10px] font-black uppercase tracking-widest opacity-40 mb-2 block">Mot de Passe</label>
+              <input 
+                type="password" 
+                value={loginForm.password}
+                onChange={(e) => setLoginForm({...loginForm, password: e.target.value})}
+                className={`w-full p-4 rounded-2xl border outline-none font-bold transition-all ${isDarkMode ? 'bg-white/5 border-white/10 focus:border-gold/40' : 'bg-slate-50 border-slate-200 focus:border-slate-400'}`}
+                placeholder="••••••••"
+              />
+            </div>
+            <button className={`w-full py-5 rounded-2xl font-black text-xs uppercase tracking-widest transition-all ${isDarkMode ? 'bg-gold text-charcoal shadow-gold-glow' : 'bg-slate-900 text-white shadow-xl'}`}>
+              Access Terminal
+            </button>
+          </form>
+          <div className="mt-8 text-center">
+            <button onClick={async () => { await axios.get(`${API_BASE}/seed`); alert("Users seeded: admin/password"); }} className="text-[10px] font-bold uppercase tracking-widest opacity-20 hover:opacity-100 transition-opacity underline">Seed Default Users</button>
+          </div>
+        </motion.div>
+      </div>
+    );
+  }
 
   const handleProduce = async (productId: string, qty: number) => {
     try {
@@ -189,9 +257,20 @@ const Dashboard: React.FC = () => {
   const finalizeSale = async () => {
     if (cart.length === 0) return;
     try {
-      await axios.post(`${API_BASE}/complete`, { cart: cart.map(item => ({ id: item.id, qty: item.qty })) });
+      const res = await axios.post(`${API_BASE}/complete`, { cart: cart.map(item => ({ id: item.id, qty: item.qty })) });
+      const { transaction_id, whatsapp_text } = res.data;
       setCart([]);
       fetchData();
+      
+      const choice = window.confirm("Sale completed! Print Receipt? (Cancel to share via WhatsApp)");
+      if (choice) {
+        window.open(`${API_BASE}/transactions/${transaction_id}/receipt`, '_blank');
+      } else if (window.confirm("Share receipt via WhatsApp?")) {
+        const phone = window.prompt("Enter customer phone number (with country code):");
+        if (phone) {
+          window.open(`https://wa.me/${phone.replace(/\D/g,'')}?text=${encodeURIComponent(whatsapp_text)}`, '_blank');
+        }
+      }
     } catch (error: any) {
       alert(error.response?.data?.detail || "Sale failed");
     }
@@ -343,8 +422,13 @@ const Dashboard: React.FC = () => {
               { id: 'fiche', icon: FileText, label: 'Fiche Technique' },
               { id: 'simulator', icon: Calculator, label: 'Simulator' },
               { id: 'history', icon: HistoryIcon, label: 'History' },
-              { id: 'planner', icon: Calendar, label: 'Planner' },
-            ].map((item) => (
+              { id: 'planner', icon: Calendar, label: 'Batch Planner' },
+              { id: 'orders', icon: FileText, label: 'Pre-Orders' },
+              ].filter(item => {
+              if (user?.role === 'cashier' && ['simulator', 'planner', 'inventory'].includes(item.id)) return false;
+              return true;
+              }).map((item) => (
+
               <button
                 key={item.id}
                 onClick={() => setActiveTab(item.id)}
@@ -374,16 +458,23 @@ const Dashboard: React.FC = () => {
             ))}
           </div>
 
-          <button 
-            onClick={() => setEditMode(!editMode)}
-            className={`w-full flex items-center justify-center gap-2 py-4 rounded-xl font-bold text-xs uppercase tracking-widest transition-all ${
-                editMode ? 'bg-rose-500 text-white shadow-lg' : (isDarkMode ? 'bg-gold text-charcoal shadow-gold-glow' : 'bg-slate-900 text-white shadow-xl')
-            }`}
-          >
-            {editMode ? <X size={16}/> : <Edit2 size={16}/>}
-            {editMode ? 'Exit Control' : 'Master Control'}
-          </button>
-        </div>
+          <button onClick={() => setShowWasteModal(true)} className={`w-full py-4 rounded-xl font-bold text-xs uppercase tracking-widest border border-rose-500/20 text-rose-500 hover:bg-rose-500/10 transition-all`}>Log Daily Waste</button>
+
+          {user?.role === 'owner' && (
+            <button
+              onClick={() => setEditMode(!editMode)}
+              className={`w-full flex items-center justify-center gap-2 py-4 rounded-xl font-bold text-xs uppercase tracking-widest transition-all ${
+                  editMode ? 'bg-rose-500 text-white shadow-lg' : (isDarkMode ? 'bg-gold text-charcoal shadow-gold-glow' : 'bg-slate-900 text-white shadow-xl')
+              }`}
+            >
+              {editMode ? <X size={16}/> : <Edit2 size={16}/>}
+              {editMode ? 'Exit Control' : 'Master Control'}
+            </button>
+          )}
+
+          <button onClick={() => setUser(null)} className="w-full text-[10px] font-black uppercase tracking-widest opacity-20 hover:opacity-100 transition-opacity">Disconnect Terminal</button>
+          </div>
+
       </aside>
 
       {/* Main Content */}
@@ -426,7 +517,7 @@ const Dashboard: React.FC = () => {
                   {[
                     { label: 'Total Revenue', value: formatPrice(analytics.revenue), color: isDarkMode ? 'text-cream' : 'text-slate-900' },
                     { label: 'Total Cost', value: formatPrice(analytics.cost), color: 'text-rose-500' },
-                    { label: 'Net ROI', value: `${analytics.revenue > 0 ? (((analytics.revenue - analytics.cost) / analytics.revenue) * 100).toFixed(1) : 0}%`, color: analytics.revenue > analytics.cost ? 'text-emerald-500' : 'text-rose-500' },
+                    { label: 'Net Profit & ROI', value: `${formatPrice(analytics.revenue - analytics.cost)} (${analytics.revenue > 0 ? (((analytics.revenue - analytics.cost) / analytics.revenue) * 100).toFixed(1) : 0}%)`, color: analytics.revenue > analytics.cost ? 'text-emerald-500' : 'text-rose-500' },
                     { label: 'BOM Entities', value: inventory.products.length, color: isDarkMode ? 'text-gold' : 'text-slate-900' }
                   ].map((stat, i) => (
                     <div key={i} className={`p-6 rounded-[2rem] border transition-colors ${isDarkMode ? 'border-white/5 bg-black/20' : 'border-slate-200 bg-white shadow-sm'}`}>
@@ -511,7 +602,41 @@ const Dashboard: React.FC = () => {
                       <span className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-gold' : 'text-slate-400'}`}>Total Due</span>
                       <span className={`text-5xl font-bold tracking-tighter ${isDarkMode ? 'text-cream' : 'text-slate-900'}`}>{formatPrice(cart.reduce((a,c)=>a+(c.price*c.qty),0)).split(' ')[0]}</span>
                     </div>
-                    <button onClick={finalizeSale} disabled={cart.length === 0} className={`w-full py-6 font-black rounded-2xl uppercase tracking-widest active:scale-95 transition-all ${isDarkMode ? 'bg-gold text-charcoal shadow-gold-glow' : 'bg-slate-900 text-white shadow-xl'}`}>Finalize Transaction</button>
+                    <div className="flex gap-4">
+                       <button 
+                           onClick={finalizeSale} 
+                           disabled={cart.length === 0} 
+                           className={`flex-1 py-6 font-black rounded-2xl uppercase tracking-widest active:scale-95 transition-all ${isDarkMode ? 'bg-gold text-charcoal shadow-gold-glow' : 'bg-slate-900 text-white shadow-xl'}`}
+                       >
+                           Complete Sale
+                       </button>
+                       <button 
+                           onClick={() => {
+                               const name = window.prompt("Customer Name for Order?");
+                               const phone = window.prompt("Customer Phone?");
+                               const date = window.prompt("Pickup Date (YYYY-MM-DD HH:MM)?", new Date(Date.now() + 86400000).toISOString().slice(0, 16).replace('T', ' '));
+                               if (name && date) {
+                                   axios.post(`${API_BASE}/orders`, {
+                                       customer_name: name,
+                                       customer_phone: phone,
+                                       pickup_date: date.replace(' ', 'T'),
+                                       items: cart.map(i => ({id: i.id, qty: i.qty})),
+                                       deposit_paid: 0
+                                   }).then(() => {
+                                       setCart([]);
+                                       fetchData();
+                                       alert("Pre-Order Saved!");
+                                   });
+                               }
+                           }} 
+                           disabled={cart.length === 0}
+                           className={`p-6 rounded-2xl border transition-all ${isDarkMode ? 'border-white/10 bg-white/5 text-gold hover:bg-white/10' : 'border-slate-200 bg-white text-slate-900'}`}
+                           title="Save as Pre-Order"
+                       >
+                           <Calendar size={20} />
+                       </button>
+                    </div>
+
                   </div>
                 </div>
               </div>
@@ -530,25 +655,29 @@ const Dashboard: React.FC = () => {
                             <tr className={`border-b text-[10px] font-black uppercase tracking-[0.2em] ${isDarkMode ? 'border-white/5 text-cream/40' : 'border-slate-100 text-slate-400'}`}>
                                 <th className="px-8 py-6">Entity</th>
                                 <th className="px-8 py-6">Stock</th>
-                                <th className="px-8 py-6 text-right">Actions</th>
+                                <th className="px-8 py-6 text-right">Margin</th>
                             </tr>
-                        </thead>
-                        <tbody className={`divide-y ${isDarkMode ? 'divide-white/5' : 'divide-slate-100'}`}>
-                            {inventory.products.map(p => (
-                                <tr key={p.id} className="group hover:bg-white/[0.02] transition-colors">
-                                    <td className="px-8 py-6">
-                                        <div className="flex items-center gap-4">
-                                            <span className="text-3xl">{p.icon}</span>
-                                            <p className={`font-bold ${isDarkMode ? 'text-cream' : 'text-slate-900'}`}>{p.name}</p>
-                                        </div>
-                                    </td>
-                                    <td className="px-8 py-6"><span className={`font-bold ${isDarkMode ? 'text-cream/80' : 'text-slate-600'}`}>{p.stock} Units</span></td>
-                                    <td className="px-8 py-6 text-right">
-                                        <button onClick={() => handleProduce(p.id, 10)} className={`px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${isDarkMode ? 'bg-white/5 hover:bg-gold hover:text-charcoal' : 'bg-slate-100 hover:bg-slate-900 hover:text-white'}`}>Restock +10</button>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
+                            </thead>
+                            <tbody className={`divide-y ${isDarkMode ? 'divide-white/5' : 'divide-slate-100'}`}>
+                            {inventory.products.map(p => {
+                                const margin = p.price > 0 ? ((p.price - (p.live_cost || 0)) / p.price * 100) : 0;
+                                return (
+                                    <tr key={p.id} className="group hover:bg-white/[0.02] transition-colors">
+                                        <td className="px-8 py-6">
+                                            <div className="flex items-center gap-4">
+                                                <span className="text-3xl">{p.icon}</span>
+                                                <p className={`font-bold ${isDarkMode ? 'text-cream' : 'text-slate-900'}`}>{p.name}</p>
+                                            </div>
+                                        </td>
+                                        <td className="px-8 py-6"><span className={`font-bold ${isDarkMode ? 'text-cream/80' : 'text-slate-600'}`}>{p.stock} Units</span></td>
+                                        <td className="px-8 py-6 text-right">
+                                            <span className={`text-xs font-bold ${margin > 30 ? 'text-emerald-500' : 'text-rose-500'}`}>{margin.toFixed(1)}%</span>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                            </tbody>
+
                     </table>
                   </div>
 
@@ -562,25 +691,31 @@ const Dashboard: React.FC = () => {
                             <tr className={`border-b text-[10px] font-black uppercase tracking-[0.2em] ${isDarkMode ? 'border-white/5 text-cream/40' : 'border-slate-100 text-slate-400'}`}>
                                 <th className="px-8 py-6">Ingredient</th>
                                 <th className="px-8 py-6">Level</th>
-                                <th className="px-8 py-6 text-right">Actions</th>
+                                <th className="px-8 py-6">Supplier</th>
                             </tr>
                         </thead>
                         <tbody className={`divide-y ${isDarkMode ? 'divide-white/5' : 'divide-slate-100'}`}>
                             {Object.entries(inventory.materials).map(([name, data]) => (
                                 <tr key={name} className="group hover:bg-white/[0.02] transition-colors">
-                                    <td className="px-8 py-6 font-bold">{name}</td>
                                     <td className="px-8 py-6">
-                                        <span className={`font-bold ${data.stock < data.min_threshold ? 'text-rose-500' : (isDarkMode ? 'text-gold' : 'text-slate-900')}`}>
+                                        <p className={`font-bold ${isDarkMode ? 'text-cream' : 'text-slate-900'}`}>{name}</p>
+                                        <p className={`text-[10px] uppercase font-bold tracking-widest ${isDarkMode ? 'text-gold/60' : 'text-slate-400'}`}>{formatPrice(data.price)} / {data.unit}</p>
+                                    </td>
+                                    <td className="px-8 py-6 font-bold">
+                                        <span className={`${data.stock < data.min_threshold ? 'text-rose-500' : (isDarkMode ? 'text-gold' : 'text-slate-900')}`}>
                                             {displayUnit(data.stock, data.unit)}
                                         </span>
                                     </td>
-                                    <td className="px-8 py-6 text-right">
-                                        <button onClick={() => handleDeleteMaterial(name)} className="text-rose-500/20 hover:text-rose-500 transition-colors"><Trash2 size={16}/></button>
+                                    <td className="px-8 py-6">
+                                        <span className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-cream/20' : 'text-slate-300'}`}>
+                                            {(data as any).supplier || 'Standard'}
+                                        </span>
                                     </td>
                                 </tr>
                             ))}
                         </tbody>
                     </table>
+
                   </div>
                 </div>
               </div>
@@ -721,7 +856,32 @@ const Dashboard: React.FC = () => {
                     {history.slice().reverse().map(tx => (
                       <tr key={tx.id} className="group hover:bg-white/[0.02] transition-colors">
                         <td className="px-8 py-6">
-                          <p className={`font-bold ${isDarkMode ? 'text-cream' : 'text-slate-900'}`}>{tx.id}</p>
+                          <div className="flex items-center gap-3">
+                            <p className={`font-bold ${isDarkMode ? 'text-cream' : 'text-slate-900'}`}>{tx.id}</p>
+                            {tx.type === 'sale' && (
+                              <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                                <button 
+                                  onClick={() => window.open(`${API_BASE}/transactions/${tx.id}/receipt`, '_blank')}
+                                  className={`p-2 rounded-lg ${isDarkMode ? 'bg-gold/10 text-gold' : 'bg-slate-100 text-slate-900'}`}
+                                  title="Print Receipt"
+                                >
+                                  <FileText size={14} />
+                                </button>
+                                <button 
+                                  onClick={() => {
+                                    const itemsText = tx.items?.map((i: any) => `- ${i.name} x${i.qty}`).join('%0A') || '';
+                                    const text = `BAKERY OS: Receipt ${tx.id}%0A${itemsText}%0A%0ATOTAL: ${tx.revenue} MAD`;
+                                    const phone = window.prompt("Customer Phone?");
+                                    if (phone) window.open(`https://wa.me/${phone.replace(/\D/g,'')}?text=${text}`, '_blank');
+                                  }}
+                                  className={`p-2 rounded-lg ${isDarkMode ? 'bg-emerald-500/10 text-emerald-500' : 'bg-emerald-50 text-emerald-600'}`}
+                                  title="Share to WhatsApp"
+                                >
+                                  <Zap size={14} />
+                                </button>
+                              </div>
+                            )}
+                          </div>
                           <p className={`text-[10px] uppercase font-bold tracking-widest ${isDarkMode ? 'text-cream/20' : 'text-slate-300'}`}>
                             {tx.type === 'sale' ? tx.items?.map(i => i.name).join(', ') : tx.product}
                           </p>
@@ -736,67 +896,266 @@ const Dashboard: React.FC = () => {
                       </tr>
                     ))}
                   </tbody>
+
                 </table>
               </div>
             )}
 
             {activeTab === 'planner' && (
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                <div className={`lg:col-span-2 p-8 rounded-[2.5rem] border transition-colors ${isDarkMode ? 'border-white/5 bg-black/20' : 'border-slate-200 bg-white shadow-sm'}`}>
-                  <h3 className={`text-xl font-bold luxury-font uppercase mb-10 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Production Schedule</h3>
-                  <div className="space-y-4">
-                    {planner.slice().reverse().map(item => (
-                      <div key={item.id} className={`p-6 rounded-2xl border flex justify-between items-center transition-all ${isDarkMode ? 'bg-white/5 border-white/5' : 'bg-slate-50 border-slate-100'}`}>
-                        <div className="flex items-center gap-4">
-                          <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${item.status === 'completed' ? 'bg-emerald-500/10 text-emerald-500' : (isDarkMode ? 'bg-gold/10 text-gold' : 'bg-slate-200 text-slate-900')}`}><Calendar size={20}/></div>
-                          <div>
-                            <p className={`font-bold ${isDarkMode ? 'text-cream' : 'text-slate-900'}`}>{inventory.products.find(p => p.id === item.product_id)?.name}</p>
-                            <p className="text-[10px] font-black uppercase tracking-widest text-gold">{item.date}</p>
-                          </div>
+              <div className="space-y-8 animate-in fade-in duration-500">
+                <div className={`p-10 rounded-[3.5rem] border transition-colors ${isDarkMode ? 'border-gold/20 bg-black/20 shadow-gold-glow' : 'border-slate-200 bg-white shadow-sm'}`}>
+                  <div className="flex justify-between items-center mb-10">
+                    <div>
+                        <h3 className={`text-2xl font-bold luxury-font uppercase tracking-tighter ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Production Strategy</h3>
+                        <p className={`text-[10px] font-black uppercase tracking-widest mt-1 ${isDarkMode ? 'text-cream/20' : 'text-slate-400'}`}>Operational Batch Planning</p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+                    <div className="space-y-6">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">Initialize Batch</label>
+                        <div className="grid grid-cols-2 gap-4">
+                            <select 
+                                onChange={(e) => {
+                                    const p = inventory.products.find(x => x.id === e.target.value);
+                                    if(p) setPlanner([...planner, { id: Math.random().toString(36).substr(2, 9), date: new Date().toISOString(), product_id: p.id, quantity: 10, status: 'pending' }]);
+                                }}
+                                className={`p-4 rounded-2xl border outline-none font-bold text-sm ${isDarkMode ? 'bg-white/5 border-white/10 text-cream focus:border-gold/40' : 'bg-slate-50 border-slate-200 text-slate-900 focus:border-slate-400'}`}
+                            >
+                                <option value="">Select Entity...</option>
+                                {inventory.products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                            </select>
                         </div>
-                        <div className="flex items-center gap-8">
-                            <div className="text-right">
-                            <p className={`font-bold ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{item.quantity} Units</p>
-                            <span className={`text-[10px] font-black uppercase tracking-widest ${item.status === 'completed' ? 'text-emerald-500' : 'text-gold'}`}>{item.status}</span>
-                            </div>
-                            {item.status === 'pending' && (
-                                <button onClick={() => handleCompletePlan(item.id)} className={`p-2 rounded-lg transition-all ${isDarkMode ? 'bg-gold/10 text-gold hover:bg-gold hover:text-charcoal' : 'bg-slate-900 text-white hover:bg-slate-700'}`}><Zap size={16}/></button>
-                            )}
+
+                        <div className="space-y-4">
+                            {planner.filter(p => p.status === 'pending').map(item => (
+                                <div key={item.id} className={`p-6 rounded-2xl border flex items-center justify-between ${isDarkMode ? 'bg-white/5 border-white/10' : 'bg-white border-slate-100'}`}>
+                                    <div className="flex items-center gap-4">
+                                        <div className="text-2xl">{inventory.products.find(p => p.id === item.product_id)?.icon}</div>
+                                        <div>
+                                            <p className={`font-bold text-sm ${isDarkMode ? 'text-cream' : 'text-slate-900'}`}>{inventory.products.find(p => p.id === item.product_id)?.name}</p>
+                                            <p className="text-[10px] text-gold font-black uppercase tracking-widest">Pending Execution</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-6">
+                                        <input 
+                                            type="number" 
+                                            value={item.quantity}
+                                            onChange={(e) => setPlanner(planner.map(p => p.id === item.id ? { ...p, quantity: parseInt(e.target.value) || 0 } : p))}
+                                            className="w-16 bg-transparent border-b border-gold/20 text-center font-bold text-gold outline-none"
+                                        />
+                                        <button 
+                                            onClick={() => handleProduce(item.product_id, item.quantity)}
+                                            className="p-3 bg-gold/10 text-gold rounded-xl hover:bg-gold hover:text-charcoal transition-all"
+                                        >
+                                            <Zap size={18} />
+                                        </button>
+                                        <button 
+                                            onClick={() => setPlanner(planner.filter(p => p.id !== item.id))}
+                                            className="text-white/10 hover:text-red-500 transition-colors"
+                                        >
+                                            <Trash2 size={18} />
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
                         </div>
-                      </div>
-                    ))}
-                    {planner.length === 0 && <div className="py-20 opacity-10 flex flex-col items-center transition-colors"><Calendar size={48}/><p className="mt-4 font-bold uppercase tracking-widest text-xs">No batches planned</p></div>}
+                    </div>
+
+                    <div className={`p-8 rounded-3xl border ${isDarkMode ? 'bg-white/5 border-white/10' : 'bg-slate-50 border-slate-200'}`}>
+                        <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-gold mb-8">Resource Forecast</h4>
+                        <div className="space-y-6">
+                            {Object.entries(
+                                planner.filter(p => p.status === 'pending').reduce((acc, item) => {
+                                    const prod = inventory.products.find(p => p.id === item.product_id);
+                                    prod?.ingredients.forEach(ing => {
+                                        acc[ing.name] = (acc[ing.name] || 0) + (ing.quantity * item.quantity);
+                                    });
+                                    return acc;
+                                }, {} as Record<string, number>)
+                            ).map(([name, req]) => (
+                                <div key={name} className="flex justify-between items-end">
+                                    <div>
+                                        <p className={`text-xs font-bold ${isDarkMode ? 'text-cream/60' : 'text-slate-500'}`}>{name}</p>
+                                        <p className={`text-lg font-black luxury-font ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
+                                            {displayUnit(req, inventory.materials[name]?.unit || 'g')}
+                                        </p>
+                                    </div>
+                                    <div className="text-right">
+                                        <p className="text-[10px] font-bold text-gold uppercase tracking-widest">Available</p>
+                                        <p className={`text-sm font-bold ${inventory.materials[name]?.stock < req ? 'text-red-500' : 'text-emerald-500'}`}>
+                                            {displayUnit(inventory.materials[name]?.stock || 0, inventory.materials[name]?.unit || 'g')}
+                                        </p>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
                   </div>
                 </div>
-                <div className={`p-8 rounded-[2.5rem] border transition-colors ${isDarkMode ? 'border-gold/10 bg-black/20' : 'border-slate-200 bg-white shadow-sm'}`}>
-                  <h3 className={`text-xl font-bold luxury-font uppercase mb-10 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Quick Plan</h3>
-                  <form onSubmit={(e) => {
-                      e.preventDefault();
-                      const form = e.target as any;
-                      handlePlanBatch(form.product.value, parseInt(form.qty.value), form.date.value);
-                  }} className="space-y-6">
+              </div>
+            )}
+
+            {activeTab === 'orders' && (
+              <div className="space-y-8 animate-in fade-in duration-500">
+                <div className={`p-8 rounded-[3rem] border transition-colors ${isDarkMode ? 'border-gold/20 bg-black/20 shadow-gold-glow' : 'border-slate-200 bg-white shadow-sm'}`}>
+                  <div className="flex justify-between items-center mb-10">
                     <div>
-                      <label className={`text-[10px] font-black uppercase tracking-widest mb-2 block ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>Select Entity</label>
-                      <select name="product" className={`w-full border rounded-xl px-4 py-3 font-bold outline-none transition-all ${isDarkMode ? 'bg-[#1a1a1c] border-white/10 text-cream focus:border-gold/40' : 'bg-slate-50 border-slate-200 text-slate-900 focus:border-slate-400'}`}>
-                        {inventory.products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                      </select>
+                        <h3 className={`text-2xl font-bold luxury-font uppercase tracking-tighter ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Pre-Order Ledger</h3>
+                        <p className={`text-[10px] font-black uppercase tracking-widest mt-1 ${isDarkMode ? 'text-cream/20' : 'text-slate-400'}`}>Tracking {orders.length} active custom bookings</p>
                     </div>
-                    <div>
-                      <label className={`text-[10px] font-black uppercase tracking-widest mb-2 block ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>Batch Size</label>
-                      <input name="qty" type="number" defaultValue={50} className={`w-full border rounded-xl px-4 py-3 font-bold outline-none transition-all ${isDarkMode ? 'bg-[#1a1a1c] border-white/10 text-cream focus:border-gold/40' : 'bg-slate-50 border-slate-200 text-slate-900 focus:border-slate-400'}`} />
-                    </div>
-                    <div>
-                      <label className={`text-[10px] font-black uppercase tracking-widest mb-2 block ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>Target Date</label>
-                      <input name="date" type="date" defaultValue={new Date().toISOString().split('T')[0]} className={`w-full border rounded-xl px-4 py-3 font-bold outline-none transition-all ${isDarkMode ? 'bg-[#1a1a1c] border-white/10 text-cream focus:border-gold/40' : 'bg-slate-50 border-slate-200 text-slate-900 focus:border-slate-400'}`} />
-                    </div>
-                    <button type="submit" className={`w-full py-4 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${isDarkMode ? 'bg-gold text-charcoal shadow-gold-glow active:scale-95' : 'bg-slate-900 text-white shadow-xl active:scale-95'}`}>Schedule Batch</button>
-                  </form>
+                    <button 
+                        onClick={() => {
+                            const name = window.prompt("Customer Name?");
+                            const phone = window.prompt("Customer Phone?");
+                            const date = window.prompt("Pickup Date (YYYY-MM-DD HH:MM)?", new Date().toISOString().slice(0, 16).replace('T', ' '));
+                            if (name && date) {
+                                axios.post(`${API_BASE}/orders`, {
+                                    customer_name: name,
+                                    customer_phone: phone,
+                                    pickup_date: date.replace(' ', 'T'),
+                                    items: [],
+                                    deposit_paid: 0
+                                }).then(() => fetchData());
+                            }
+                        }} 
+                        className={`px-8 py-4 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] transition-all active:scale-95 ${isDarkMode ? 'bg-gold text-charcoal shadow-gold-glow' : 'bg-slate-900 text-white shadow-xl'}`}
+                    >
+                        Create Booking
+                    </button>
+                  </div>
+                  
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left">
+                      <thead>
+                        <tr className={`border-b text-[10px] font-black uppercase tracking-[0.3em] ${isDarkMode ? 'border-white/5 text-cream/40' : 'border-slate-100 text-slate-400'}`}>
+                          <th className="px-8 py-6">Customer Identity</th>
+                          <th className="px-8 py-6">Pickup Schedule</th>
+                          <th className="px-8 py-6">Fulfillment Status</th>
+                          <th className="px-8 py-6 text-right">Connect</th>
+                        </tr>
+                      </thead>
+                      <tbody className={`divide-y ${isDarkMode ? 'divide-white/5' : 'divide-slate-100'}`}>
+                        {orders.map(order => (
+                          <tr key={order.id} className="group hover:bg-white/[0.02] transition-colors">
+                            <td className="px-8 py-6">
+                              <p className={`font-bold text-lg ${isDarkMode ? 'text-cream' : 'text-slate-900'}`}>{order.customer_name}</p>
+                              <p className={`text-[10px] uppercase font-black tracking-widest ${isDarkMode ? 'text-gold' : 'text-slate-500'}`}>Order Ref: {order.id}</p>
+                            </td>
+                            <td className="px-8 py-6">
+                              <div className="flex items-center gap-3">
+                                <Calendar size={14} className="text-gold opacity-40" />
+                                <p className={`text-sm font-bold ${isDarkMode ? 'text-white/60' : 'text-slate-600'}`}>
+                                  {new Date(order.pickup_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                                </p>
+                              </div>
+                            </td>
+                            <td className="px-8 py-6">
+                              <select 
+                                value={order.status}
+                                onChange={async (e) => {
+                                  await axios.patch(`${API_BASE}/orders/${order.id}/status`, null, { params: { status: e.target.value } });
+                                  fetchData();
+                                }}
+                                className={`bg-transparent font-black text-[10px] uppercase tracking-widest outline-none cursor-pointer transition-colors ${
+                                  order.status === 'picked_up' ? 'text-emerald-500' : (order.status === 'ready' ? 'text-gold drop-shadow-gold' : 'text-white/20 hover:text-white/40')
+                                }`}
+                              >
+                                <option value="pending" className="bg-slate-900">Pending</option>
+                                <option value="baking" className="bg-slate-900">Baking</option>
+                                <option value="ready" className="bg-slate-900">Ready</option>
+                                <option value="picked_up" className="bg-slate-900">Picked Up</option>
+                              </select>
+                            </td>
+                            <td className="px-8 py-6 text-right">
+                               <button 
+                                  onClick={() => {
+                                      const text = `Bonjour ${order.customer_name}, votre commande BakeryOS (${order.id}) est maintenant ${order.status.toUpperCase()}! À bientôt! 🥐`;
+                                      window.open(`https://wa.me/${order.customer_phone?.replace(/\D/g,'')}?text=${encodeURIComponent(text)}`, '_blank');
+                                  }}
+                                  className={`p-4 rounded-2xl transition-all active:scale-90 ${isDarkMode ? 'bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500 hover:text-black shadow-emerald-500/20 shadow-lg' : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white'}`}
+                                  title="Share via WhatsApp"
+                               >
+                                 <Zap size={18} fill="currentColor" />
+                               </button>
+                            </td>
+                          </tr>
+                        ))}
+                        {orders.length === 0 && (
+                            <tr>
+                                <td colSpan={4} className="py-20 text-center opacity-10">
+                                    <FileText size={48} className="mx-auto mb-4" />
+                                    <p className="font-black text-[10px] uppercase tracking-widest">No Active Bookings</p>
+                                </td>
+                            </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               </div>
             )}
           </motion.div>
         </AnimatePresence>
       </main>
+
+      {/* Waste Logging Modal */}
+      {showWasteModal && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-black/80 backdrop-blur-xl animate-in fade-in duration-300">
+            <motion.div 
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                className={`w-full max-w-md p-10 rounded-[3rem] border shadow-2xl ${isDarkMode ? 'bg-[#0a0a0b] border-white/10 shadow-gold-glow' : 'bg-white border-slate-200'}`}
+            >
+                <div className="flex justify-between items-center mb-10">
+                    <h3 className={`text-2xl font-bold luxury-font uppercase tracking-tighter ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Waste Log</h3>
+                    <button onClick={() => setShowWasteModal(false)} className="text-white/20 hover:text-white"><X size={24}/></button>
+                </div>
+
+                <div className="space-y-8">
+                    <div>
+                        <label className="text-[10px] font-black uppercase tracking-widest text-gold mb-3 block">Product Entity</label>
+                        <select 
+                            value={wasteForm.product_id}
+                            onChange={(e) => setWasteForm({...wasteForm, product_id: e.target.value})}
+                            className={`w-full p-5 rounded-2xl border outline-none font-bold text-sm ${isDarkMode ? 'bg-white/5 border-white/10 text-cream focus:border-gold/40' : 'bg-slate-50 border-slate-200 text-slate-900'}`}
+                        >
+                            <option value="">Select product...</option>
+                            {inventory.products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                        </select>
+                    </div>
+
+                    <div>
+                        <label className="text-[10px] font-black uppercase tracking-widest text-gold mb-3 block">Unsold Quantity</label>
+                        <div className="flex items-center gap-4">
+                            <input 
+                                type="number" 
+                                value={wasteForm.quantity}
+                                onChange={(e) => setWasteForm({...wasteForm, quantity: parseInt(e.target.value)})}
+                                className={`flex-1 p-5 rounded-2xl border outline-none font-bold text-2xl ${isDarkMode ? 'bg-white/5 border-white/10 text-cream focus:border-gold/40' : 'bg-slate-50 border-slate-200 text-slate-900'}`}
+                            />
+                            <span className="font-bold opacity-40">Units</span>
+                        </div>
+                    </div>
+
+                    <button 
+                        onClick={async () => {
+                            if (!wasteForm.product_id) return;
+                            try {
+                                await axios.post(`${API_BASE}/waste`, wasteForm);
+                                setShowWasteModal(false);
+                                fetchData();
+                            } catch (e: any) { alert(e.response?.data?.detail || "Log failed"); }
+                        }}
+                        className={`w-full py-6 rounded-2xl font-black text-xs uppercase tracking-widest transition-all ${isDarkMode ? 'bg-rose-500 text-white shadow-lg' : 'bg-slate-900 text-white'}`}
+                    >
+                        Confirm Loss
+                    </button>
+                    <p className="text-[10px] text-center opacity-40 font-bold uppercase tracking-widest">This will deduct stock and adjust Net ROI</p>
+                </div>
+            </motion.div>
+        </div>
+      )}
 
       {showAddProduct && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
