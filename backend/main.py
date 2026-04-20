@@ -259,6 +259,112 @@ async def inventory(db: Session = Depends(get_db), current_user: models.User = D
         "products": products_list
     }
 
+@app.get("/api/planner/prep-sheet")
+async def get_prep_sheet(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    planner_path = os.path.join(DATA_DIR, 'planner.json')
+    plan = []
+    if os.path.exists(planner_path):
+        with open(planner_path, 'r') as f:
+            plan = json.load(f)
+    
+    pending = [p for p in plan if p.get('status') == 'pending']
+    if not pending:
+        return "<h1>No pending batches in planner.</h1>"
+
+    # Consolidate requirements
+    requirements = {}
+    production_summary = []
+    
+    for item in pending:
+        product = db.query(models.Product).filter(models.Product.id == item['product_id']).first()
+        if not product: continue
+        
+        production_summary.append({
+            "name": product.name,
+            "qty": item['quantity'],
+            "icon": product.icon
+        })
+        
+        for recipe_item in product.recipe_items:
+            name = recipe_item.ingredient_name
+            qty = recipe_item.quantity * item['quantity']
+            unit = recipe_item.ingredient.unit if recipe_item.ingredient else "g"
+            
+            if name not in requirements:
+                requirements[name] = {"qty": 0, "unit": unit}
+            requirements[name]["qty"] += qty
+
+    html_content = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>BakeryOS - Master Prep Sheet</title>
+        <style>
+            body {{ font-family: 'Inter', sans-serif; padding: 40px; color: #1a1a1b; line-height: 1.6; }}
+            .header {{ text-align: center; border-bottom: 2px solid #D4AF37; padding-bottom: 20px; margin-bottom: 30px; }}
+            h1 {{ font-family: 'Playfair Display', serif; text-transform: uppercase; letter-spacing: 2px; margin: 0; }}
+            .date {{ color: #888; font-size: 0.9em; margin-top: 5px; }}
+            .section {{ margin-bottom: 40px; }}
+            h2 {{ font-size: 1.2em; text-transform: uppercase; border-left: 4px solid #D4AF37; padding-left: 15px; margin-bottom: 20px; }}
+            table {{ w-full; border-collapse: collapse; margin-top: 10px; width: 100%; }}
+            th, td {{ text-align: left; padding: 12px; border-bottom: 1px solid #eee; }}
+            th {{ font-size: 0.8em; text-transform: uppercase; color: #888; }}
+            .qty {{ font-weight: bold; font-family: monospace; font-size: 1.1em; }}
+            .item-name {{ font-weight: 600; }}
+            @media print {{
+                .no-print {{ display: none; }}
+                body {{ padding: 0; }}
+            }}
+            .print-btn {{ 
+                background: #1a1a1b; color: white; border: none; padding: 10px 20px; border-radius: 8px; 
+                cursor: pointer; font-weight: bold; margin-bottom: 20px;
+            }}
+        </style>
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+    </head>
+    <body>
+        <div class="no-print">
+            <button class="print-btn" onclick="window.print()">Print Prep Sheet</button>
+        </div>
+        
+        <div class="header">
+            <h1>Master Prep List</h1>
+            <div class="date">{datetime.now().strftime('%A, %d %B %Y | %H:%M')}</div>
+        </div>
+
+        <div class="section">
+            <h2>Production Targets</h2>
+            <table>
+                <thead>
+                    <tr><th>Entity</th><th>Target Quantity</th></tr>
+                </thead>
+                <tbody>
+                    {''.join([f"<tr><td class='item-name'>{p['icon']} {p['name']}</td><td class='qty'>{p['qty']} units</td></tr>" for p in production_summary])}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="section">
+            <h2>Material Requirements (Consolidated)</h2>
+            <table>
+                <thead>
+                    <tr><th>Ingredient</th><th>Total Needed</th><th>Measurement</th></tr>
+                </thead>
+                <tbody>
+                    {''.join([f"<tr><td class='item-name'>{name}</td><td class='qty'>{round(data['qty'], 2)}</td><td>{data['unit']}</td></tr>" for name, data in requirements.items()])}
+                </tbody>
+            </table>
+        </div>
+
+        <div style="margin-top: 50px; text-align: center; color: #ccc; font-size: 0.8em; border-top: 1px solid #eee; padding-top: 20px;">
+            BAKERYOS INTEL-ENGINE | OPERATIONAL PROTOCOL
+        </div>
+    </body>
+    </html>
+    """
+    from fastapi.responses import HTMLResponse
+    return HTMLResponse(content=html_content)
+
 @app.get("/api/history")
 async def get_history(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     transactions = db.query(models.Transaction).order_by(models.Transaction.timestamp.desc()).all()

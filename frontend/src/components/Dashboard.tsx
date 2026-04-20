@@ -1010,6 +1010,13 @@ const Dashboard: React.FC = () => {
                         <h3 className={`text-2xl font-bold luxury-font uppercase tracking-tighter ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Production Strategy</h3>
                         <p className={`text-[10px] font-black uppercase tracking-widest mt-1 ${isDarkMode ? 'text-cream/20' : 'text-slate-400'}`}>Operational Batch Planning</p>
                     </div>
+                    <button 
+                        onClick={() => window.open(`${API_BASE}/planner/prep-sheet`, '_blank')}
+                        className={`flex items-center gap-3 px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${isDarkMode ? 'bg-gold/10 text-gold border border-gold/20 hover:bg-gold hover:text-charcoal' : 'bg-slate-900 text-white'}`}
+                    >
+                        <FileText size={16} />
+                        Print Master Prep List
+                    </button>
                   </div>
 
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
