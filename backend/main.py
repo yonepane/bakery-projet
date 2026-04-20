@@ -15,6 +15,42 @@ import models
 # Create tables
 models.Base.metadata.create_all(bind=engine)
 
+from passlib.context import CryptContext
+import jwt
+from fastapi.security import OAuth2PasswordBearer
+
+# Security
+SECRET_KEY = "bakery-secret-key-change-me"
+ALGORITHM = "HS256"
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/auth/login")
+
+def verify_password(plain_password, hashed_password):
+    return pwd_context.verify(plain_password, hashed_password)
+
+def get_password_hash(password):
+    return pwd_context.hash(password)
+
+def create_access_token(data: dict):
+    to_encode = data.copy()
+    expire = datetime.utcnow() + timedelta(hours=24)
+    to_encode.update({"exp": expire})
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
+async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        username: str = payload.get("sub")
+        if username is None:
+            raise HTTPException(status_code=401, detail="Invalid token")
+    except:
+        raise HTTPException(status_code=401, detail="Invalid token")
+        
+    user = db.query(models.User).filter(models.User.username == username).first()
+    if user is None:
+        raise HTTPException(status_code=401, detail="User not found")
+    return user
+
 app = FastAPI(title="BakeryOS API")
 
 # Enable CORS
@@ -69,6 +105,12 @@ class LoginRequest(BaseModel):
     username: str
     password: str
 
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+    username: str
+    role: str
+
 class OrderCreate(BaseModel):
     customer_name: str
     customer_phone: Optional[str] = None
@@ -100,25 +142,32 @@ def get_settings():
 @app.get("/api/seed")
 async def seed_users(db: Session = Depends(get_db)):
     if not db.query(models.User).first():
-        db.add(models.User(username="admin", password="password", role="owner"))
-        db.add(models.User(username="cashier", password="password", role="cashier"))
+        db.add(models.User(username="admin", password=get_password_hash("password"), role="owner"))
+        db.add(models.User(username="cashier", password=get_password_hash("password"), role="cashier"))
         db.commit()
     return {"message": "Users seeded. Use admin/password or cashier/password."}
 
-@app.post("/api/auth/login")
+@app.post("/api/auth/login", response_model=Token)
 async def login(req: LoginRequest, db: Session = Depends(get_db)):
     user = db.query(models.User).filter(models.User.username == req.username).first()
-    if not user or user.password != req.password:
+    if not user or not verify_password(req.password, user.password):
         raise HTTPException(status_code=401, detail="Invalid username or password")
-    return {"username": user.username, "role": user.role}
+    
+    access_token = create_access_token(data={"sub": user.username})
+    return {
+        "access_token": access_token, 
+        "token_type": "bearer", 
+        "username": user.username, 
+        "role": user.role
+    }
 
 # Orders
 @app.get("/api/orders")
-async def get_orders(db: Session = Depends(get_db)):
+async def get_orders(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     return db.query(models.Order).order_by(models.Order.pickup_date.asc()).all()
 
 @app.post("/api/orders")
-async def create_order(order_data: OrderCreate, db: Session = Depends(get_db)):
+async def create_order(order_data: OrderCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     total_price = 0
     items_snapshot = []
     
@@ -148,7 +197,7 @@ async def create_order(order_data: OrderCreate, db: Session = Depends(get_db)):
     return new_order
 
 @app.patch("/api/orders/{id}/status")
-async def update_order_status(id: str, status: str, db: Session = Depends(get_db)):
+async def update_order_status(id: str, status: str, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     order = db.query(models.Order).filter(models.Order.id == id).first()
     if order:
         order.status = status
@@ -158,7 +207,7 @@ async def update_order_status(id: str, status: str, db: Session = Depends(get_db
 
 # Waste
 @app.post("/api/waste")
-async def record_waste(waste: WasteCreate, db: Session = Depends(get_db)):
+async def record_waste(waste: WasteCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     product = db.query(models.Product).filter(models.Product.id == waste.product_id).first()
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
@@ -179,7 +228,7 @@ async def record_waste(waste: WasteCreate, db: Session = Depends(get_db)):
     return {"success": True}
 
 @app.get("/api/inventory")
-async def inventory(db: Session = Depends(get_db)):
+async def inventory(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     ingredients = db.query(models.Ingredient).all()
     products = db.query(models.Product).all()
     
@@ -211,7 +260,7 @@ async def inventory(db: Session = Depends(get_db)):
     }
 
 @app.get("/api/history")
-async def get_history(db: Session = Depends(get_db)):
+async def get_history(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     transactions = db.query(models.Transaction).order_by(models.Transaction.timestamp.desc()).all()
     return [
         {
@@ -226,7 +275,7 @@ async def get_history(db: Session = Depends(get_db)):
     ]
 
 @app.get("/api/planner")
-async def get_planner():
+async def get_planner(current_user: models.User = Depends(get_current_user)):
     planner_path = os.path.join(DATA_DIR, 'planner.json')
     if os.path.exists(planner_path):
         with open(planner_path, 'r') as f:
@@ -234,7 +283,7 @@ async def get_planner():
     return []
 
 @app.post("/api/planner")
-async def update_planner(plan: List[Dict]):
+async def update_planner(plan: List[Dict], current_user: models.User = Depends(get_current_user)):
     with open(os.path.join(DATA_DIR, 'planner.json'), 'w') as f:
         json.dump(plan, f, indent=4)
     return {"success": True}
@@ -244,7 +293,7 @@ async def get_settings_api():
     return get_settings()
 
 @app.post("/api/produce")
-async def produce(batch: ProductionBatch, db: Session = Depends(get_db)):
+async def produce(batch: ProductionBatch, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     product = db.query(models.Product).filter(models.Product.id == batch.product_id).first()
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
@@ -277,7 +326,7 @@ async def produce(batch: ProductionBatch, db: Session = Depends(get_db)):
     return {"success": True, "new_stock": product.stock}
 
 @app.post("/api/complete")
-async def complete_sale(req: SaleRequest, db: Session = Depends(get_db)):
+async def complete_sale(req: SaleRequest, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     total_revenue = 0
     total_cost = 0
     items_snapshot = []
@@ -397,7 +446,9 @@ async def get_receipt(id: str, db: Session = Depends(get_db)):
     return HTMLResponse(content=html_content)
 
 @app.get("/api/analytics")
-async def analytics(db: Session = Depends(get_db)):
+async def analytics(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    if current_user.role != "owner":
+        raise HTTPException(status_code=403, detail="Not authorized")
     transactions = db.query(models.Transaction).all()
     waste_total = sum(w.loss_cost for w in db.query(models.WasteRecord).all())
     settings = get_settings()
@@ -466,7 +517,8 @@ async def get_alerts(db: Session = Depends(get_db)):
     return alerts
 
 @app.post("/api/simulate_price")
-async def simulate_price(materials_update: Dict[str, float], db: Session = Depends(get_db)):
+async def simulate_price(materials_update: Dict[str, float], db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    if current_user.role != "owner": raise HTTPException(status_code=403, detail="Not authorized")
     # Calculate impact on product costs without saving
     impact = []
     products = db.query(models.Product).all()
@@ -492,7 +544,8 @@ async def simulate_price(materials_update: Dict[str, float], db: Session = Depen
     return impact
 
 @app.post("/api/update_material_prices")
-async def update_material_prices(materials_update: Dict[str, float], db: Session = Depends(get_db)):
+async def update_material_prices(materials_update: Dict[str, float], db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    if current_user.role != "owner": raise HTTPException(status_code=403, detail="Not authorized")
     for name, new_price in materials_update.items():
         ing = db.query(models.Ingredient).filter(models.Ingredient.name == name).first()
         if ing:
@@ -501,7 +554,8 @@ async def update_material_prices(materials_update: Dict[str, float], db: Session
     return {"success": True}
 
 @app.post("/api/materials")
-async def add_material(mat: MaterialCreate, db: Session = Depends(get_db)):
+async def add_material(mat: MaterialCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    if current_user.role != "owner": raise HTTPException(status_code=403, detail="Not authorized")
     existing = db.query(models.Ingredient).filter(models.Ingredient.name == mat.name).first()
     if existing:
         raise HTTPException(status_code=400, detail="Material already exists")
@@ -518,7 +572,8 @@ async def add_material(mat: MaterialCreate, db: Session = Depends(get_db)):
     return {"success": True}
 
 @app.delete("/api/materials/{name}")
-async def delete_material(name: str, db: Session = Depends(get_db)):
+async def delete_material(name: str, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    if current_user.role != "owner": raise HTTPException(status_code=403, detail="Not authorized")
     ing = db.query(models.Ingredient).filter(models.Ingredient.name == name).first()
     if ing:
         db.delete(ing)
@@ -527,7 +582,8 @@ async def delete_material(name: str, db: Session = Depends(get_db)):
     raise HTTPException(status_code=404, detail="Material not found")
 
 @app.post("/api/products")
-async def add_product(prod: ProductCreate, db: Session = Depends(get_db)):
+async def add_product(prod: ProductCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    if current_user.role != "owner": raise HTTPException(status_code=403, detail="Not authorized")
     existing = db.query(models.Product).filter(models.Product.id == prod.id).first()
     if existing:
         raise HTTPException(status_code=400, detail="Product ID already exists")
@@ -554,7 +610,8 @@ async def add_product(prod: ProductCreate, db: Session = Depends(get_db)):
     return {"success": True}
 
 @app.put("/api/products/{id}")
-async def update_product(id: str, update: ProductUpdate, db: Session = Depends(get_db)):
+async def update_product(id: str, update: ProductUpdate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    if current_user.role != "owner": raise HTTPException(status_code=403, detail="Not authorized")
     product = db.query(models.Product).filter(models.Product.id == id).first()
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
@@ -578,7 +635,8 @@ async def update_product(id: str, update: ProductUpdate, db: Session = Depends(g
     return {"success": True}
 
 @app.delete("/api/products/{id}")
-async def delete_product(id: str, db: Session = Depends(get_db)):
+async def delete_product(id: str, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    if current_user.role != "owner": raise HTTPException(status_code=403, detail="Not authorized")
     product = db.query(models.Product).filter(models.Product.id == id).first()
     if product:
         db.delete(product)
@@ -589,7 +647,7 @@ async def delete_product(id: str, db: Session = Depends(get_db)):
 import httpx
 
 @app.get("/api/external-recipes/search")
-async def search_external_recipes(query: str):
+async def search_external_recipes(query: str, current_user: models.User = Depends(get_current_user)):
     async with httpx.AsyncClient() as client:
         # Use TheMealDB free tier for recipes
         url = f"https://www.themealdb.com/api/json/v1/1/search.php?s={query}"
@@ -609,7 +667,7 @@ async def search_external_recipes(query: str):
         return results
 
 @app.get("/api/external-recipes/{recipe_id}/details")
-async def get_external_recipe_details(recipe_id: str):
+async def get_external_recipe_details(recipe_id: str, current_user: models.User = Depends(get_current_user)):
     async with httpx.AsyncClient() as client:
         url = f"https://www.themealdb.com/api/json/v1/1/lookup.php?i={recipe_id}"
         response = await client.get(url)

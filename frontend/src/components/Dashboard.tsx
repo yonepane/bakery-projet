@@ -40,6 +40,30 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 const API_BASE = '/api';
 
+// Axios setup with token
+axios.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('bakery_token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
+axios.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      localStorage.removeItem('bakery_token');
+      localStorage.removeItem('bakery_user');
+      window.location.reload();
+    }
+    return Promise.reject(error);
+  }
+);
+
 // Types
 interface Ingredient {
   stock: number;
@@ -173,11 +197,21 @@ const Dashboard: React.FC = () => {
     e.preventDefault();
     try {
       const res = await axios.post(`${API_BASE}/auth/login`, loginForm);
-      setUser(res.data);
+      const { access_token, username, role } = res.data;
+      localStorage.setItem('bakery_token', access_token);
+      localStorage.setItem('bakery_user', JSON.stringify({ username, role }));
+      setUser({ username, role });
     } catch (err) {
       alert("Invalid credentials");
     }
   };
+
+  useEffect(() => {
+    const savedUser = localStorage.getItem('bakery_user');
+    if (savedUser) {
+      setUser(JSON.parse(savedUser));
+    }
+  }, []);
 
   useEffect(() => {
     if (user) {
@@ -472,7 +506,7 @@ const Dashboard: React.FC = () => {
             </button>
           )}
 
-          <button onClick={() => setUser(null)} className="w-full text-[10px] font-black uppercase tracking-widest opacity-20 hover:opacity-100 transition-opacity">Disconnect Terminal</button>
+          <button onClick={() => { localStorage.removeItem('bakery_token'); localStorage.removeItem('bakery_user'); setUser(null); }} className="w-full text-[10px] font-black uppercase tracking-widest opacity-20 hover:opacity-100 transition-opacity">Disconnect Terminal</button>
           </div>
 
       </aside>
