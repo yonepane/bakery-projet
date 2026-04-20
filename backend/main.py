@@ -690,6 +690,9 @@ async def delete_material(name: str, db: Session = Depends(get_db), current_user
 @app.post("/api/products")
 async def add_product(prod: ProductCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     if current_user.role != "owner": raise HTTPException(status_code=403, detail="Not authorized")
+    if not prod.id.strip():
+        raise HTTPException(status_code=400, detail="Product ID cannot be empty")
+    
     existing = db.query(models.Product).filter(models.Product.id == prod.id).first()
     if existing:
         raise HTTPException(status_code=400, detail="Product ID already exists")
@@ -770,64 +773,136 @@ async def delete_product(id: str, db: Session = Depends(get_db), current_user: m
 
 import httpx
 
+# Fallback high-quality recipes for when external API is unreachable or has no results
+BAKERY_STARTER_KIT = [
+    {
+        "id": "starter-1",
+        "name": "Classic Butter Croissant",
+        "category": "Pastry",
+        "thumb": "https://www.themealdb.com/images/media/meals/vussuy1511882648.jpg",
+        "ingredients": [
+            {"name": "Flour", "quantity": 500},
+            {"name": "Butter", "quantity": 250},
+            {"name": "Milk", "quantity": 200},
+            {"name": "Sugar", "quantity": 50},
+            {"name": "Yeast", "quantity": 10}
+        ]
+    },
+    {
+        "id": "starter-2",
+        "name": "Pain au Chocolat",
+        "category": "Pastry",
+        "thumb": "https://www.themealdb.com/images/media/meals/ustsqw1468250014.jpg",
+        "ingredients": [
+            {"name": "Flour", "quantity": 500},
+            {"name": "Butter", "quantity": 250},
+            {"name": "Chocolate", "quantity": 100},
+            {"name": "Milk", "quantity": 150}
+        ]
+    },
+    {
+        "id": "starter-3",
+        "name": "Almond Macarons",
+        "category": "Dessert",
+        "thumb": "https://www.themealdb.com/images/media/meals/xvsurr1511719182.jpg",
+        "ingredients": [
+            {"name": "Almond Flour", "quantity": 200},
+            {"name": "Sugar", "quantity": 200},
+            {"name": "Eggs", "quantity": 3},
+            {"name": "Vanilla", "quantity": 5}
+        ]
+    }
+]
+
 @app.get("/api/external-recipes/search")
 async def search_external_recipes(query: str, current_user: models.User = Depends(get_current_user)):
-    async with httpx.AsyncClient() as client:
-        # Use TheMealDB free tier for recipes
-        url = f"https://www.themealdb.com/api/json/v1/1/search.php?s={query}"
-        response = await client.get(url)
-        data = response.json()
-        
-        results = []
-        if data.get("meals"):
-            for meal in data["meals"]:
-                # Only include desserts/pastries if possible, or just all if specific query
+    results = []
+    
+    # 1. Check if query matches our starter kit (local fallback)
+    for recipe in BAKERY_STARTER_KIT:
+        if query.lower() in recipe["name"].lower():
+            results.append({
+                "id": recipe["id"],
+                "name": recipe["name"],
+                "category": recipe["category"],
+                "thumb": recipe["thumb"]
+            })
+
+    # 2. Try External API
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            url = f"https://www.themealdb.com/api/json/v1/1/search.php?s={query}"
+            response = await client.get(url)
+            if response.status_code == 200:
+                data = response.json()
+                if data.get("meals"):
+                    for meal in data["meals"]:
+                        # Avoid duplicates from starter kit
+                        if not any(r["name"] == meal["strMeal"] for r in results):
+                            results.append({
+                                "id": meal["idMeal"],
+                                "name": meal["strMeal"],
+                                "category": meal["strCategory"],
+                                "thumb": meal["strMealThumb"]
+                            })
+    except Exception as e:
+        print(f"External API Error: {e}")
+        # If API fails and we have no results yet, show full starter kit
+        if not results:
+            for recipe in BAKERY_STARTER_KIT:
                 results.append({
-                    "id": meal["idMeal"],
-                    "name": meal["strMeal"],
-                    "category": meal["strCategory"],
-                    "thumb": meal["strMealThumb"]
+                    "id": recipe["id"],
+                    "name": recipe["name"],
+                    "category": recipe["category"],
+                    "thumb": recipe["thumb"]
                 })
-        return results
+    
+    return results
 
 @app.get("/api/external-recipes/{recipe_id}/details")
 async def get_external_recipe_details(recipe_id: str, current_user: models.User = Depends(get_current_user)):
-    async with httpx.AsyncClient() as client:
-        url = f"https://www.themealdb.com/api/json/v1/1/lookup.php?i={recipe_id}"
-        response = await client.get(url)
-        data = response.json()
-        
-        if not data.get("meals"):
-            raise HTTPException(status_code=404, detail="Recipe not found")
+    # 1. Check Starter Kit
+    for recipe in BAKERY_STARTER_KIT:
+        if recipe["id"] == recipe_id:
+            return recipe
+
+    # 2. External API
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            url = f"https://www.themealdb.com/api/json/v1/1/lookup.php?i={recipe_id}"
+            response = await client.get(url)
+            data = response.json()
             
-        meal = data["meals"][0]
-        ingredients = []
-        
-        # TheMealDB uses strIngredient1, strIngredient2... strIngredient20
-        for i in range(1, 21):
-            name = meal.get(f"strIngredient{i}")
-            measure = meal.get(f"strMeasure{i}")
-            
-            if name and name.strip():
-                # Extract numeric quantity if possible, otherwise default to 0
-                qty = 0
-                if measure:
-                    # Simple extraction: find the first number in the measure string
-                    import re
-                    match = re.search(r"(\d+)", measure)
-                    if match:
-                        qty = float(match.group(1))
+            if not data.get("meals"):
+                raise HTTPException(status_code=404, detail="Recipe not found")
                 
-                ingredients.append({
-                    "name": name.strip().title(),
-                    "quantity": qty
-                })
-        
-        return {
-            "name": meal["strMeal"],
-            "ingredients": ingredients,
-            "thumb": meal["strMealThumb"]
-        }
+            meal = data["meals"][0]
+            ingredients = []
+            
+            for i in range(1, 21):
+                name = meal.get(f"strIngredient{i}")
+                measure = meal.get(f"strMeasure{i}")
+                
+                if name and name.strip():
+                    qty = 0
+                    if measure:
+                        import re
+                        match = re.search(r"(\d+)", measure)
+                        if match:
+                            qty = float(match.group(1))
+                    
+                    ingredients.append({
+                        "name": name.strip().title(),
+                        "quantity": qty
+                    })
+            
+            return {
+                "name": meal["strMeal"],
+                "ingredients": ingredients,
+                "thumb": meal["strMealThumb"]
+            }
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"Service unavailable: {str(e)}")
 
 # Mount static files
 if os.path.exists(FRONTEND_DIR):

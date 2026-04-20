@@ -336,11 +336,17 @@ const Dashboard: React.FC = () => {
   };
 
   const handleAddProduct = async () => {
+    if (!newProduct.id.trim() || !newProduct.name.trim()) {
+      alert("Product ID and Name are required");
+      return;
+    }
     try {
       const res = await axios.post(`${API_BASE}/products`, newProduct);
       alert(res.data.message || "Product created successfully");
       setShowAddProduct(false);
       fetchData();
+      // Reset form
+      setNewProduct({ id: '', name: '', price: 0, icon: '🥐', ingredients: [] });
     } catch (e: any) { alert(e.response?.data?.detail || "Failed to add product"); }
   };
 
@@ -373,21 +379,24 @@ const Dashboard: React.FC = () => {
     try {
       const res = await axios.get(`${API_BASE}/external-recipes/${recipeId}/details`);
       const details = res.data;
-      
+
+      // Generate a slug from the name
+      const slug = details.name.toLowerCase().replace(/[^a-z0-9]/g, '-').slice(0, 10);
+      const randomSuffix = Math.floor(Math.random() * 1000);
+
       // Auto-fill the new product form
       setNewProduct({
         ...newProduct,
         name: details.name,
         ingredients: details.ingredients,
-        id: 'p' + (inventory.products.length + 1)
+        id: `${slug}-${randomSuffix}`
       });
-      
+
       // Clear search
       setRecipeSearchResults([]);
       setRecipeSearchQuery('');
     } catch (e) { console.error(e); }
   };
-
   const handlePlanBatch = async (productId: string, qty: number, date: string) => {
     const newPlan = [...planner, {
         id: Math.random().toString(36).substr(2, 9),
