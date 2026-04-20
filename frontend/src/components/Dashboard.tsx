@@ -37,6 +37,7 @@ import {
 } from 'recharts';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
+import { QRCodeSVG } from 'qrcode.react';
 
 const API_BASE = '/api';
 
@@ -141,6 +142,8 @@ const Dashboard: React.FC = () => {
   const [showAddProduct, setShowAddProduct] = useState(false);
   const [showAddMaterial, setShowAddMaterial] = useState(false);
   const [showWasteModal, setShowWasteModal] = useState(false);
+  const [showReceiptModal, setShowReceiptModal] = useState(false);
+  const [lastTransaction, setLastTransaction] = useState<any>(null);
   const [newProduct, setNewProduct] = useState<any>({ id: '', name: '', price: 0, icon: '🥐', ingredients: [] });
   const [newMaterial, setNewMaterial] = useState<any>({ name: '', price: 0, unit: 'g', min_threshold: 1000 });
   const [wasteForm, setWasteForm] = useState({ product_id: '', quantity: 1 });
@@ -292,19 +295,10 @@ const Dashboard: React.FC = () => {
     if (cart.length === 0) return;
     try {
       const res = await axios.post(`${API_BASE}/complete`, { cart: cart.map(item => ({ id: item.id, qty: item.qty })) });
-      const { transaction_id, whatsapp_text } = res.data;
+      setLastTransaction(res.data);
       setCart([]);
       fetchData();
-      
-      const choice = window.confirm("Sale completed! Print Receipt? (Cancel to share via WhatsApp)");
-      if (choice) {
-        window.open(`${API_BASE}/transactions/${transaction_id}/receipt`, '_blank');
-      } else if (window.confirm("Share receipt via WhatsApp?")) {
-        const phone = window.prompt("Enter customer phone number (with country code):");
-        if (phone) {
-          window.open(`https://wa.me/${phone.replace(/\D/g,'')}?text=${encodeURIComponent(whatsapp_text)}`, '_blank');
-        }
-      }
+      setShowReceiptModal(true);
     } catch (error: any) {
       alert(error.response?.data?.detail || "Sale failed");
     }
@@ -1383,6 +1377,63 @@ const Dashboard: React.FC = () => {
                     </div>
                 </div>
             </div>
+        </div>
+      )}
+
+      {/* Digital Receipt Modal */}
+      {showReceiptModal && lastTransaction && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-black/80 backdrop-blur-xl animate-in fade-in duration-300">
+            <motion.div 
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                className={`w-full max-w-md p-10 rounded-[3.5rem] border shadow-2xl ${isDarkMode ? 'bg-[#0a0a0b] border-white/10 shadow-gold-glow' : 'bg-white border-slate-200'}`}
+            >
+                <div className="text-center mb-10">
+                    <div className="w-20 h-20 bg-gold/10 rounded-full flex items-center justify-center mx-auto mb-6 text-gold">
+                        <Zap size={40} fill="currentColor" />
+                    </div>
+                    <h3 className={`text-2xl font-bold luxury-font uppercase tracking-tighter ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Digital Receipt</h3>
+                    <p className="text-[10px] font-black uppercase tracking-widest opacity-40 mt-2">Transaction {lastTransaction.transaction_id}</p>
+                </div>
+
+                <div className="bg-white p-8 rounded-[2.5rem] shadow-inner mb-8 flex justify-center">
+                    <QRCodeSVG 
+                        value={`${window.location.origin}${API_BASE}/transactions/${lastTransaction.transaction_id}/receipt`}
+                        size={200}
+                        level="H"
+                        includeMargin={true}
+                    />
+                </div>
+
+                <div className="space-y-4">
+                    <p className="text-center text-[10px] font-bold uppercase tracking-[0.2em] opacity-40 mb-8">Scan to download PDF ledger</p>
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                        <button 
+                            onClick={() => window.open(`${API_BASE}/transactions/${lastTransaction.transaction_id}/receipt`, '_blank')}
+                            className={`py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest border transition-all ${isDarkMode ? 'border-white/10 text-white hover:bg-white/5' : 'border-slate-200 text-slate-900'}`}
+                        >
+                            Print PDF
+                        </button>
+                        <button 
+                            onClick={() => {
+                                const phone = window.prompt("Customer phone?");
+                                if (phone) window.open(`https://wa.me/${phone.replace(/\D/g,'')}?text=${encodeURIComponent(lastTransaction.whatsapp_text)}`, '_blank');
+                            }}
+                            className="py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest bg-emerald-500 text-white shadow-lg shadow-emerald-500/20"
+                        >
+                            WhatsApp
+                        </button>
+                    </div>
+                    
+                    <button 
+                        onClick={() => setShowReceiptModal(false)}
+                        className={`w-full py-5 rounded-2xl font-black text-xs uppercase tracking-widest mt-4 transition-all ${isDarkMode ? 'bg-gold text-charcoal shadow-gold-glow' : 'bg-slate-900 text-white'}`}
+                    >
+                        Close Terminal
+                    </button>
+                </div>
+            </motion.div>
         </div>
       )}
     </div>
