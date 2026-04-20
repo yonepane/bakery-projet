@@ -22,7 +22,7 @@ from fastapi.security import OAuth2PasswordBearer
 # Security
 SECRET_KEY = "bakery-secret-key-change-me"
 ALGORITHM = "HS256"
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/auth/login")
 
 def verify_password(plain_password, hashed_password):
@@ -770,6 +770,26 @@ async def delete_product(id: str, db: Session = Depends(get_db), current_user: m
         db.commit()
         return {"success": True}
     raise HTTPException(status_code=404, detail="Product not found")
+
+@app.post("/api/maintenance/delete-empty-products")
+async def delete_empty_product(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    if current_user.role != "owner": raise HTTPException(status_code=403, detail="Not authorized")
+    # Use direct SQL as a last resort if ORM is being tricky
+    from sqlalchemy import text
+    result = db.execute(text("DELETE FROM products WHERE id = '' OR id IS NULL"))
+    db.commit()
+    return {"success": True, "deleted": "Done"}
+
+@app.post("/api/maintenance/cleanup-products")
+async def cleanup_invalid_products(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    if current_user.role != "owner": raise HTTPException(status_code=403, detail="Not authorized")
+    # Delete anything with empty id or empty name
+    invalid = db.query(models.Product).filter((models.Product.id == '') | (models.Product.name == '')).all()
+    count = len(invalid)
+    for p in invalid:
+        db.delete(p)
+    db.commit()
+    return {"success": True, "count": count}
 
 import httpx
 

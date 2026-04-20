@@ -358,6 +358,15 @@ const Dashboard: React.FC = () => {
     } catch (e: any) { alert(e.response?.data?.detail || "Failed to delete product"); }
   };
 
+  const handleCleanupProducts = async () => {
+    if (!confirm("Remove all broken product entries (empty IDs)?")) return;
+    try {
+      await axios.post(`${API_BASE}/maintenance/delete-empty-products`);
+      fetchData();
+      alert("Cleanup successful");
+    } catch (e: any) { alert(e.response?.data?.detail || "Cleanup failed"); }
+  };
+
   const handleUpdateProductIngredients = async (productId: string, ingredients: any[]) => {
     try {
       await axios.put(`${API_BASE}/products/${productId}`, { ingredients });
@@ -827,6 +836,15 @@ const Dashboard: React.FC = () => {
                   </div>
                 ))}
                 
+                {editMode && (
+                   <div onClick={handleCleanupProducts} className={`p-8 rounded-[2.5rem] border border-dashed flex flex-col items-center justify-center cursor-pointer border-rose-500/20 hover:border-rose-500 group transition-all min-h-[300px] ${isDarkMode ? 'bg-rose-500/5' : 'bg-rose-50'}`}>
+                        <div className="w-16 h-16 rounded-full border-2 border-dashed border-rose-500/20 flex items-center justify-center group-hover:border-rose-500 group-hover:scale-110 transition-all mb-4 text-rose-500">
+                            <Trash2 size={24} />
+                        </div>
+                        <p className="font-black text-[10px] uppercase tracking-[0.2em] text-rose-500 opacity-40 group-hover:opacity-100 transition-all text-center">Cleanup Broken Data<br/><span className="text-[8px] opacity-60">Removes empty IDs</span></p>
+                   </div>
+                )}
+
                 <div onClick={() => setShowAddProduct(true)} className={`p-8 rounded-[2.5rem] border border-dashed flex flex-col items-center justify-center cursor-pointer hover:border-gold/40 group transition-all min-h-[300px] ${isDarkMode ? 'border-white/10 bg-black/5' : 'border-slate-300 bg-slate-50'}`}>
                     <div className="w-16 h-16 rounded-full border-2 border-dashed border-white/10 flex items-center justify-center group-hover:border-gold/40 group-hover:scale-110 transition-all mb-4">
                         <Plus className="opacity-20 group-hover:opacity-100 group-hover:text-gold transition-all" />
