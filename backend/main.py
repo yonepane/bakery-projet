@@ -598,7 +598,22 @@ async def add_product(prod: ProductCreate, db: Session = Depends(get_db), curren
     db.add(new_prod)
     db.flush()
     
+    created_ingredients = []
     for ing_data in prod.ingredients:
+        # Check if ingredient exists, if not create it
+        ing = db.query(models.Ingredient).filter(models.Ingredient.name == ing_data.name).first()
+        if not ing:
+            ing = models.Ingredient(
+                name=ing_data.name,
+                stock=0,
+                unit="g",
+                price=0,
+                min_threshold=1000
+            )
+            db.add(ing)
+            db.flush()
+            created_ingredients.append(ing_data.name)
+
         recipe_item = models.RecipeItem(
             product_id=new_prod.id,
             ingredient_name=ing_data.name,
@@ -607,7 +622,10 @@ async def add_product(prod: ProductCreate, db: Session = Depends(get_db), curren
         db.add(recipe_item)
         
     db.commit()
-    return {"success": True}
+    return {
+        "success": True, 
+        "message": f"Product created. {len(created_ingredients)} new ingredients added to inventory with placeholder prices." if created_ingredients else "Product created successfully."
+    }
 
 @app.put("/api/products/{id}")
 async def update_product(id: str, update: ProductUpdate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):

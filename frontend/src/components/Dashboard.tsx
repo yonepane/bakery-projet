@@ -343,7 +343,8 @@ const Dashboard: React.FC = () => {
 
   const handleAddProduct = async () => {
     try {
-      await axios.post(`${API_BASE}/products`, newProduct);
+      const res = await axios.post(`${API_BASE}/products`, newProduct);
+      alert(res.data.message || "Product created successfully");
       setShowAddProduct(false);
       fetchData();
     } catch (e: any) { alert(e.response?.data?.detail || "Failed to add product"); }
@@ -833,44 +834,96 @@ const Dashboard: React.FC = () => {
             )}
 
             {activeTab === 'simulator' && (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                <div className={`p-8 rounded-[2.5rem] border transition-colors ${isDarkMode ? 'border-gold/10 bg-black/20' : 'border-slate-200 bg-white shadow-sm'}`}>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-in slide-in-from-bottom-4 duration-500">
+                <div className={`p-10 rounded-[3rem] border transition-colors ${isDarkMode ? 'border-gold/20 bg-black/40 shadow-gold-glow' : 'border-slate-200 bg-white shadow-sm'}`}>
                   <div className="flex justify-between items-center mb-10">
-                    <h3 className={`text-xl font-bold luxury-font uppercase ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Cost Simulation</h3>
-                    <button onClick={runSimulation} className={`p-3 rounded-xl shadow-lg transition-all ${isDarkMode ? 'bg-gold text-charcoal shadow-gold-glow' : 'bg-slate-900 text-white shadow-xl'}`}><Zap size={20}/></button>
+                    <div>
+                        <h3 className={`text-2xl font-bold luxury-font uppercase tracking-tighter ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Price Engine</h3>
+                        <p className={`text-[10px] font-black uppercase tracking-widest mt-1 ${isDarkMode ? 'text-cream/20' : 'text-slate-400'}`}>Simulate Global Market Shifts</p>
+                    </div>
+                    <button onClick={runSimulation} className={`p-4 rounded-2xl shadow-lg transition-all hover:scale-105 active:scale-95 ${isDarkMode ? 'bg-gold text-charcoal shadow-gold-glow' : 'bg-slate-900 text-white'}`}><Zap size={24}/></button>
                   </div>
-                  <div className="space-y-6 max-h-[500px] overflow-y-auto pr-4 custom-scrollbar">
+                  
+                  <div className="space-y-8 max-h-[600px] overflow-y-auto pr-6 custom-scrollbar">
                     {Object.entries(inventory.materials).map(([name, data]) => (
-                      <div key={name} className="space-y-3">
-                        <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest">
-                          <span className={isDarkMode ? 'text-cream/40' : 'text-slate-400'}>{name}</span>
-                          <span className={isDarkMode ? 'text-gold/60' : 'text-slate-500'}>Current: {formatPrice(data.price)}</span>
+                      <div key={name} className="p-6 rounded-2xl border border-white/5 bg-white/5 space-y-4">
+                        <div className="flex justify-between items-end">
+                          <div>
+                            <p className={`text-[10px] font-black uppercase tracking-[0.2em] text-gold mb-1`}>{name}</p>
+                            <p className={`text-xs font-bold ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>Current: {formatPrice(data.price)} / {data.unit}</p>
+                          </div>
+                          <div className="text-right">
+                             <p className={`text-sm font-black ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{formatPrice(simPrices[name] || data.price)}</p>
+                             <p className={`text-[10px] font-bold uppercase ${ (simPrices[name] || data.price) > data.price ? 'text-rose-500' : 'text-emerald-500'}`}>
+                                {(((simPrices[name] || data.price) - data.price) / data.price * 100).toFixed(1)}% Change
+                             </p>
+                          </div>
                         </div>
+                        
                         <input 
-                          type="number" step="0.001"
-                          value={simPrices[name] || 0}
-                          onChange={(e) => setSimPrices({...simPrices, [name]: parseFloat(e.target.value)})}
-                          className={`w-full border rounded-xl px-5 py-4 font-bold outline-none transition-all ${isDarkMode ? 'bg-white/5 border-white/10 text-cream focus:border-gold/40' : 'bg-slate-50 border-slate-200 text-slate-900 focus:border-slate-400'}`}
+                          type="range" 
+                          min={data.price * 0.5} 
+                          max={data.price * 2} 
+                          step={data.price * 0.01}
+                          value={simPrices[name] || data.price}
+                          onChange={(e) => {
+                              const newPrices = {...simPrices, [name]: parseFloat(e.target.value)};
+                              setSimPrices(newPrices);
+                              // Real-time update if results already exist
+                              if (simulationResult.length) runSimulation();
+                          }}
+                          className="w-full h-1.5 bg-white/10 rounded-lg appearance-none cursor-pointer accent-gold"
                         />
                       </div>
                     ))}
                   </div>
-                  <button onClick={saveSimulation} className={`mt-10 w-full py-5 border rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${isDarkMode ? 'border-gold/30 text-gold hover:bg-gold hover:text-charcoal' : 'border-slate-200 text-slate-900 hover:bg-slate-900 hover:text-white shadow-sm'}`}>Save Global Prices</button>
+                  
+                  <button 
+                    onClick={saveSimulation} 
+                    className={`mt-10 w-full py-6 border rounded-2xl font-black text-xs uppercase tracking-widest transition-all ${isDarkMode ? 'border-gold/30 text-gold hover:bg-gold hover:text-charcoal shadow-gold-glow/20' : 'border-slate-900 text-slate-900 hover:bg-slate-900 hover:text-white'}`}
+                  >
+                    Apply New Global Pricing
+                  </button>
                 </div>
-                <div className={`p-8 rounded-[2.5rem] border transition-colors ${isDarkMode ? 'border-white/5 bg-black/20' : 'border-slate-200 bg-white shadow-sm'}`}>
-                  <h3 className={`text-xl font-bold luxury-font uppercase mb-10 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Simulation Analysis</h3>
-                  <div className="space-y-4">
-                    {simulationResult.map((res: any) => (
-                      <div key={res.name} className={`p-6 rounded-2xl border flex justify-between items-center transition-colors ${isDarkMode ? 'bg-white/5 border-white/5' : 'bg-slate-50 border-slate-100'}`}>
-                        <div><p className={`font-bold ${isDarkMode ? 'text-cream' : 'text-slate-900'}`}>{res.name}</p><p className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-cream/30' : 'text-slate-400'}`}>Impact: {formatPrice(res.new_cost)}</p></div>
-                        <div className="text-right">
-                          <p className={`text-sm font-bold ${res.margin_impact > 30 ? 'text-emerald-500' : 'text-rose-500'}`}>{res.margin_impact.toFixed(1)}%</p>
-                          <p className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-cream/20' : 'text-slate-300'}`}>New ROI</p>
+
+                <div className="space-y-6">
+                    <div className={`p-10 rounded-[3rem] border transition-colors ${isDarkMode ? 'border-white/5 bg-black/20' : 'border-slate-200 bg-white shadow-sm'}`}>
+                        <h3 className={`text-xl font-bold luxury-font uppercase mb-10 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Margin Forecast</h3>
+                        <div className="space-y-4">
+                            {simulationResult.map((res: any) => {
+                                const marginDiff = res.margin_impact - ((inventory.products.find(p => p.name === res.name)?.price || 0 - (inventory.products.find(p => p.name === res.name)?.live_cost || 0)) / (inventory.products.find(p => p.name === res.name)?.price || 1) * 100);
+                                return (
+                                    <div key={res.name} className={`p-6 rounded-2xl border transition-all ${isDarkMode ? 'bg-white/5 border-white/5' : 'bg-slate-50 border-slate-100'}`}>
+                                        <div className="flex justify-between items-center mb-4">
+                                            <div>
+                                                <p className={`font-bold ${isDarkMode ? 'text-cream' : 'text-slate-900'}`}>{res.name}</p>
+                                                <p className="text-[10px] font-black uppercase tracking-widest text-gold">Projected Cost: {formatPrice(res.new_cost)}</p>
+                                            </div>
+                                            <div className="text-right">
+                                                <div className={`text-2xl font-black luxury-font ${res.margin_impact > 30 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                                                    {res.margin_impact.toFixed(1)}%
+                                                </div>
+                                                <p className="text-[10px] font-black uppercase tracking-widest opacity-20">New Margin</p>
+                                            </div>
+                                        </div>
+                                        <div className="w-full h-1 bg-white/5 rounded-full overflow-hidden">
+                                            <motion.div 
+                                                initial={{ width: 0 }}
+                                                animate={{ width: `${Math.min(100, Math.max(0, res.margin_impact))}%` }}
+                                                className={`h-full ${res.margin_impact > 30 ? 'bg-emerald-500' : 'bg-rose-500'}`}
+                                            />
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                            {!simulationResult.length && (
+                                <div className="py-32 flex flex-col items-center opacity-10">
+                                    <Calculator size={64} />
+                                    <p className="mt-6 font-black text-xs uppercase tracking-[0.3em]">Initialize Projection</p>
+                                </div>
+                            )}
                         </div>
-                      </div>
-                    ))}
-                    {!simulationResult.length && <div className="py-20 opacity-10 flex flex-col items-center"><Calculator size={48}/><p className="mt-4 font-bold uppercase tracking-widest text-xs">Run Simulation</p></div>}
-                  </div>
+                    </div>
                 </div>
               </div>
             )}
