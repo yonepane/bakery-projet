@@ -22,7 +22,13 @@ import {
   FileText,
   Sun,
   Moon,
-  Coins
+  Coins,
+  LogOut,
+  CheckCircle,
+  Info,
+  XCircle,
+  Truck,
+  ChefHat
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -38,32 +44,12 @@ import {
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
 import { QRCodeSVG } from 'qrcode.react';
+import { api, processSyncQueue } from '../lib/api';
+import http from '../lib/http';
 
 const API_BASE = '/api';
 
-// Axios setup with token
-axios.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('bakery_token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => Promise.reject(error)
-);
-
-axios.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      localStorage.removeItem('bakery_token');
-      localStorage.removeItem('bakery_user');
-      window.location.reload();
-    }
-    return Promise.reject(error);
-  }
-);
+// ... (remove old axios interceptors)
 
 // Types
 interface Ingredient {
@@ -80,6 +66,10 @@ interface Product {
   price: number;
   icon?: string;
   live_cost?: number;
+  prep_time: number;
+  cook_time: number;
+  yield_qty: number;
+  instructions: string[];
   ingredients: { name: string; quantity: number }[];
 }
 
@@ -114,6 +104,12 @@ interface PlanItem {
   status: 'pending' | 'completed';
 }
 
+interface Toast {
+  id: string;
+  message: string;
+  type: 'success' | 'error' | 'info';
+}
+
 const Dashboard: React.FC = () => {
   const [user, setUser] = useState<{username: string, role: string} | null>(null);
   const [loginForm, setLoginForm] = useState({ username: '', password: '' });
@@ -128,6 +124,15 @@ const Dashboard: React.FC = () => {
   const [settings, setSettings] = useState<any>({ conversions: { MAD: 1, EUR: 0.092, USD: 0.10 }, currency: 'MAD' });
   const [loading, setLoading] = useState(true);
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [toasts, setToasts] = useState<Toast[]>([]);
+  
+  const addToast = (message: string, type: Toast['type'] = 'info') => {
+    const id = Math.random().toString(36).substr(2, 9);
+    setToasts(prev => [...prev, { id, message, type }]);
+    setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== id));
+    }, 5000);
+  };
   
   // Theme & Currency States
   const [isDarkMode, setIsDarkMode] = useState(true);
@@ -144,14 +149,73 @@ const Dashboard: React.FC = () => {
   const [showWasteModal, setShowWasteModal] = useState(false);
   const [showReceiptModal, setShowReceiptModal] = useState(false);
   const [lastTransaction, setLastTransaction] = useState<any>(null);
-  const [newProduct, setNewProduct] = useState<any>({ id: '', name: '', price: 0, icon: '🥐', ingredients: [] });
+  const [newProduct, setNewProduct] = useState<any>({ 
+    id: '', 
+    name: '', 
+    price: 0, 
+    icon: '🥐', 
+    ingredients: [],
+    prep_time: 0,
+    cook_time: 0,
+    yield_qty: 1,
+    instructions: []
+  });
   const [newMaterial, setNewMaterial] = useState<any>({ name: '', price: 0, unit: 'g', min_threshold: 1000 });
   const [wasteForm, setWasteForm] = useState({ product_id: '', quantity: 1 });
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
   // Recipe Search States
   const [recipeSearchQuery, setRecipeSearchQuery] = useState('');
   const [recipeSearchResults, setRecipeSearchResults] = useState<any[]>([]);
   const [isSearchingRecipes, setIsSearchingRecipes] = useState(false);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [isForecasting, setIsForecasting] = useState(false);
+
+  const [purchasingSuggestions, setPurchasingSuggestions] = useState<any[]>([]);
+  const [suppliers, setSuppliers] = useState<any[]>([]);
+  const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
+
+  const handleSmartForecast = async (date: string) => {
+    setIsForecasting(true);
+    try {
+        const data = await api.get(`/forecast?target_date=${date}`);
+        const newPlans = data.map((item: any) => ({
+            id: Math.random().toString(36).substr(2, 9),
+            date,
+            product_id: item.product_id,
+            quantity: item.suggested_qty,
+            status: 'pending' as const
+        }));
+        setPlanner(prev => [...prev.filter(p => p.date !== date), ...newPlans]);
+        addToast(`Smart Plan generated for ${date}`, 'success');
+    } catch (e) {
+        console.error(e);
+        alert("Forecasting failed. Ensure you have historical data for the same weekday in previous weeks.");
+    } finally {
+      setIsForecasting(false);
+    }
+  };
+
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOnline(true);
+      processSyncQueue().then(() => fetchData());
+    };
+    const handleOffline = () => setIsOnline(false);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    // Initial sync check
+    if (navigator.onLine) {
+        processSyncQueue().then(() => fetchData());
+    }
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   const formatPrice = (amount: number) => {
     const rate = settings?.conversions?.[activeCurrency] || 1;
@@ -166,28 +230,44 @@ const Dashboard: React.FC = () => {
 
   const fetchData = async () => {
     if (!user) return;
+    console.log("Fetching data for role:", user.role);
     try {
-      const [invRes, anaRes, aleRes, histRes, planRes, settRes, ordRes] = await Promise.all([
-        axios.get(`${API_BASE}/inventory`),
-        axios.get(`${API_BASE}/analytics`),
-        axios.get(`${API_BASE}/alerts`),
-        axios.get(`${API_BASE}/history`),
-        axios.get(`${API_BASE}/planner`),
-        axios.get(`${API_BASE}/settings`),
-        axios.get(`${API_BASE}/orders`)
-      ]);
-      setInventory(invRes.data);
-      setAnalytics(anaRes.data);
-      setAlerts(aleRes.data);
-      setHistory(histRes.data);
-      setPlanner(planRes.data);
-      setSettings(settRes.data);
-      setOrders(ordRes.data);
+      const isOwner = user.role === 'owner';
+      
+      // Define which requests to make based on role
+      const requests = [
+        api.get('/inventory'),
+        isOwner ? api.get('/analytics') : Promise.resolve({ revenue: 0, cost: 0, currency: 'MAD', chartData: [] }),
+        api.get('/alerts'),
+        api.get('/history'),
+        isOwner ? api.get('/planner') : Promise.resolve([]),
+        api.get('/settings'),
+        api.get('/orders'),
+        isOwner ? api.get('/purchasing/suggest') : Promise.resolve([]),
+        isOwner ? api.get('/suppliers') : Promise.resolve([]),
+        isOwner ? api.get('/purchase-orders') : Promise.resolve([])
+      ];
+
+      const [invData, anaData, aleData, histData, planData, settData, ordData, purData, suppData, posData] = await Promise.all(requests);
+      
+      console.log("Data fetched successfully");
+      setInventory(invData);
+      setAnalytics(anaData);
+      setAlerts(aleData);
+      setHistory(histData);
+      setPlanner(planData);
+      setSettings(settData);
+      setOrders(ordData);
+      setPurchasingSuggestions(purData);
+      setSuppliers(suppData);
+      setPurchaseOrders(posData);
       
       const initialPrices: Record<string, number> = {};
-      Object.entries(invRes.data.materials as Record<string, Ingredient>).forEach(([name, data]) => {
-          initialPrices[name] = data.price;
-      });
+      if (invData && invData.materials) {
+        Object.entries(invData.materials as Record<string, Ingredient>).forEach(([name, data]) => {
+            initialPrices[name] = data.price;
+        });
+      }
       setSimPrices(initialPrices);
     } catch (error) {
       console.error("Error fetching data:", error);
@@ -199,20 +279,28 @@ const Dashboard: React.FC = () => {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const res = await axios.post(`${API_BASE}/auth/login`, loginForm);
+      const res = await http.post('/auth/login', loginForm);
       const { access_token, username, role } = res.data;
       localStorage.setItem('bakery_token', access_token);
       localStorage.setItem('bakery_user', JSON.stringify({ username, role }));
       setUser({ username, role });
     } catch (err) {
-      alert("Invalid credentials");
+      addToast("Invalid credentials", 'error');
     }
   };
 
   useEffect(() => {
-    const savedUser = localStorage.getItem('bakery_user');
-    if (savedUser) {
-      setUser(JSON.parse(savedUser));
+    try {
+      const savedUser = localStorage.getItem('bakery_user');
+      if (savedUser) {
+        setUser(JSON.parse(savedUser));
+      } else {
+        setLoading(false); // No user, stop loading to show login screen
+      }
+    } catch (e) {
+      console.error("Error loading user from storage", e);
+      localStorage.removeItem('bakery_user');
+      setLoading(false);
     }
   }, []);
 
@@ -264,7 +352,7 @@ const Dashboard: React.FC = () => {
             </button>
           </form>
           <div className="mt-8 text-center">
-            <button onClick={async () => { await axios.get(`${API_BASE}/seed`); alert("Users seeded: admin/password"); }} className="text-[10px] font-bold uppercase tracking-widest opacity-20 hover:opacity-100 transition-opacity underline">Seed Default Users</button>
+            <button onClick={async () => { await http.get('/seed'); addToast("Users Seeded: admin/password", "info"); }} className="text-[10px] font-bold uppercase tracking-widest opacity-20 hover:opacity-100 transition-opacity underline">Seed Default Users</button>
           </div>
         </motion.div>
       </div>
@@ -273,7 +361,7 @@ const Dashboard: React.FC = () => {
 
   const handleProduce = async (productId: string, qty: number) => {
     try {
-      await axios.post(`${API_BASE}/produce`, { product_id: productId, quantity: qty });
+      await api.post('/produce', { product_id: productId, quantity: qty });
       fetchData();
     } catch (error: any) {
       alert(error.response?.data?.detail || "Production failed");
@@ -294,34 +382,34 @@ const Dashboard: React.FC = () => {
   const finalizeSale = async () => {
     if (cart.length === 0) return;
     try {
-      const res = await axios.post(`${API_BASE}/complete`, { cart: cart.map(item => ({ id: item.id, qty: item.qty })) });
-      setLastTransaction(res.data);
+      const data = await api.post('/complete', { cart: cart.map(item => ({ id: item.id, qty: item.qty })) });
+      setLastTransaction(data);
       setCart([]);
       fetchData();
-      setShowReceiptModal(true);
+      addToast("Sale Completed", "success");
     } catch (error: any) {
-      alert(error.response?.data?.detail || "Sale failed");
+      addToast("Sale Failed", "error");
     }
   };
 
   const runSimulation = async () => {
       try {
-          const res = await axios.post(`${API_BASE}/simulate_price`, simPrices);
+          const res = await http.post('/simulate_price', simPrices);
           setSimulationResult(res.data);
       } catch (e) { console.error(e); }
   };
 
   const saveSimulation = async () => {
       try {
-          await axios.post(`${API_BASE}/update_material_prices`, simPrices);
+          await http.post('/update_material_prices', simPrices);
           fetchData();
-          alert("GLOBAL MATERIAL PRICES UPDATED");
+          addToast("Material Prices Updated", 'success');
       } catch (e) { console.error(e); }
   };
 
   const handleAddMaterial = async () => {
     try {
-      await axios.post(`${API_BASE}/materials`, newMaterial);
+      await api.post('/materials', newMaterial);
       setShowAddMaterial(false);
       fetchData();
     } catch (e: any) { alert(e.response?.data?.detail || "Failed to add material"); }
@@ -330,7 +418,7 @@ const Dashboard: React.FC = () => {
   const handleDeleteMaterial = async (name: string) => {
     if (!confirm(`Delete ${name}?`)) return;
     try {
-      await axios.delete(`${API_BASE}/materials/${name}`);
+      await api.delete(`/materials/${name}`);
       fetchData();
     } catch (e: any) { alert(e.response?.data?.detail || "Failed to delete material"); }
   };
@@ -341,8 +429,8 @@ const Dashboard: React.FC = () => {
       return;
     }
     try {
-      const res = await axios.post(`${API_BASE}/products`, newProduct);
-      alert(res.data.message || "Product created successfully");
+      const data = await api.post('/products', newProduct);
+      addToast(data.message || "Product Created", 'success');
       setShowAddProduct(false);
       fetchData();
       // Reset form
@@ -353,7 +441,7 @@ const Dashboard: React.FC = () => {
   const handleDeleteProduct = async (id: string) => {
     if (!confirm("Delete this product?")) return;
     try {
-      await axios.delete(`${API_BASE}/products/${id}`);
+      await api.delete(`/products/${id}`);
       fetchData();
     } catch (e: any) { alert(e.response?.data?.detail || "Failed to delete product"); }
   };
@@ -361,7 +449,7 @@ const Dashboard: React.FC = () => {
   const handleCleanupProducts = async () => {
     if (!confirm("Remove all broken product entries (empty IDs)?")) return;
     try {
-      await axios.post(`${API_BASE}/maintenance/delete-empty-products`);
+      await http.post('/maintenance/delete-empty-products');
       fetchData();
       alert("Cleanup successful");
     } catch (e: any) { alert(e.response?.data?.detail || "Cleanup failed"); }
@@ -369,7 +457,7 @@ const Dashboard: React.FC = () => {
 
   const handleUpdateProductIngredients = async (productId: string, ingredients: any[]) => {
     try {
-      await axios.put(`${API_BASE}/products/${productId}`, { ingredients });
+      await api.put(`/products/${productId}`, { ingredients });
       fetchData();
     } catch (e: any) { alert(e.response?.data?.detail || "Failed to update recipe"); }
   };
@@ -378,7 +466,7 @@ const Dashboard: React.FC = () => {
     if (!recipeSearchQuery.trim()) return;
     setIsSearchingRecipes(true);
     try {
-      const res = await axios.get(`${API_BASE}/external-recipes/search?query=${recipeSearchQuery}`);
+      const res = await http.get(`/external-recipes/search?query=${recipeSearchQuery}`);
       setRecipeSearchResults(res.data);
     } catch (e) { console.error(e); }
     finally { setIsSearchingRecipes(false); }
@@ -386,7 +474,7 @@ const Dashboard: React.FC = () => {
 
   const handleImportRecipe = async (recipeId: string) => {
     try {
-      const res = await axios.get(`${API_BASE}/external-recipes/${recipeId}/details`);
+      const res = await http.get(`/external-recipes/${recipeId}/details`);
       const details = res.data;
 
       // Generate a slug from the name
@@ -412,10 +500,10 @@ const Dashboard: React.FC = () => {
         date,
         product_id: productId,
         quantity: qty,
-        status: 'pending'
+        status: 'pending' as const
     }];
     try {
-        await axios.post(`${API_BASE}/planner`, newPlan);
+        await api.post('/planner', newPlan);
         fetchData();
     } catch (e) { console.error(e); }
   };
@@ -426,11 +514,11 @@ const Dashboard: React.FC = () => {
     
     try {
         // 1. Produce the batch
-        await axios.post(`${API_BASE}/produce`, { product_id: item.product_id, quantity: item.quantity });
+        await api.post('/produce', { product_id: item.product_id, quantity: item.quantity });
         
         // 2. Mark as completed in planner
-        const newPlan = planner.map(p => p.id === planId ? { ...p, status: 'completed' } : p);
-        await axios.post(`${API_BASE}/planner`, newPlan);
+        const newPlan = planner.map(p => p.id === planId ? { ...p, status: 'completed' as const } : p);
+        await api.post('/planner', newPlan);
         
         fetchData();
         alert("Batch Produced and Plan Updated");
@@ -465,16 +553,19 @@ const Dashboard: React.FC = () => {
             {[
               { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard' },
               { id: 'pos', icon: ShoppingCart, label: 'POS Terminal' },
+              { id: 'kitchen', icon: ChefHat, label: 'Kitchen Terminal' },
               { id: 'inventory', icon: Package, label: 'Inventory' },
               { id: 'fiche', icon: FileText, label: 'Fiche Technique' },
+              { id: 'purchasing', icon: Truck, label: 'Purchasing' },
               { id: 'simulator', icon: Calculator, label: 'Simulator' },
               { id: 'history', icon: HistoryIcon, label: 'History' },
               { id: 'planner', icon: Calendar, label: 'Batch Planner' },
               { id: 'orders', icon: FileText, label: 'Pre-Orders' },
               ].filter(item => {
-              if (user?.role === 'cashier' && ['simulator', 'planner', 'inventory'].includes(item.id)) return false;
+              if (user?.role === 'cashier' && ['simulator', 'planner', 'inventory', 'purchasing'].includes(item.id)) return false;
               return true;
-              }).map((item) => (
+              })
+.map((item) => (
 
               <button
                 key={item.id}
@@ -507,6 +598,18 @@ const Dashboard: React.FC = () => {
 
           <button onClick={() => setShowWasteModal(true)} className={`w-full py-4 rounded-xl font-bold text-xs uppercase tracking-widest border border-rose-500/20 text-rose-500 hover:bg-rose-500/10 transition-all`}>Log Daily Waste</button>
 
+          <button 
+            onClick={() => { 
+              localStorage.removeItem('bakery_token'); 
+              localStorage.removeItem('bakery_user'); 
+              setUser(null); 
+            }} 
+            className="w-full flex items-center justify-center gap-2 py-4 rounded-xl font-bold text-xs uppercase tracking-widest bg-rose-600 hover:bg-rose-700 text-white shadow-lg transition-all"
+          >
+            <LogOut size={16}/>
+            Log Out
+          </button>
+
           {user?.role === 'owner' && (
             <button
               onClick={() => setEditMode(!editMode)}
@@ -519,9 +622,7 @@ const Dashboard: React.FC = () => {
             </button>
           )}
 
-          <button onClick={() => { localStorage.removeItem('bakery_token'); localStorage.removeItem('bakery_user'); setUser(null); }} className="w-full text-[10px] font-black uppercase tracking-widest opacity-20 hover:opacity-100 transition-opacity">Disconnect Terminal</button>
           </div>
-
       </aside>
 
       {/* Main Content */}
@@ -540,6 +641,16 @@ const Dashboard: React.FC = () => {
             <p className={`font-medium ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>Head Baker: Dane | Connected | {new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long' })}</p>
           </div>
           <div className="flex gap-4">
+            <div className={`px-6 py-3 flex items-center gap-4 border rounded-2xl ${isDarkMode ? 'border-white/10 bg-black/20' : 'border-slate-200 bg-white shadow-sm'}`}>
+              <div className="text-right">
+                <p className={`text-[10px] uppercase tracking-widest font-black ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>{isOnline ? 'Online' : 'Offline'}</p>
+                <p className={`text-xs font-bold ${isOnline ? 'text-emerald-500' : 'text-rose-500'}`}>
+                  {isOnline ? 'Sync Active' : 'Offline Mode'}
+                </p>
+              </div>
+              <div className={`w-3 h-3 rounded-full ${isOnline ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]' : 'bg-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.5)] animate-pulse'}`} />
+            </div>
+
             <div className={`px-6 py-3 flex items-center gap-4 border rounded-2xl ${isDarkMode ? 'border-gold/10 bg-black/20' : 'border-slate-200 bg-white shadow-sm'}`}>
               <div className="text-right">
                 <p className={`text-[10px] uppercase tracking-widest font-black ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>Session Profit</p>
@@ -597,17 +708,151 @@ const Dashboard: React.FC = () => {
                     </div>
                   </div>
                   <div className={`p-8 rounded-[2.5rem] border transition-colors ${isDarkMode ? 'border-gold/10 bg-black/20' : 'border-slate-200 bg-white shadow-sm'}`}>
+                    <h3 className={`text-xl font-bold luxury-font uppercase mb-8 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Financial Intelligence</h3>
+                    <p className={`text-sm mb-6 ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>Generate executive summaries for accounting and performance review.</p>
+                    <div className="flex gap-4">
+                        <button 
+                            onClick={() => {
+                                const year = new Date().getFullYear();
+                                const month = new Date().getMonth() + 1;
+                                window.open(`${API_BASE}/reports/monthly?month=${month}&year=${year}`, '_blank');
+                            }}
+                            className={`flex-1 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest border transition-all ${isDarkMode ? 'border-gold/20 text-gold hover:bg-gold hover:text-charcoal' : 'bg-slate-900 text-white shadow-xl'}`}
+                        >
+                            Generate {new Date().toLocaleString('default', { month: 'long' })} Report
+                        </button>
+                    </div>
+                  </div>
+
+                  <div className={`p-8 rounded-[2.5rem] border transition-colors ${isDarkMode ? 'border-gold/10 bg-black/20' : 'border-slate-200 bg-white shadow-sm'}`}>
                     <h3 className={`text-xl font-bold luxury-font uppercase mb-8 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Live Alerts</h3>
                     <div className="space-y-4">
                       {alerts.map((alert) => (
-                        <div key={alert.id} className={`p-4 rounded-2xl border flex items-center gap-4 ${alert.severity === 'high' ? 'bg-rose-500/10 border-rose-500/20 text-rose-500' : 'bg-gold/10 border-gold/20 text-gold'}`}>
-                          <AlertTriangle size={20} />
-                          <p className="text-xs font-bold uppercase tracking-wide">{alert.message}</p>
-                        </div>
+                        <motion.div 
+                          key={alert.id}
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className={`p-5 rounded-3xl border flex items-center justify-between group transition-all ${
+                            alert.severity === 'high' 
+                              ? (isDarkMode ? 'bg-rose-500/10 border-rose-500/20 text-rose-500 shadow-[0_0_20px_rgba(244,63,94,0.1)]' : 'bg-rose-50 border-rose-100 text-rose-600') 
+                              : (isDarkMode ? 'bg-gold/10 border-gold/20 text-gold shadow-[0_0_20px_rgba(212,175,55,0.1)]' : 'bg-amber-50 border-amber-100 text-amber-700')
+                          }`}
+                        >
+                          <div className="flex items-center gap-4">
+                            <div className={`p-3 rounded-2xl ${alert.severity === 'high' ? 'bg-rose-500/20' : 'bg-gold/20'}`}>
+                              <AlertTriangle size={20} className={alert.severity === 'high' ? 'animate-pulse' : ''} />
+                            </div>
+                            <div>
+                              <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-40 mb-1">{alert.type} Alert</p>
+                              <p className="text-sm font-bold tracking-tight">{alert.message}</p>
+                            </div>
+                          </div>
+                          <ChevronRight size={16} className="opacity-0 group-hover:opacity-40 transition-opacity" />
+                        </motion.div>
                       ))}
                       {alerts.length === 0 && <div className="py-20 opacity-10 flex flex-col items-center"><Zap size={48}/><p className="mt-4 font-bold uppercase tracking-widest text-[10px]">System Nominal</p></div>}
                     </div>
                   </div>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'kitchen' && (
+              <div className="space-y-8 animate-in fade-in duration-500">
+                <div className="flex justify-between items-center">
+                    <div>
+                        <h3 className={`text-4xl font-bold luxury-font uppercase tracking-tighter ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Baker's Pipeline</h3>
+                        <p className={`text-sm mt-1 ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>Real-time production monitoring and execution</p>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+                    {/* Live Production Queue */}
+                    <div className="space-y-6">
+                        <div className="flex items-center gap-3">
+                            <Zap size={16} className="text-gold" />
+                            <h4 className="text-xs font-black uppercase tracking-[0.2em] opacity-40">Active Batch Queue</h4>
+                        </div>
+                        <div className="space-y-4">
+                            {planner.filter(p => p.status === 'pending').map(batch => (
+                                <div key={batch.id} className={`p-8 rounded-[2.5rem] border flex items-center justify-between group transition-all ${isDarkMode ? 'bg-white/5 border-white/5 hover:border-gold/20' : 'bg-white border-slate-200 shadow-sm'}`}>
+                                    <div className="flex items-center gap-6">
+                                        <div className="text-5xl">{inventory.products.find(x => x.id === batch.product_id)?.icon}</div>
+                                        <div>
+                                            <p className="text-xl font-bold mb-1">{inventory.products.find(x => x.id === batch.product_id)?.name}</p>
+                                            <p className="text-xs font-black text-gold uppercase tracking-widest">{batch.quantity} Units Required</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex gap-3">
+                                        <button 
+                                            onClick={() => setSelectedProduct(inventory.products.find(x => x.id === batch.product_id) || null)}
+                                            className="p-4 rounded-2xl bg-white/5 hover:bg-white/10 text-white/40 hover:text-white transition-all"
+                                            title="View Recipe"
+                                        >
+                                            <FileText size={20} />
+                                        </button>
+                                        <button 
+                                            onClick={() => handleCompletePlan(batch.id)}
+                                            className={`px-8 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${isDarkMode ? 'bg-gold text-charcoal shadow-gold-glow hover:scale-105' : 'bg-slate-900 text-white shadow-xl'}`}
+                                        >
+                                            Finish Batch
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                            {planner.filter(p => p.status === 'pending').length === 0 && (
+                                <div className="py-20 border-2 border-dashed border-white/5 rounded-[3rem] flex flex-col items-center justify-center opacity-10">
+                                    <CheckCircle size={48} className="mb-4" />
+                                    <p className="font-black text-xs uppercase tracking-widest">No Active Batches</p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Pre-Order Baking Alerts */}
+                    <div className="space-y-6">
+                        <div className="flex items-center gap-3">
+                            <Calendar size={16} className="text-gold" />
+                            <h4 className="text-xs font-black uppercase tracking-[0.2em] opacity-40">Pre-Order Deadlines</h4>
+                        </div>
+                        <div className="space-y-4">
+                            {orders.filter(o => o.status === 'pending' || o.status === 'baking').map(order => (
+                                <div key={order.id} className={`p-6 rounded-3xl border flex items-center justify-between transition-all ${isDarkMode ? 'bg-black/40 border-white/5' : 'bg-slate-50 border-slate-200'}`}>
+                                    <div>
+                                        <p className="font-bold text-sm">{order.customer_name}</p>
+                                        <p className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>
+                                            Pickup: {new Date(order.pickup_date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                        </p>
+                                        <div className="flex gap-1 mt-2">
+                                            {order.items.map((it:any, idx:number) => (
+                                                <span key={idx} className="text-[10px] bg-white/5 px-2 py-0.5 rounded-full">{it.qty}x {inventory.products.find(x=>x.id===it.id)?.name}</span>
+                                            ))}
+                                        </div>
+                                    </div>
+                                    <select 
+                                        value={order.status}
+                                        onChange={async (e) => {
+                                            await api.patch(`/orders/${order.id}/status?status=${e.target.value}`, null);
+                                            if (e.target.value === 'ready') {
+                                                addToast(`Order for ${order.customer_name} is Ready!`, "success");
+                                                // Phase 10 trigger placeholder
+                                                const msg = encodeURIComponent(`Bonjour ${order.customer_name}, votre commande chez BakeryOS est prête! 🥐`);
+                                                if (order.customer_phone) {
+                                                    window.open(`https://wa.me/${order.customer_phone.replace(/\D/g,'')}?text=${msg}`, '_blank');
+                                                }
+                                            }
+                                            fetchData();
+                                        }}
+                                        className={`bg-transparent text-[10px] font-black uppercase tracking-widest outline-none ${order.status === 'baking' ? 'text-gold' : 'text-cream/40'}`}
+                                    >
+                                        <option value="pending">Queued</option>
+                                        <option value="baking">In Oven</option>
+                                        <option value="ready">Ready</option>
+                                    </select>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
                 </div>
               </div>
             )}
@@ -663,27 +908,117 @@ const Dashboard: React.FC = () => {
                                const phone = window.prompt("Customer Phone?");
                                const date = window.prompt("Pickup Date (YYYY-MM-DD HH:MM)?", new Date(Date.now() + 86400000).toISOString().slice(0, 16).replace('T', ' '));
                                if (name && date) {
-                                   axios.post(`${API_BASE}/orders`, {
+                                  api.post('/orders', {
                                        customer_name: name,
                                        customer_phone: phone,
                                        pickup_date: date.replace(' ', 'T'),
                                        items: cart.map(i => ({id: i.id, qty: i.qty})),
                                        deposit_paid: 0
-                                   }).then(() => {
+                                  }).then(() => {
                                        setCart([]);
                                        fetchData();
-                                       alert("Pre-Order Saved!");
-                                   });
+                                       addToast("Booking Confirmed", "success");
+
+                                  });
                                }
+
                            }} 
                            disabled={cart.length === 0}
                            className={`p-6 rounded-2xl border transition-all ${isDarkMode ? 'border-white/10 bg-white/5 text-gold hover:bg-white/10' : 'border-slate-200 bg-white text-slate-900'}`}
                            title="Save as Pre-Order"
-                       >
-                           <Calendar size={20} />
-                       </button>
-                    </div>
+                           >
+                           <Calendar size={24} />
+                           </button>
+                           </div>
 
+                           {lastTransaction && (
+                        <button 
+                            onClick={() => setShowReceiptModal(true)}
+                            className={`w-full mt-4 py-4 rounded-xl font-bold text-[10px] uppercase tracking-[0.2em] flex items-center justify-center gap-2 border transition-all ${
+                                isDarkMode ? 'border-gold/20 text-gold hover:bg-gold/5' : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                            }`}
+                        >
+                            <QRCodeSVG 
+                                value={window.location.origin + API_BASE + "/transactions/" + lastTransaction.transaction_id + "/receipt"}
+                                size={16}
+                            />
+                            Show Last Receipt
+                        </button>
+                           )}
+                    </div>
+                 </div>
+               </div>
+            )}
+
+            {activeTab === 'purchasing' && (
+              <div className="space-y-8 animate-in fade-in duration-500">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                  {/* Shopping List / Suggestions */}
+                  <div className={`lg:col-span-2 rounded-[2rem] border overflow-hidden transition-colors ${isDarkMode ? 'border-white/5 bg-black/20' : 'border-slate-200 bg-white shadow-sm'}`}>
+                    <div className="p-8 border-b border-white/5 flex justify-between items-center">
+                        <h3 className={`text-xl font-bold luxury-font uppercase ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Procurement Intelligence</h3>
+                        <p className="text-[10px] font-black uppercase tracking-widest text-gold bg-gold/10 px-3 py-1 rounded-full">Auto-Suggestions</p>
+                    </div>
+                    <div className="p-8 space-y-6">
+                        {purchasingSuggestions.length > 0 ? (
+                            <div className="space-y-4">
+                                {purchasingSuggestions.map(s => (
+                                    <div key={s.name} className={`p-6 rounded-3xl border flex items-center justify-between transition-all ${isDarkMode ? 'bg-white/5 border-white/10 hover:border-gold/20' : 'bg-slate-50 border-slate-200'}`}>
+                                        <div className="flex items-center gap-4">
+                                            <div className="w-12 h-12 rounded-2xl bg-gold/10 flex items-center justify-center text-gold">
+                                                <Package size={20} />
+                                            </div>
+                                            <div>
+                                                <p className="font-bold text-sm">{s.name}</p>
+                                                <p className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>Stock: {s.current_stock}{s.unit} | Min: {s.min_threshold}{s.unit}</p>
+                                            </div>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="text-xs font-black text-gold uppercase tracking-widest">Buy +{s.suggested_buy}{s.unit}</p>
+                                            <p className="text-[10px] font-bold opacity-40">Est. {formatPrice(s.estimated_cost)}</p>
+                                        </div>
+                                    </div>
+                                ))}
+                                <button 
+                                    onClick={() => addToast("Purchase Order Drafted", "success")}
+                                    className={`w-full py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${isDarkMode ? 'bg-gold text-charcoal shadow-gold-glow' : 'bg-slate-900 text-white'}`}
+                                >
+                                    Generate Bulk Purchase Order
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="py-20 flex flex-col items-center opacity-20">
+                                <CheckCircle size={48} className="mb-4" />
+                                <p className="font-black text-xs uppercase tracking-widest text-center">Stock Levels Optimal<br/><span className="text-[10px] lowercase font-bold tracking-normal opacity-60">No procurement suggested</span></p>
+                            </div>
+                        )}
+                    </div>
+                  </div>
+
+                  {/* Supplier Directory */}
+                  <div className={`rounded-[2rem] border overflow-hidden transition-colors ${isDarkMode ? 'border-white/5 bg-black/20' : 'border-slate-200 bg-white shadow-sm'}`}>
+                    <div className="p-8 border-b border-white/5 flex justify-between items-center">
+                        <h3 className={`text-xl font-bold luxury-font uppercase ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Suppliers</h3>
+                        <button className="text-gold p-2 hover:bg-gold/10 rounded-lg transition-all"><Plus size={16}/></button>
+                    </div>
+                    <div className="p-6 space-y-4">
+                        {suppliers.length > 0 ? (
+                            suppliers.map(supp => (
+                                <div key={supp.id} className="p-4 rounded-2xl bg-white/5 border border-white/5 flex items-center justify-between">
+                                    <div>
+                                        <p className="font-bold text-sm">{supp.name}</p>
+                                        <p className="text-[10px] opacity-40 uppercase tracking-widest font-black">{supp.contact_info || 'No contact info'}</p>
+                                    </div>
+                                    <ChevronRight size={16} className="opacity-20" />
+                                </div>
+                            ))
+                        ) : (
+                            <div className="py-10 text-center opacity-20">
+                                <Truck size={32} className="mx-auto mb-4" />
+                                <p className="text-[10px] font-black uppercase tracking-widest">No Registered Suppliers</p>
+                            </div>
+                        )}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -778,8 +1113,25 @@ const Dashboard: React.FC = () => {
                         <p className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-gold' : 'text-slate-400'}`}>Unit Cost</p>
                         <p className={`text-xl font-bold ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{formatPrice(p.live_cost || 0)}</p>
                       </div>
-                    </div>
-                    <div className="space-y-4 mb-8">
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-2 mb-8 p-3 rounded-2xl bg-white/5 border border-white/5">
+                       <div className="text-center">
+                           <p className="text-[8px] uppercase font-black opacity-40 mb-1">Prep</p>
+                           <p className="text-xs font-bold">{p.prep_time}m</p>
+                       </div>
+                       <div className="text-center border-x border-white/5">
+                           <p className="text-[8px] uppercase font-black opacity-40 mb-1">Cook</p>
+                           <p className="text-xs font-bold">{p.cook_time}m</p>
+                       </div>
+                       <div className="text-center">
+                           <p className="text-[8px] uppercase font-black opacity-40 mb-1">Yield</p>
+                           <p className="text-xs font-bold">{p.yield_qty}</p>
+                       </div>
+                      </div>
+
+                      <div className="space-y-4 mb-8">
+
                       {p.ingredients.map((ing, idx) => (
                         <div key={ing.name} className="flex justify-between items-center text-xs group/ing">
                           <span className={isDarkMode ? 'text-cream/40' : 'text-slate-500'}>{ing.name}</span>
@@ -833,6 +1185,13 @@ const Dashboard: React.FC = () => {
                       </div>
                       <button onClick={() => handleDeleteProduct(p.id)} className="text-rose-500/20 hover:text-rose-500 transition-colors"><Trash2 size={16}/></button>
                     </div>
+                    
+                    <button 
+                        onClick={() => setSelectedProduct(p)}
+                        className={`w-full mt-4 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest border transition-all ${isDarkMode ? 'border-gold/20 text-gold hover:bg-gold hover:text-charcoal' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+                    >
+                        View Executive Protocol
+                    </button>
                   </div>
                 ))}
                 
@@ -1031,13 +1390,29 @@ const Dashboard: React.FC = () => {
                         <h3 className={`text-2xl font-bold luxury-font uppercase tracking-tighter ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Production Strategy</h3>
                         <p className={`text-[10px] font-black uppercase tracking-widest mt-1 ${isDarkMode ? 'text-cream/20' : 'text-slate-400'}`}>Operational Batch Planning</p>
                     </div>
-                    <button 
-                        onClick={() => window.open(`${API_BASE}/planner/prep-sheet`, '_blank')}
-                        className={`flex items-center gap-3 px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${isDarkMode ? 'bg-gold/10 text-gold border border-gold/20 hover:bg-gold hover:text-charcoal' : 'bg-slate-900 text-white'}`}
-                    >
-                        <FileText size={16} />
-                        Print Master Prep List
-                    </button>
+                    <div className="flex gap-4">
+                      <button 
+                          onClick={() => {
+                              const date = window.prompt("Forecast for which date (YYYY-MM-DD)?", new Date(Date.now() + 86400000).toISOString().split('T')[0]);
+                              if (date) handleSmartForecast(date);
+                          }}
+                          disabled={isForecasting}
+                          className={`flex items-center gap-3 px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${isDarkMode ? 'bg-white/5 text-gold border border-white/10 hover:bg-gold hover:text-charcoal' : 'bg-slate-100 text-slate-900 border border-slate-200 hover:bg-slate-200 shadow-sm'}`}
+                      >
+                          <Zap size={16} className={isForecasting ? 'animate-pulse' : ''} />
+                          {isForecasting ? 'Analyzing...' : 'Smart Suggest'}
+                      </button>
+                      <button 
+                          onClick={() => {
+                              const date = window.prompt("Print prep list for which date (YYYY-MM-DD)?", new Date().toISOString().split('T')[0]);
+                              if (date) window.open(`${API_BASE}/planner/prep-sheet?date=${date}`, '_blank');
+                          }}
+                          className={`flex items-center gap-3 px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${isDarkMode ? 'bg-gold/10 text-gold border border-gold/20 hover:bg-gold hover:text-charcoal' : 'bg-slate-900 text-white shadow-xl'}`}
+                      >
+                          <FileText size={16} />
+                          Print Prep List
+                      </button>
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
@@ -1139,7 +1514,7 @@ const Dashboard: React.FC = () => {
                             const phone = window.prompt("Customer Phone?");
                             const date = window.prompt("Pickup Date (YYYY-MM-DD HH:MM)?", new Date().toISOString().slice(0, 16).replace('T', ' '));
                             if (name && date) {
-                                axios.post(`${API_BASE}/orders`, {
+                                api.post('/orders', {
                                     customer_name: name,
                                     customer_phone: phone,
                                     pickup_date: date.replace(' ', 'T'),
@@ -1147,6 +1522,7 @@ const Dashboard: React.FC = () => {
                                     deposit_paid: 0
                                 }).then(() => fetchData());
                             }
+
                         }} 
                         className={`px-8 py-4 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] transition-all active:scale-95 ${isDarkMode ? 'bg-gold text-charcoal shadow-gold-glow' : 'bg-slate-900 text-white shadow-xl'}`}
                     >
@@ -1183,9 +1559,10 @@ const Dashboard: React.FC = () => {
                               <select 
                                 value={order.status}
                                 onChange={async (e) => {
-                                  await axios.patch(`${API_BASE}/orders/${order.id}/status`, null, { params: { status: e.target.value } });
+                                  await api.patch(`/orders/${order.id}/status?status=${e.target.value}`, null);
                                   fetchData();
                                 }}
+
                                 className={`bg-transparent font-black text-[10px] uppercase tracking-widest outline-none cursor-pointer transition-colors ${
                                   order.status === 'picked_up' ? 'text-emerald-500' : (order.status === 'ready' ? 'text-gold drop-shadow-gold' : 'text-white/20 hover:text-white/40')
                                 }`}
@@ -1267,20 +1644,98 @@ const Dashboard: React.FC = () => {
                         </div>
                     </div>
 
-                    <button 
+                    <button
                         onClick={async () => {
                             if (!wasteForm.product_id) return;
                             try {
-                                await axios.post(`${API_BASE}/waste`, wasteForm);
+                                await api.post('/waste', wasteForm);
                                 setShowWasteModal(false);
                                 fetchData();
                             } catch (e: any) { alert(e.response?.data?.detail || "Log failed"); }
                         }}
                         className={`w-full py-6 rounded-2xl font-black text-xs uppercase tracking-widest transition-all ${isDarkMode ? 'bg-rose-500 text-white shadow-lg' : 'bg-slate-900 text-white'}`}
                     >
+
                         Confirm Loss
                     </button>
                     <p className="text-[10px] text-center opacity-40 font-bold uppercase tracking-widest">This will deduct stock and adjust Net ROI</p>
+                </div>
+            </motion.div>
+        </div>
+      )}
+
+      {/* Recipe Protocol Modal */}
+      {selectedProduct && (
+        <div className="fixed inset-0 z-[150] flex items-center justify-center p-6 bg-black/80 backdrop-blur-xl animate-in fade-in duration-300">
+            <motion.div 
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                className={`w-full max-w-4xl max-h-[85vh] overflow-hidden flex flex-col rounded-[3.5rem] border shadow-2xl ${isDarkMode ? 'bg-[#0a0a0b] border-white/10' : 'bg-white border-slate-200'}`}
+            >
+                <div className="p-10 flex justify-between items-start border-b border-white/5">
+                    <div className="flex gap-6 items-center">
+                        <div className="text-6xl">{selectedProduct.icon}</div>
+                        <div>
+                            <h2 className="text-4xl font-bold luxury-font tracking-tight mb-2">{selectedProduct.name}</h2>
+                            <div className="flex gap-4">
+                                <span className="text-[10px] font-black uppercase tracking-widest text-gold bg-gold/10 px-3 py-1 rounded-full">Protocol v1.0</span>
+                                <span className="text-[10px] font-black uppercase tracking-widest text-cream/40 bg-white/5 px-3 py-1 rounded-full">Yield: {selectedProduct.yield_qty} Units</span>
+                            </div>
+                        </div>
+                    </div>
+                    <button onClick={() => setSelectedProduct(null)} className="p-4 rounded-full bg-white/5 hover:bg-white/10 transition-colors"><X size={24}/></button>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-10 grid grid-cols-1 md:grid-cols-3 gap-12 custom-scrollbar">
+                    {/* Left: Ingredients */}
+                    <div>
+                        <h3 className="text-xs font-black uppercase tracking-[0.3em] text-gold mb-8 opacity-40">Composition</h3>
+                        <div className="space-y-6">
+                            {selectedProduct.ingredients.map(ing => (
+                                <div key={ing.name} className="flex justify-between items-end border-b border-white/5 pb-2">
+                                    <span className="font-bold text-sm">{ing.name}</span>
+                                    <span className="text-gold font-black">{ing.quantity}<span className="text-[10px] ml-1 opacity-40">{inventory.materials[ing.name]?.unit || 'g'}</span></span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Right: Method */}
+                    <div className="md:col-span-2 space-y-10">
+                        <div className="grid grid-cols-2 gap-8">
+                            <div className="p-6 rounded-3xl bg-white/5 border border-white/5">
+                                <p className="text-[10px] font-black uppercase tracking-widest opacity-40 mb-2">Preparation Time</p>
+                                <p className="text-2xl font-bold">{selectedProduct.prep_time} <span className="text-xs opacity-40">minutes</span></p>
+                            </div>
+                            <div className="p-6 rounded-3xl bg-white/5 border border-white/5">
+                                <p className="text-[10px] font-black uppercase tracking-widest opacity-40 mb-2">Cooking Time</p>
+                                <p className="text-2xl font-bold">{selectedProduct.cook_time} <span className="text-xs opacity-40">minutes</span></p>
+                            </div>
+                        </div>
+
+                        <div>
+                            <h3 className="text-xs font-black uppercase tracking-[0.3em] text-gold mb-8 opacity-40">Methodology</h3>
+                            <div className="space-y-8">
+                                {selectedProduct.instructions && selectedProduct.instructions.length > 0 ? (
+                                    selectedProduct.instructions.map((step, i) => (
+                                        <div key={i} className="flex gap-6 group">
+                                            <div className="w-10 h-10 rounded-full border border-gold/20 flex items-center justify-center font-black text-gold text-xs shrink-0 group-hover:bg-gold group-hover:text-charcoal transition-all">{i + 1}</div>
+                                            <p className={`text-lg leading-relaxed ${isDarkMode ? 'text-cream/80' : 'text-slate-600'}`}>{step}</p>
+                                        </div>
+                                    ))
+                                ) : (
+                                    <div className="py-12 border-2 border-dashed border-white/5 rounded-[2.5rem] flex flex-col items-center justify-center opacity-20">
+                                        <FileText size={48} className="mb-4" />
+                                        <p className="font-black text-xs uppercase tracking-widest">No Protocol Defined</p>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="p-8 bg-white/5 flex justify-center border-t border-white/5">
+                    <p className="text-[10px] font-black uppercase tracking-[0.5em] opacity-20">BakeryOS Executive Protocol | Highly Confidential</p>
                 </div>
             </motion.div>
         </div>
@@ -1349,7 +1804,49 @@ const Dashboard: React.FC = () => {
                                 </div>
                             </div>
                             
-                            <div className="pt-4">
+                            <div className="grid grid-cols-3 gap-4">
+                                <div>
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-1">Prep (min)</label>
+                                    <input type="number" value={newProduct.prep_time} onChange={(e)=>setNewProduct({...newProduct, prep_time: parseInt(e.target.value)})} className={`w-full bg-transparent border-b py-2 outline-none font-bold ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`} />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-1">Cook (min)</label>
+                                    <input type="number" value={newProduct.cook_time} onChange={(e)=>setNewProduct({...newProduct, cook_time: parseInt(e.target.value)})} className={`w-full bg-transparent border-b py-2 outline-none font-bold ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`} />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-1">Yield (qty)</label>
+                                    <input type="number" value={newProduct.yield_qty} onChange={(e)=>setNewProduct({...newProduct, yield_qty: parseInt(e.target.value)})} className={`w-full bg-transparent border-b py-2 outline-none font-bold ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`} />
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">Instructions ({newProduct.instructions.length} steps)</label>
+                                <div className="space-y-2 max-h-[150px] overflow-y-auto custom-scrollbar pr-2">
+                                    {newProduct.instructions.map((step: string, i: number) => (
+                                        <div key={i} className="flex gap-2">
+                                            <span className="text-[10px] font-bold text-gold opacity-40">{i+1}</span>
+                                            <input 
+                                                value={step} 
+                                                onChange={(e) => {
+                                                    const next = [...newProduct.instructions];
+                                                    next[i] = e.target.value;
+                                                    setNewProduct({...newProduct, instructions: next});
+                                                }}
+                                                className={`flex-1 bg-transparent text-[11px] outline-none ${isDarkMode ? 'text-cream/60' : 'text-slate-600'}`}
+                                            />
+                                            <button onClick={() => setNewProduct({...newProduct, instructions: newProduct.instructions.filter((_:any,idx:any)=>idx!==i)})}><X size={12} className="text-rose-500 opacity-40 hover:opacity-100"/></button>
+                                        </div>
+                                    ))}
+                                    <button 
+                                        onClick={() => setNewProduct({...newProduct, instructions: [...newProduct.instructions, ""]})}
+                                        className="w-full py-2 border border-dashed border-white/10 rounded-lg text-[10px] font-black uppercase tracking-widest opacity-40 hover:opacity-100 hover:border-gold/40 transition-all"
+                                    >
+                                        + Add Instruction Step
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div className="pt-4 border-t border-white/5">
                                 <p className="text-[10px] font-black uppercase tracking-widest text-gold mb-3">Ingredient Preview ({newProduct.ingredients.length})</p>
                                 <div className="space-y-2">
                                     {newProduct.ingredients.slice(0, 5).map((ing: any, i: number) => (
@@ -1463,6 +1960,33 @@ const Dashboard: React.FC = () => {
             </motion.div>
         </div>
       )}
+
+      {/* Toast System */}
+      <div className="fixed top-8 right-8 z-[300] space-y-4 pointer-events-none">
+        <AnimatePresence>
+          {toasts.map(toast => (
+            <motion.div
+              key={toast.id}
+              initial={{ opacity: 0, x: 50, scale: 0.9 }}
+              animate={{ opacity: 1, x: 0, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.5, transition: { duration: 0.2 } }}
+              className={`flex items-center gap-4 px-6 py-4 rounded-2xl shadow-2xl border pointer-events-auto backdrop-blur-xl ${
+                toast.type === 'success' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500' :
+                toast.type === 'error' ? 'bg-rose-500/10 border-rose-500/20 text-rose-500' :
+                'bg-gold/10 border-gold/20 text-gold'
+              }`}
+            >
+              {toast.type === 'success' && <CheckCircle size={20} />}
+              {toast.type === 'error' && <XCircle size={20} />}
+              {toast.type === 'info' && <Info size={20} />}
+              <p className="text-xs font-black uppercase tracking-widest">{toast.message}</p>
+              <button onClick={() => setToasts(prev => prev.filter(t => t.id !== toast.id))} className="ml-4 opacity-40 hover:opacity-100">
+                <X size={14} />
+              </button>
+            </motion.div>
+          ))}
+        </AnimatePresence>
+      </div>
     </div>
   );
 };

@@ -22,6 +22,10 @@ class Product(Base):
     stock = Column(Integer, default=0)
     price = Column(Float, default=0)
     icon = Column(String, nullable=True)
+    prep_time = Column(Integer, default=0) # minutes
+    cook_time = Column(Integer, default=0) # minutes
+    yield_qty = Column(Integer, default=1) 
+    instructions = Column(JSON, nullable=True) # List of strings
     
     # Relationship to RecipeItem
     recipe_items = relationship("RecipeItem", back_populates="product", cascade="all, delete-orphan")
@@ -77,3 +81,17 @@ class WasteRecord(Base):
     loss_cost = Column(Float)
     
     product = relationship("Product")
+
+class Supplier(Base):
+    __tablename__ = "suppliers"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, unique=True, index=True)
+    contact_info = Column(String, nullable=True)
+
+class PurchaseOrder(Base):
+    __tablename__ = "purchase_orders"
+    id = Column(String, primary_key=True, index=True)
+    date = Column(DateTime, default=datetime.datetime.utcnow)
+    supplier_id = Column(Integer, ForeignKey("suppliers.id"))
+    items = Column(JSON) # List of {name, qty, price}
+    status = Column(String, default="draft") # draft, ordered, received
