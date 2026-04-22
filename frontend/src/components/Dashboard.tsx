@@ -795,7 +795,7 @@ const Dashboard: React.FC = () => {
             {!isSidebarCollapsed && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
                   <h1 className={`text-2xl font-bold luxury-font tracking-tight ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Bakery<span className="text-gold">OS</span></h1>
-                    <span className="text-[10px] bg-gold/10 text-gold px-2 py-0.5 rounded-full font-black">v3.2</span>
+                    <span className="text-[10px] bg-gold/10 text-gold px-2 py-0.5 rounded-full font-black">v3.3</span>
               </motion.div>
             )}
           </div>

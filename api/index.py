@@ -210,11 +210,31 @@ def get_settings():
 
 @app.get("/api/seed")
 async def seed_users(db: Session = Depends(get_db)):
-    if not db.query(models.User).first():
-        db.add(models.User(username="admin", password=get_password_hash("password"), role="owner"))
-        db.add(models.User(username="cashier", password=get_password_hash("password"), role="cashier"))
+    # Check if admin already exists
+    admin = db.query(models.User).filter(models.User.username == "admin").first()
+    if not admin:
+        admin = models.User(id=1, username="admin", password=get_password_hash("password"), role="owner")
+        db.add(admin)
         db.commit()
-    return {"message": "Users seeded. Use admin/password or cashier/password."}
+    
+    # Check for cashier
+    cashier = db.query(models.User).filter(models.User.username == "cashier").first()
+    if not cashier:
+        db.add(models.User(username="cashier", password=get_password_hash("password"), role="cashier", parent_owner_id=admin.id))
+        db.commit()
+        
+    return {"message": "SaaS Sync Complete. Use admin/password. Version: 3.3"}
+
+@app.get("/api/debug-data")
+async def debug_data(db: Session = Depends(get_db)):
+    product_count = db.query(models.Product).count()
+    ingredient_count = db.query(models.Ingredient).count()
+    user_list = db.query(models.User.id, models.User.username).all()
+    return {
+        "products_in_cloud": product_count,
+        "ingredients_in_cloud": ingredient_count,
+        "users": [{"id": u[0], "username": u[1]} for u in user_list]
+    }
 
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests

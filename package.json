@@ -1,6 +1,6 @@
 {
-  "name": "bakery-os-root",
-  "version": "1.0.0",
+  "name": "bakery-os-enterprise",
+  "version": "3.3.0",
   "private": true,
   "scripts": {
     "build": "cd frontend && npm install && npm run build",
