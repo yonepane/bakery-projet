@@ -5,29 +5,49 @@ import uuid
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional
 
-# Adjut path for Vercel deployment if necessary
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-
 from fastapi import FastAPI, HTTPException, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
+from fastapi.security import OAuth2PasswordBearer
+from fastapi.staticfiles import StaticFiles
+from passlib.context import CryptContext
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from database import engine, SessionLocal, Base, get_db
-import models
+import jwt
+
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+if CURRENT_DIR not in sys.path:
+    sys.path.append(CURRENT_DIR)
+
+try:
+    from .database import engine, SessionLocal, Base, get_db
+    from . import models
+except ImportError:
+    from database import engine, SessionLocal, Base, get_db
+    import models
 
 # Security
-SECRET_KEY = "bakery-secret-key-change-me"
+SECRET_KEY = os.getenv("SECRET_KEY")
+if not SECRET_KEY:
+    vercel_env = os.getenv("VERCEL_ENV", "").lower()
+    environment = os.getenv("ENVIRONMENT", "development").lower()
+    is_local_dev = vercel_env in ("", "development") and environment == "development"
+    if not is_local_dev:
+        raise RuntimeError("SECRET_KEY must be set outside local development")
+    SECRET_KEY = "bakery-dev-insecure-secret"
+
 ALGORITHM = "HS256"
 pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/auth/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
 def init_db():
     try:
         models.Base.metadata.create_all(bind=engine)
+        print("SaaS Database: Tables confirmed.")
     except Exception as e:
-        print(f"Database init warning: {e}")
+        print(f"DATABASE FATAL ERROR: {e}")
+        if os.getenv("ENVIRONMENT") == "production":
+            raise e
 
 def verify_password(plain_password, hashed_password):
     return pwd_context.verify(plain_password, hashed_password)
@@ -71,10 +91,19 @@ def requires_roles(roles: List[str]):
     return role_checker
 
 app = FastAPI(title="BakeryOS API")
+handler = app
 
 @app.on_event("startup")
 async def startup_event():
     init_db()
+
+@app.get("/api/init")
+async def force_init():
+    try:
+        init_db()
+        return {"status": "Database initialization successful", "version": "3.3"}
+    except Exception as e:
+        return {"status": "Error", "message": str(e)}
 
 # Enable CORS
 app.add_middleware(
@@ -196,16 +225,35 @@ def get_settings():
 
 @app.get("/api/seed")
 async def seed_users(db: Session = Depends(get_db)):
-    if not db.query(models.User).first():
-        db.add(models.User(username="admin", password=get_password_hash("password"), role="owner"))
-        db.add(models.User(username="cashier", password=get_password_hash("password"), role="cashier"))
-        db.commit()
-    return {"message": "Users seeded. Use admin/password or cashier/password."}
+    try:
+        # Force table creation on seed too
+        init_db()
+        
+        # Check if admin already exists
+        admin = db.query(models.User).filter(models.User.username == "admin").first()
+        if not admin:
+            admin = models.User(id=1, username="admin", password=get_password_hash("password"), role="owner")
+            db.add(admin)
+            db.commit()
+            db.refresh(admin)
+        
+        # Check for cashier
+        cashier = db.query(models.User).filter(models.User.username == "cashier").first()
+        if not cashier:
+            db.add(models.User(username="cashier", password=get_password_hash("password"), role="cashier", parent_owner_id=admin.id))
+            db.commit()
+            
+        return {"message": "SaaS Sync Complete. Use admin/password. Version: 3.3"}
+    except Exception as e:
+        return {"status": "Error", "message": str(e)}
 
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
 
-GOOGLE_CLIENT_ID = "183197193874-qhf5nd87o77oo86jhksat53ncq3ahjp8.apps.googleusercontent.com"
+GOOGLE_CLIENT_ID = os.getenv(
+    "GOOGLE_CLIENT_ID",
+    "183197193874-qhf5nd87o77oo86jhksat53ncq3ahjp8.apps.googleusercontent.com",
+)
 
 # ... rest of your imports ...
 

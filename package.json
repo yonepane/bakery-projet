@@ -3,7 +3,10 @@
   "version": "3.3.0",
   "private": true,
   "scripts": {
-    "build": "cd frontend && npm install && npm run build",
-    "install": "cd frontend && npm install"
+    "dev": "npm --prefix frontend run dev",
+    "frontend:dev": "npm --prefix frontend run dev",
+    "backend:dev": "uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000",
+    "build": "npm --prefix frontend run build",
+    "install:frontend": "npm --prefix frontend install"
   }
 }

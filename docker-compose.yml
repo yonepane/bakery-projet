@@ -1,11 +1,15 @@
-version: '3.8'
 services:
-  mongodb:
-    image: mongo:latest
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: bakeryos
+      POSTGRES_USER: bakeryos
+      POSTGRES_PASSWORD: bakeryos
     ports:
-      - "27017:27017"
+      - "5432:5432"
     volumes:
-      - mongodb_data:/data/db
+      - postgres_data:/var/lib/postgresql/data
 
 volumes:
-  mongodb_data:
+  postgres_data:

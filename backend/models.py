@@ -1,7 +1,12 @@
+import datetime
+
 from sqlalchemy import Column, Integer, String, Float, ForeignKey, DateTime, JSON
 from sqlalchemy.orm import relationship
-from database import Base
-import datetime
+
+try:
+    from .database import Base
+except ImportError:
+    from database import Base
 
 class Ingredient(Base):
     __tablename__ = "ingredients"
