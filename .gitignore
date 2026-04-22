@@ -23,3 +23,5 @@ frontend/dist/
 .gemini/
 .superpowers/
 nohup.out
+.vercel
+.env*.local
