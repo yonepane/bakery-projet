@@ -1,9 +1,10 @@
 import axios from 'axios';
 
+const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+const API_BASE = import.meta.env.VITE_API_URL || (isLocal ? 'http://localhost:8000/api' : '/api');
+
 const http = axios.create({
-  baseURL: (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') 
-    ? 'http://localhost:8000/api' 
-    : '/api'
+  baseURL: API_BASE
 });
 
 http.interceptors.request.use(

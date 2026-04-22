@@ -56,13 +56,6 @@ import { GoogleOAuthProvider, GoogleLogin } from '@react-oauth/google';
 
 const GOOGLE_CLIENT_ID = "183197193874-qhf5nd87o77oo86jhksat53ncq3ahjp8.apps.googleusercontent.com";
 
-const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
- 
-  ? 'http://localhost:8000/api' 
-  : '/api';
-
-// ... (remove old axios interceptors)
-
 // Types
 interface Ingredient {
   stock: number;
