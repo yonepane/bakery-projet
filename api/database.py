@@ -30,7 +30,8 @@ else:
         pool_reset_on_return='rollback',
         connect_args={
             "connect_timeout": 10,
-            "application_name": "BakeryOS"
+            "application_name": "BakeryOS",
+            "options": "-c search_path=public"
         }
     )
 

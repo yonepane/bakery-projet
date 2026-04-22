@@ -125,6 +125,7 @@ interface ConfirmConfig {
 }
 
 const Dashboard: React.FC = () => {
+  const API_BASE = '/api';
   const [user, setUser] = useState<{username: string, role: string} | null>(null);
   const [loginForm, setLoginForm] = useState({ username: '', password: '' });
   

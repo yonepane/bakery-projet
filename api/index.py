@@ -87,8 +87,11 @@ async def startup_event():
 
 @app.get("/api/init")
 async def force_init():
-    init_db()
-    return {"status": "Database initialization triggered"}
+    try:
+        init_db()
+        return {"status": "Database initialization successful", "version": "3.3"}
+    except Exception as e:
+        return {"status": "Error", "message": str(e)}
 
 # Enable CORS
 app.add_middleware(
@@ -210,20 +213,27 @@ def get_settings():
 
 @app.get("/api/seed")
 async def seed_users(db: Session = Depends(get_db)):
-    # Check if admin already exists
-    admin = db.query(models.User).filter(models.User.username == "admin").first()
-    if not admin:
-        admin = models.User(id=1, username="admin", password=get_password_hash("password"), role="owner")
-        db.add(admin)
-        db.commit()
-    
-    # Check for cashier
-    cashier = db.query(models.User).filter(models.User.username == "cashier").first()
-    if not cashier:
-        db.add(models.User(username="cashier", password=get_password_hash("password"), role="cashier", parent_owner_id=admin.id))
-        db.commit()
+    try:
+        # Force table creation on seed too
+        init_db()
         
-    return {"message": "SaaS Sync Complete. Use admin/password. Version: 3.3"}
+        # Check if admin already exists
+        admin = db.query(models.User).filter(models.User.username == "admin").first()
+        if not admin:
+            admin = models.User(id=1, username="admin", password=get_password_hash("password"), role="owner")
+            db.add(admin)
+            db.commit()
+            db.refresh(admin)
+        
+        # Check for cashier
+        cashier = db.query(models.User).filter(models.User.username == "cashier").first()
+        if not cashier:
+            db.add(models.User(username="cashier", password=get_password_hash("password"), role="cashier", parent_owner_id=admin.id))
+            db.commit()
+            
+        return {"message": "SaaS Sync Complete. Use admin/password. Version: 3.3"}
+    except Exception as e:
+        return {"status": "Error", "message": str(e)}
 
 @app.get("/api/debug-data")
 async def debug_data(db: Session = Depends(get_db)):
