@@ -1,8 +1,13 @@
 import json
 import os
+import sys
 import uuid
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional
+
+# Adjut path for Vercel deployment if necessary
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
 from fastapi import FastAPI, HTTPException, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
