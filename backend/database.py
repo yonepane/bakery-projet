@@ -28,10 +28,7 @@ else:
         SQLALCHEMY_DATABASE_URL,
         poolclass=NullPool,
         pool_pre_ping=True,
-        connect_args={
-            "connect_timeout": 10,
-            "options": "-c search_path=public"
-        },
+        connect_args={"connect_timeout": 10},
     )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

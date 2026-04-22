@@ -26,13 +26,14 @@ except ImportError:
     from database import engine, SessionLocal, Base, get_db
     import models
 
+VERCEL_ENV = os.getenv("VERCEL_ENV", "").lower()
+ENVIRONMENT = os.getenv("ENVIRONMENT", "development").lower()
+IS_LOCAL_DEV = VERCEL_ENV in ("", "development") and ENVIRONMENT == "development"
+
 # Security
 SECRET_KEY = os.getenv("SECRET_KEY")
 if not SECRET_KEY:
-    vercel_env = os.getenv("VERCEL_ENV", "").lower()
-    environment = os.getenv("ENVIRONMENT", "development").lower()
-    is_local_dev = vercel_env in ("", "development") and environment == "development"
-    if not is_local_dev:
+    if not IS_LOCAL_DEV:
         raise RuntimeError("SECRET_KEY must be set outside local development")
     SECRET_KEY = "bakery-dev-insecure-secret"
 
@@ -46,7 +47,7 @@ def init_db():
         print("SaaS Database: Tables confirmed.")
     except Exception as e:
         print(f"DATABASE FATAL ERROR: {e}")
-        if os.getenv("ENVIRONMENT") == "production":
+        if not IS_LOCAL_DEV:
             raise e
 
 def verify_password(plain_password, hashed_password):
@@ -92,6 +93,10 @@ def requires_roles(roles: List[str]):
 
 app = FastAPI(title="BakeryOS API")
 handler = app
+
+# Vercel cold starts may serve requests before lifespan hooks are useful for us.
+# Initialize tables during import as well so authenticated routes do not hit missing-table errors.
+init_db()
 
 @app.on_event("startup")
 async def startup_event():
