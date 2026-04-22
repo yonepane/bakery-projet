@@ -73,6 +73,10 @@ def requires_roles(roles: List[str]):
 
 app = FastAPI(title="BakeryOS API")
 
+@app.on_event("startup")
+async def startup_event():
+    init_db()
+
 # Enable CORS
 app.add_middleware(
     CORSMiddleware,
