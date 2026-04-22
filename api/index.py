@@ -5,8 +5,9 @@ import uuid
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional
 
-# Adjut path for Vercel deployment if necessary
+# Adjut path for Vercel deployment
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "api"))
 
 from fastapi import FastAPI, HTTPException, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
@@ -14,8 +15,11 @@ from pydantic import BaseModel
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
-from .database import engine, SessionLocal, Base, get_db
-from . import models
+
+# Absolute imports for Vercel
+import database as db_mod
+import models
+from database import engine, SessionLocal, Base, get_db
 
 # Security
 SECRET_KEY = "bakery-secret-key-change-me"
