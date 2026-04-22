@@ -13,14 +13,30 @@
       }
     }
   ],
-  "rewrites": [
+  "routes": [
     {
-      "source": "/api/(.*)",
-      "destination": "backend/main.py"
+      "src": "/api/(.*)",
+      "dest": "backend/main.py"
     },
     {
-      "source": "/(.*)",
-      "destination": "frontend/$1"
+      "src": "/assets/(.*)",
+      "dest": "frontend/dist/assets/$1"
+    },
+    {
+      "src": "/manifest.webmanifest",
+      "dest": "frontend/dist/manifest.webmanifest"
+    },
+    {
+      "src": "/sw.js",
+      "dest": "frontend/dist/sw.js"
+    },
+    {
+      "src": "/favicon.ico",
+      "dest": "frontend/dist/favicon.ico"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "frontend/dist/index.html"
     }
   ]
 }
