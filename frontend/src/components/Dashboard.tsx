@@ -10,6 +10,8 @@ import {
   Plus,
   Box,
   ChevronRight,
+  ChevronLeft,
+  ChevronDown,
   ShoppingCart,
   Trash2,
   Edit2,
@@ -39,15 +41,25 @@ import {
   Tooltip, 
   ResponsiveContainer, 
   AreaChart, 
-  Area 
+  Area,
+  PieChart,
+  Pie,
+  Cell
 } from 'recharts';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
 import { QRCodeSVG } from 'qrcode.react';
 import { api, processSyncQueue } from '../lib/api';
 import http from '../lib/http';
+import { Language, translations } from '../lib/translations';
+import { GoogleOAuthProvider, GoogleLogin } from '@react-oauth/google';
 
-const API_BASE = '/api';
+const GOOGLE_CLIENT_ID = "183197193874-qhf5nd87o77oo86jhksat53ncq3ahjp8.apps.googleusercontent.com";
+
+const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+ 
+  ? 'http://localhost:8000/api' 
+  : '/api';
 
 // ... (remove old axios interceptors)
 
@@ -110,13 +122,93 @@ interface Toast {
   type: 'success' | 'error' | 'info';
 }
 
+interface ConfirmConfig {
+  isOpen: boolean;
+  title: string;
+  message: string;
+  onConfirm: () => void;
+  type: 'danger' | 'info';
+  confirmText: string;
+}
+
 const Dashboard: React.FC = () => {
   const [user, setUser] = useState<{username: string, role: string} | null>(null);
   const [loginForm, setLoginForm] = useState({ username: '', password: '' });
   
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [lang, setLang] = useState<Language>(() => {
+    const saved = localStorage.getItem('bakery_lang');
+    return (saved === 'en' || saved === 'fr' || saved === 'ar') ? saved : 'en';
+  });
+  const t = translations[lang] || translations.en;
+  const isRTL = lang === 'ar';
+  
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isOperationsOpen, setIsOperationsOpen] = useState(false);
+
+  const [showBookingModal, setShowBookingModal] = useState(false);
+  const [bookingForm, setBookingForm] = useState({
+      name: '',
+      phone: '',
+      date: new Date(Date.now() + 86400000).toISOString().slice(0, 16).replace('T', ' '),
+      source: 'pos' as 'pos' | 'ledger'
+  });
+
+  const [selectorConfig, setSelectorConfig] = useState<{
+      isOpen: boolean;
+      title: string;
+      label: string;
+      value: string;
+      type: 'date' | 'text' | 'datetime';
+      onConfirm: (val: string) => void;
+  }>({
+      isOpen: false,
+      title: '',
+      label: '',
+      value: '',
+      type: 'date',
+      onConfirm: () => {}
+  });
+
+  const openSelector = (config: Omit<typeof selectorConfig, 'isOpen'>) => {
+      setSelectorConfig({ ...config, isOpen: true });
+  };
+
+  const handleSaveBooking = async () => {
+    if (!bookingForm.name || !bookingForm.date) {
+        addToast("Name and Date are required", "error");
+        return;
+    }
+    
+    try {
+        await api.post('/orders', {
+            customer_name: bookingForm.name,
+            customer_phone: bookingForm.phone,
+            pickup_date: bookingForm.date.replace(' ', 'T'),
+            items: bookingForm.source === 'pos' ? cart.map(i => ({id: i.id, qty: i.qty})) : [],
+            deposit_paid: 0
+        });
+        
+        if (bookingForm.source === 'pos') setCart([]);
+        setShowBookingModal(false);
+        fetchData();
+        addToast("Booking Confirmed", "success");
+    } catch (e) {
+        addToast("Failed to create booking", "error");
+    }
+  };
+
   const [inventory, setInventory] = useState<{ materials: Record<string, Ingredient>, products: Product[] }>({ materials: {}, products: [] });
-  const [analytics, setAnalytics] = useState({ revenue: 0, cost: 0, currency: 'MAD', chartData: [] });
+  const [analytics, setAnalytics] = useState({ 
+    revenue: 0, 
+    cost: 0, 
+    today_revenue: 0, 
+    today_cost: 0, 
+    currency: 'MAD', 
+    chartData: [] as any[],
+    hourlySales: [] as any[],
+    topProducts: [] as any[]
+  });
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [history, setHistory] = useState<Transaction[]>([]);
   const [planner, setPlanner] = useState<PlanItem[]>([]);
@@ -125,6 +217,14 @@ const Dashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const [confirmConfig, setConfirmConfig] = useState<ConfirmConfig>({
+      isOpen: false,
+      title: '',
+      message: '',
+      onConfirm: () => {},
+      type: 'info',
+      confirmText: 'Confirm'
+  });
   
   const addToast = (message: string, type: Toast['type'] = 'info') => {
     const id = Math.random().toString(36).substr(2, 9);
@@ -132,6 +232,10 @@ const Dashboard: React.FC = () => {
     setTimeout(() => {
       setToasts(prev => prev.filter(t => t.id !== id));
     }, 5000);
+  };
+
+  const showConfirm = (config: Omit<ConfirmConfig, 'isOpen'>) => {
+    setConfirmConfig({ ...config, isOpen: true });
   };
   
   // Theme & Currency States
@@ -148,6 +252,8 @@ const Dashboard: React.FC = () => {
   const [showAddMaterial, setShowAddMaterial] = useState(false);
   const [showWasteModal, setShowWasteModal] = useState(false);
   const [showReceiptModal, setShowReceiptModal] = useState(false);
+  const [showAddExpense, setShowAddExpense] = useState(false);
+  const [newExpense, setNewExpense] = useState({ category: 'other', amount: 0, description: '' });
   const [lastTransaction, setLastTransaction] = useState<any>(null);
   const [newProduct, setNewProduct] = useState<any>({ 
     id: '', 
@@ -174,6 +280,35 @@ const Dashboard: React.FC = () => {
   const [purchasingSuggestions, setPurchasingSuggestions] = useState<any[]>([]);
   const [suppliers, setSuppliers] = useState<any[]>([]);
   const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
+  const [expenses, setExpenses] = useState<any[]>([]);
+  const [staff, setStaff] = useState<any[]>([]);
+  const [showAddStaff, setShowAddStaff] = useState(false);
+  const [newStaff, setNewStaff] = useState({ username: '', password: '' });
+
+  const handleAddStaff = async () => {
+    try {
+      await http.post('/staff', newStaff);
+      setShowAddStaff(false);
+      fetchData();
+      addToast(t.add_staff + " Success", "success");
+    } catch (e: any) { addToast("Failed to add staff", "error"); }
+  };
+
+  const handleDeleteStaff = async (username: string) => {
+    showConfirm({
+        title: "Remove Staff",
+        message: `Delete cashier account: ${username}?`,
+        type: 'danger',
+        confirmText: "Delete",
+        onConfirm: async () => {
+            try {
+                await http.delete(`/staff/${username}`);
+                fetchData();
+                addToast("Staff Removed", "success");
+            } catch (e: any) { addToast("Failed to remove staff", "error"); }
+        }
+    });
+  };
 
   const handleSmartForecast = async (date: string) => {
     setIsForecasting(true);
@@ -190,7 +325,7 @@ const Dashboard: React.FC = () => {
         addToast(`Smart Plan generated for ${date}`, 'success');
     } catch (e) {
         console.error(e);
-        alert("Forecasting failed. Ensure you have historical data for the same weekday in previous weeks.");
+        addToast("Forecasting failed. Please check your data.", 'error');
     } finally {
       setIsForecasting(false);
     }
@@ -234,43 +369,49 @@ const Dashboard: React.FC = () => {
     try {
       const isOwner = user.role === 'owner';
       
-      // Define which requests to make based on role
-      const requests = [
-        api.get('/inventory'),
-        isOwner ? api.get('/analytics') : Promise.resolve({ revenue: 0, cost: 0, currency: 'MAD', chartData: [] }),
-        api.get('/alerts'),
-        api.get('/history'),
-        isOwner ? api.get('/planner') : Promise.resolve([]),
-        api.get('/settings'),
-        api.get('/orders'),
-        isOwner ? api.get('/purchasing/suggest') : Promise.resolve([]),
-        isOwner ? api.get('/suppliers') : Promise.resolve([]),
-        isOwner ? api.get('/purchase-orders') : Promise.resolve([])
-      ];
+      const safeGet = async (url: string, fallback: any = null) => {
+        try { return await api.get(url); }
+        catch (e) { console.warn(`Failed to fetch ${url}:`, e); return fallback; }
+      };
 
-      const [invData, anaData, aleData, histData, planData, settData, ordData, purData, suppData, posData] = await Promise.all(requests);
+      const [invData, anaData, aleData, histData, planData, settData, ordData, purData, suppData, posData, expData, staffData] = await Promise.all([
+        safeGet('/inventory'),
+        isOwner ? safeGet('/analytics') : Promise.resolve({ revenue: 0, cost: 0, today_revenue: 0, today_cost: 0, currency: 'MAD', chartData: [] }),
+        safeGet('/alerts', []),
+        safeGet('/history', []),
+        isOwner ? safeGet('/planner', []) : Promise.resolve([]),
+        safeGet('/settings'),
+        safeGet('/orders', []),
+        isOwner ? safeGet('/purchasing/suggest', []) : Promise.resolve([]),
+        isOwner ? safeGet('/suppliers', []) : Promise.resolve([]),
+        isOwner ? safeGet('/purchase-orders', []) : Promise.resolve([]),
+        isOwner ? safeGet('/expenses', []) : Promise.resolve([]),
+        isOwner ? safeGet('/staff', []) : Promise.resolve([])
+      ]);
       
-      console.log("Data fetched successfully");
-      setInventory(invData);
-      setAnalytics(anaData);
-      setAlerts(aleData);
-      setHistory(histData);
-      setPlanner(planData);
-      setSettings(settData);
-      setOrders(ordData);
-      setPurchasingSuggestions(purData);
-      setSuppliers(suppData);
-      setPurchaseOrders(posData);
+      console.log("Data sync completed");
+      if (invData) setInventory(invData);
+      if (anaData) setAnalytics(anaData);
+      if (aleData) setAlerts(aleData);
+      if (histData) setHistory(histData);
+      if (planData) setPlanner(planData);
+      if (settData) setSettings(settData);
+      if (ordData) setOrders(ordData);
+      if (purData) setPurchasingSuggestions(purData);
+      if (suppData) setSuppliers(suppData);
+      if (posData) setPurchaseOrders(posData);
+      if (expData) setExpenses(expData);
+      if (staffData) setStaff(staffData);
       
-      const initialPrices: Record<string, number> = {};
       if (invData && invData.materials) {
+        const initialPrices: Record<string, number> = {};
         Object.entries(invData.materials as Record<string, Ingredient>).forEach(([name, data]) => {
             initialPrices[name] = data.price;
         });
+        setSimPrices(initialPrices);
       }
-      setSimPrices(initialPrices);
     } catch (error) {
-      console.error("Error fetching data:", error);
+      console.error("Critical error in fetchData:", error);
     } finally {
       setLoading(false);
     }
@@ -286,6 +427,19 @@ const Dashboard: React.FC = () => {
       setUser({ username, role });
     } catch (err) {
       addToast("Invalid credentials", 'error');
+    }
+  };
+
+  const handleGoogleSuccess = async (response: any) => {
+    try {
+      const res = await http.post('/auth/google', { credential: response.credential });
+      const { access_token, username, role } = res.data;
+      localStorage.setItem('bakery_token', access_token);
+      localStorage.setItem('bakery_user', JSON.stringify({ username, role }));
+      setUser({ username, role });
+      addToast("Welcome back!", "success");
+    } catch (err) {
+      addToast("Google Sign-In failed", "error");
     }
   };
 
@@ -314,48 +468,65 @@ const Dashboard: React.FC = () => {
 
   if (!user) {
     return (
-      <div className={`min-h-screen flex items-center justify-center ${isDarkMode ? 'bg-[#0a0a0b] text-white' : 'bg-slate-50 text-slate-900'}`}>
-        <motion.div 
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className={`p-12 rounded-[3rem] border w-full max-w-md ${isDarkMode ? 'bg-black/40 border-gold/20 shadow-gold-glow' : 'bg-white border-slate-200 shadow-2xl'}`}
-        >
-          <div className="text-center mb-10">
-            <div className="text-6xl mb-6">🥐</div>
-            <h1 className="text-4xl font-bold luxury-font tracking-tighter uppercase mb-2">BakeryOS</h1>
-            <p className="text-[10px] font-black uppercase tracking-[0.3em] opacity-40">Luxe Enterprise Terminal</p>
-          </div>
-          
-          <form onSubmit={handleLogin} className="space-y-6">
-            <div>
-              <label className="text-[10px] font-black uppercase tracking-widest opacity-40 mb-2 block">Identifiant</label>
-              <input 
-                type="text" 
-                value={loginForm.username}
-                onChange={(e) => setLoginForm({...loginForm, username: e.target.value})}
-                className={`w-full p-4 rounded-2xl border outline-none font-bold transition-all ${isDarkMode ? 'bg-white/5 border-white/10 focus:border-gold/40' : 'bg-slate-50 border-slate-200 focus:border-slate-400'}`}
-                placeholder="Username"
-              />
+      <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
+        <div className={`min-h-screen flex items-center justify-center ${isDarkMode ? 'bg-[#0a0a0b] text-white' : 'bg-slate-50 text-slate-900'}`}>
+          <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className={`p-12 rounded-[3rem] border w-full max-w-md ${isDarkMode ? 'bg-black/40 border-gold/20 shadow-gold-glow' : 'bg-white border-slate-200 shadow-2xl'}`}
+          >
+            <div className="text-center mb-10">
+              <div className="text-6xl mb-6">🥐</div>
+              <h1 className="text-4xl font-bold luxury-font tracking-tighter uppercase mb-2">BakeryOS</h1>
+              <p className="text-[10px] font-black uppercase tracking-[0.3em] opacity-40">Luxe Enterprise Terminal</p>
             </div>
-            <div>
-              <label className="text-[10px] font-black uppercase tracking-widest opacity-40 mb-2 block">Mot de Passe</label>
-              <input 
-                type="password" 
-                value={loginForm.password}
-                onChange={(e) => setLoginForm({...loginForm, password: e.target.value})}
-                className={`w-full p-4 rounded-2xl border outline-none font-bold transition-all ${isDarkMode ? 'bg-white/5 border-white/10 focus:border-gold/40' : 'bg-slate-50 border-slate-200 focus:border-slate-400'}`}
-                placeholder="••••••••"
+
+            <form onSubmit={handleLogin} className="space-y-6">
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-widest opacity-40 mb-2 block">Identifiant</label>
+                <input
+                  type="text"
+                  value={loginForm.username}
+                  onChange={(e) => setLoginForm({...loginForm, username: e.target.value})}
+                  className={`w-full p-4 rounded-2xl border outline-none font-bold transition-all ${isDarkMode ? 'bg-white/5 border-white/10 focus:border-gold/40' : 'bg-slate-50 border-slate-200 focus:border-slate-400'}`}
+                  placeholder="Username"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-widest opacity-40 mb-2 block">Mot de Passe</label>
+                <input
+                  type="password"
+                  value={loginForm.password}
+                  onChange={(e) => setLoginForm({...loginForm, password: e.target.value})}
+                  className={`w-full p-4 rounded-2xl border outline-none font-bold transition-all ${isDarkMode ? 'bg-white/5 border-white/10 focus:border-gold/40' : 'bg-slate-50 border-slate-200 focus:border-slate-400'}`}
+                  placeholder="••••••••"
+                />
+              </div>
+              <button className={`w-full py-5 rounded-2xl font-black text-xs uppercase tracking-widest transition-all ${isDarkMode ? 'bg-gold text-charcoal shadow-gold-glow' : 'bg-slate-900 text-white shadow-xl'}`}>
+                Access Terminal
+              </button>
+            </form>
+
+            <div className="mt-8 flex flex-col items-center gap-6">
+              <div className="flex items-center w-full gap-4 opacity-20">
+                <div className="h-px bg-white flex-1" />
+                <span className="text-[8px] font-bold uppercase tracking-widest">Or Secure Login</span>
+                <div className="h-px bg-white flex-1" />
+              </div>
+
+              <GoogleLogin 
+                onSuccess={handleGoogleSuccess}
+                onError={() => addToast("Login Interrupted", "error")}
+                theme={isDarkMode ? 'filled_black' : 'outline'}
+                shape="pill"
+                width="100%"
               />
+
+              <button onClick={async () => { await http.get('/seed'); addToast("Users Seeded: admin/password", "info"); }} className="text-[10px] font-bold uppercase tracking-widest opacity-20 hover:opacity-100 transition-opacity underline">Seed Default Users</button>
             </div>
-            <button className={`w-full py-5 rounded-2xl font-black text-xs uppercase tracking-widest transition-all ${isDarkMode ? 'bg-gold text-charcoal shadow-gold-glow' : 'bg-slate-900 text-white shadow-xl'}`}>
-              Access Terminal
-            </button>
-          </form>
-          <div className="mt-8 text-center">
-            <button onClick={async () => { await http.get('/seed'); addToast("Users Seeded: admin/password", "info"); }} className="text-[10px] font-bold uppercase tracking-widest opacity-20 hover:opacity-100 transition-opacity underline">Seed Default Users</button>
-          </div>
-        </motion.div>
-      </div>
+          </motion.div>
+        </div>
+      </GoogleOAuthProvider>
     );
   }
 
@@ -363,8 +534,9 @@ const Dashboard: React.FC = () => {
     try {
       await api.post('/produce', { product_id: productId, quantity: qty });
       fetchData();
+      addToast("Production Logged", "success");
     } catch (error: any) {
-      alert(error.response?.data?.detail || "Production failed");
+      addToast("Production Failed", "error");
     }
   };
 
@@ -400,6 +572,7 @@ const Dashboard: React.FC = () => {
   };
 
   const saveSimulation = async () => {
+      if (!editMode) return;
       try {
           await http.post('/update_material_prices', simPrices);
           fetchData();
@@ -407,25 +580,71 @@ const Dashboard: React.FC = () => {
       } catch (e) { console.error(e); }
   };
 
+  const handleResetSession = async () => {
+    showConfirm({
+        title: "Close Current Shift",
+        message: "This will reset the Session Profit counter to 0 for a new shift. Your global history is safe.",
+        type: 'info',
+        confirmText: "Start New Shift",
+        onConfirm: async () => {
+            try {
+                await http.post('/maintenance/reset-session');
+                fetchData();
+                addToast("Shift Closed. New Session Started.", "success");
+            } catch (e: any) {
+                addToast("Reset Failed", "error");
+            }
+        }
+    });
+  };
+
   const handleAddMaterial = async () => {
     try {
       await api.post('/materials', newMaterial);
       setShowAddMaterial(false);
       fetchData();
-    } catch (e: any) { alert(e.response?.data?.detail || "Failed to add material"); }
+      addToast(t.add_material + " Success", "success");
+    } catch (e: any) { addToast("Failed to add material", "error"); }
+  };
+
+  const handleAddExpense = async () => {
+    try {
+        await api.post('/expenses', newExpense);
+        setShowAddExpense(false);
+        fetchData();
+        addToast("Expense Logged", "success");
+    } catch (e: any) { addToast("Failed to log expense", "error"); }
+  };
+
+  const handleAdjustStock = async (item_type: 'product' | 'material', id: string, amount: number) => {
+    try {
+        await api.post('/inventory/adjust', { item_type, id, amount });
+        fetchData();
+        addToast(`${amount > 0 ? '+' : ''}${amount} Updated`, "success");
+    } catch (e) {
+        addToast("Adjustment Failed", "error");
+    }
   };
 
   const handleDeleteMaterial = async (name: string) => {
-    if (!confirm(`Delete ${name}?`)) return;
-    try {
-      await api.delete(`/materials/${name}`);
-      fetchData();
-    } catch (e: any) { alert(e.response?.data?.detail || "Failed to delete material"); }
+    showConfirm({
+        title: "Discard Material",
+        message: `Are you sure you want to delete ${name}? This cannot be undone.`,
+        type: 'danger',
+        confirmText: "Delete Forever",
+        onConfirm: async () => {
+            try {
+                await api.delete(`/materials/${name}`);
+                fetchData();
+                addToast("Material Deleted", "success");
+            } catch (e: any) { addToast("Failed to delete material", "error"); }
+        }
+    });
   };
 
   const handleAddProduct = async () => {
     if (!newProduct.id.trim() || !newProduct.name.trim()) {
-      alert("Product ID and Name are required");
+      addToast("ID and Name are required", "error");
       return;
     }
     try {
@@ -435,31 +654,64 @@ const Dashboard: React.FC = () => {
       fetchData();
       // Reset form
       setNewProduct({ id: '', name: '', price: 0, icon: '🥐', ingredients: [] });
-    } catch (e: any) { alert(e.response?.data?.detail || "Failed to add product"); }
+    } catch (e: any) { addToast("Action Failed", "error"); }
   };
 
   const handleDeleteProduct = async (id: string) => {
-    if (!confirm("Delete this product?")) return;
-    try {
-      await api.delete(`/products/${id}`);
-      fetchData();
-    } catch (e: any) { alert(e.response?.data?.detail || "Failed to delete product"); }
+    showConfirm({
+        title: "Delete Entity",
+        message: "Are you sure you want to remove this product and its recipe? This cannot be undone.",
+        type: 'danger',
+        confirmText: "Delete Product",
+        onConfirm: async () => {
+            try {
+                await api.delete(`/products/${id}`);
+                fetchData();
+                addToast("Product Deleted", "success");
+            } catch (e: any) { addToast("Failed to delete product", "error"); }
+        }
+    });
   };
 
   const handleCleanupProducts = async () => {
-    if (!confirm("Remove all broken product entries (empty IDs)?")) return;
-    try {
-      await http.post('/maintenance/delete-empty-products');
-      fetchData();
-      alert("Cleanup successful");
-    } catch (e: any) { alert(e.response?.data?.detail || "Cleanup failed"); }
+    showConfirm({
+        title: "Database Cleanup",
+        message: "Remove all broken product entries (empty IDs)?",
+        type: 'danger',
+        confirmText: "Clean Database",
+        onConfirm: async () => {
+            try {
+                await http.post('/maintenance/delete-empty-products');
+                fetchData();
+                addToast("Cleanup Complete", "success");
+            } catch (e: any) { addToast("Cleanup Failed", "error"); }
+        }
+    });
   };
 
   const handleUpdateProductIngredients = async (productId: string, ingredients: any[]) => {
+    if (!editMode) return;
     try {
       await api.put(`/products/${productId}`, { ingredients });
       fetchData();
-    } catch (e: any) { alert(e.response?.data?.detail || "Failed to update recipe"); }
+    } catch (e: any) { addToast("Failed to update recipe", "error"); }
+  };
+
+  const handleUpdateProductPrice = async (productId: string, newPrice: number) => {
+    if (!editMode) return;
+    try {
+        await api.put(`/products/${productId}`, { price: newPrice });
+        fetchData();
+        addToast("Price Updated", "success");
+    } catch (e: any) { addToast("Failed to update price", "error"); }
+  };
+
+  const handleReceivePO = async (id: string) => {
+    try {
+        await http.patch(`/purchase-orders/${id}/status?status=received`);
+        fetchData();
+        addToast("Goods Received & Stock Updated", "success");
+    } catch (e: any) { addToast("Failed to receive goods", "error"); }
   };
 
   const handleSearchRecipes = async () => {
@@ -521,9 +773,9 @@ const Dashboard: React.FC = () => {
         await api.post('/planner', newPlan);
         
         fetchData();
-        alert("Batch Produced and Plan Updated");
+        addToast("Batch Completed", "success");
     } catch (e: any) {
-        alert(e.response?.data?.detail || "Failed to complete production");
+        addToast("Completion Failed", "error");
     }
   };
 
@@ -535,34 +787,38 @@ const Dashboard: React.FC = () => {
   );
 
   return (
-    <div className={`flex min-h-screen selection:bg-gold/30 transition-colors duration-500 ${isDarkMode ? 'bg-[#0a0a0b] text-cream' : 'bg-[#f8f9fa] text-slate-900'}`}>
+    <div dir={isRTL ? 'rtl' : 'ltr'} className={`flex min-h-screen selection:bg-gold/30 transition-colors duration-500 ${isDarkMode ? 'bg-[#0a0a0b] text-cream' : 'bg-[#f8f9fa] text-slate-900'} ${isRTL ? 'font-arabic' : 'font-sans'}`}>
       {/* Sidebar */}
-      <aside className={`w-72 fixed h-full z-50 flex flex-col border-r transition-colors duration-500 ${isDarkMode ? 'bg-[#0f0f11] border-white/5' : 'bg-white border-slate-200 shadow-xl'}`}>
-        <div className="p-8">
+      <motion.aside 
+        initial={false}
+        animate={{ width: isSidebarCollapsed ? 80 : 288 }}
+        className={`fixed h-full z-50 flex flex-col border-r overflow-y-auto overflow-x-hidden custom-scrollbar transition-colors duration-500 ${isDarkMode ? 'bg-[#0f0f11] border-white/5' : 'bg-white border-slate-200 shadow-xl'}`}
+      >
+        <div className="p-6">
           <div className="flex items-center gap-3 mb-10">
-            <div className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-lg ${isDarkMode ? 'bg-gold shadow-gold-glow' : 'bg-slate-900 shadow-slate-200'}`}>
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-lg shrink-0 ${isDarkMode ? 'bg-gold shadow-gold-glow' : 'bg-slate-900 shadow-slate-200'}`}>
               <Box className={`${isDarkMode ? 'text-charcoal' : 'text-white'} w-6 h-6`} />
             </div>
-            <div>
-                <h1 className={`text-2xl font-bold luxury-font tracking-tight ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Bakery<span className="text-gold">OS</span></h1>
-                <span className="text-[10px] bg-gold/10 text-gold px-2 py-0.5 rounded-full font-black">v2.2</span>
-            </div>
+            {!isSidebarCollapsed && (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                  <h1 className={`text-2xl font-bold luxury-font tracking-tight ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Bakery<span className="text-gold">OS</span></h1>
+                    <span className="text-[10px] bg-gold/10 text-gold px-2 py-0.5 rounded-full font-black">v3.2</span>
+              </motion.div>
+            )}
           </div>
 
           <nav className="space-y-1">
             {[
-              { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-              { id: 'pos', icon: ShoppingCart, label: 'POS Terminal' },
-              { id: 'kitchen', icon: ChefHat, label: 'Kitchen Terminal' },
-              { id: 'inventory', icon: Package, label: 'Inventory' },
-              { id: 'fiche', icon: FileText, label: 'Fiche Technique' },
-              { id: 'purchasing', icon: Truck, label: 'Purchasing' },
-              { id: 'simulator', icon: Calculator, label: 'Simulator' },
-              { id: 'history', icon: HistoryIcon, label: 'History' },
-              { id: 'planner', icon: Calendar, label: 'Batch Planner' },
-              { id: 'orders', icon: FileText, label: 'Pre-Orders' },
+              { id: 'dashboard', icon: LayoutDashboard, label: t.dashboard },
+              { id: 'pos', icon: ShoppingCart, label: t.pos },
+              { id: 'kitchen', icon: ChefHat, label: t.kitchen },
+              { id: 'inventory', icon: Package, label: t.inventory },
+              { id: 'fiche', icon: FileText, label: t.fiche },
+              { id: 'purchasing', icon: Truck, label: t.purchasing },
+              { id: 'simulator', icon: Calculator, label: t.simulator },
+              { id: 'history', icon: HistoryIcon, label: t.history },
               ].filter(item => {
-              if (user?.role === 'cashier' && ['simulator', 'planner', 'inventory', 'purchasing'].includes(item.id)) return false;
+              if (user?.role === 'cashier' && ['simulator', 'inventory', 'purchasing'].includes(item.id)) return false;
               return true;
               })
 .map((item) => (
@@ -575,42 +831,126 @@ const Dashboard: React.FC = () => {
                     ? (isDarkMode ? 'bg-gold/10 text-gold border border-gold/20 shadow-gold-glow' : 'bg-slate-100 text-slate-900 border border-slate-200 shadow-sm') 
                     : (isDarkMode ? 'text-cream/40 hover:bg-white/5 hover:text-cream' : 'text-slate-400 hover:bg-slate-50 hover:text-slate-700')
                 }`}
+                title={isSidebarCollapsed ? item.label : ''}
               >
-                <item.icon size={20} />
-                <span className="font-semibold text-sm">{item.label}</span>
+                <item.icon size={20} className="shrink-0" />
+                {!isSidebarCollapsed && <span className="font-semibold text-sm whitespace-nowrap">{item.label}</span>}
               </button>
             ))}
+
+            {/* Operations Dropdown */}
+            <div className="pt-4">
+                <button 
+                    onClick={() => setIsOperationsOpen(!isOperationsOpen)}
+                    className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all ${isDarkMode ? 'text-gold/60 hover:bg-white/5' : 'text-slate-500 hover:bg-slate-50'}`}
+                >
+                    <div className="flex items-center gap-4">
+                        <Settings size={20} />
+                        {!isSidebarCollapsed && <span className="font-bold text-[10px] uppercase tracking-[0.2em]">{t.operations}</span>}
+                    </div>
+                    {!isSidebarCollapsed && (
+                        <motion.div animate={{ rotate: isOperationsOpen ? 180 : 0 }}>
+                            <ChevronDown size={14} />
+                        </motion.div>
+                    )}
+                </button>
+                
+                <AnimatePresence>
+                    {isOperationsOpen && !isSidebarCollapsed && (
+                        <motion.div 
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            className="overflow-hidden space-y-1 mt-1 pl-4"
+                        >
+                            {[
+                                { id: 'expenses', icon: Coins, label: t.expenses },
+                                { id: 'planner', icon: Calendar, label: t.planner },
+                                { id: 'orders', icon: FileText, label: t.orders },
+                                { id: 'staff', icon: Settings, label: t.staff },
+                            ].filter(sub => {
+                                if (sub.id === 'staff' && user?.role !== 'owner') return false;
+                                return true;
+                            }).map(sub => (
+
+                                <button
+                                    key={sub.id}
+                                    onClick={() => setActiveTab(sub.id)}
+                                    className={`w-full flex items-center gap-3 px-4 py-2 rounded-lg transition-all ${
+                                        activeTab === sub.id 
+                                            ? (isDarkMode ? 'text-gold border-l-2 border-gold bg-gold/5' : 'text-slate-900 border-l-2 border-slate-900 bg-slate-50') 
+                                            : (isDarkMode ? 'text-cream/30 hover:text-cream' : 'text-slate-400 hover:text-slate-700')
+                                    }`}
+                                >
+                                    <sub.icon size={16} />
+                                    <span className="font-bold text-[11px] uppercase tracking-widest">{sub.label}</span>
+                                </button>
+                            ))}
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+            </div>
           </nav>
         </div>
 
-        <div className="mt-auto p-8 space-y-4">
-          {/* Theme & Currency Controls */}
-          <div className={`grid grid-cols-2 gap-2 p-1 rounded-xl ${isDarkMode ? 'bg-white/5' : 'bg-slate-100'}`}>
-            <button onClick={() => setIsDarkMode(true)} className={`py-2 rounded-lg flex justify-center transition-all ${isDarkMode ? 'bg-gold text-black shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}><Moon size={16}/></button>
-            <button onClick={() => setIsDarkMode(false)} className={`py-2 rounded-lg flex justify-center transition-all ${!isDarkMode ? 'bg-white text-slate-900 shadow-lg' : 'text-white/20 hover:text-white'}`}><Sun size={16}/></button>
-          </div>
-          
-          <div className={`grid grid-cols-3 gap-1 p-1 rounded-xl ${isDarkMode ? 'bg-white/5' : 'bg-slate-100'}`}>
-            {['MAD', 'EUR', 'USD'].map(curr => (
-              <button key={curr} onClick={() => setActiveCurrency(curr)} className={`py-2 rounded-lg text-[10px] font-black tracking-widest transition-all ${activeCurrency === curr ? (isDarkMode ? 'text-gold' : 'bg-white text-slate-900 shadow-sm') : (isDarkMode ? 'text-white/20' : 'text-slate-400')}`}>{curr}</button>
-            ))}
-          </div>
-
-          <button onClick={() => setShowWasteModal(true)} className={`w-full py-4 rounded-xl font-bold text-xs uppercase tracking-widest border border-rose-500/20 text-rose-500 hover:bg-rose-500/10 transition-all`}>Log Daily Waste</button>
-
+        <div className="mt-auto p-6 space-y-4">
           <button 
-            onClick={() => { 
-              localStorage.removeItem('bakery_token'); 
-              localStorage.removeItem('bakery_user'); 
-              setUser(null); 
-            }} 
-            className="w-full flex items-center justify-center gap-2 py-4 rounded-xl font-bold text-xs uppercase tracking-widest bg-rose-600 hover:bg-rose-700 text-white shadow-lg transition-all"
+            onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+            className={`w-full py-3 rounded-xl border flex items-center justify-center gap-2 transition-all ${isDarkMode ? 'border-white/5 bg-white/5 text-gold hover:bg-white/10' : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'}`}
           >
-            <LogOut size={16}/>
-            Log Out
+            {isSidebarCollapsed ? <ChevronRight size={16}/> : <ChevronLeft size={16}/>}
+            {!isSidebarCollapsed && <span className="text-[10px] font-black uppercase tracking-widest">Collapse View</span>}
           </button>
 
-          {user?.role === 'owner' && (
+          {/* Theme & Currency Controls */}
+          {!isSidebarCollapsed && (
+            <>
+              <div className={`grid grid-cols-2 gap-2 p-1 rounded-xl ${isDarkMode ? 'bg-white/5' : 'bg-slate-100'}`}>
+                <button onClick={() => setIsDarkMode(true)} className={`py-2 rounded-lg flex justify-center transition-all ${isDarkMode ? 'bg-gold text-black shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}><Moon size={16}/></button>
+                <button onClick={() => setIsDarkMode(false)} className={`py-2 rounded-lg flex justify-center transition-all ${!isDarkMode ? 'bg-white text-slate-900 shadow-lg' : 'text-white/20 hover:text-white'}`}><Sun size={16}/></button>
+              </div>
+              
+              <div className={`grid grid-cols-3 gap-1 p-1 rounded-xl ${isDarkMode ? 'bg-white/5' : 'bg-slate-100'}`}>
+                {['MAD', 'EUR', 'USD'].map(curr => (
+                  <button key={curr} onClick={() => setActiveCurrency(curr)} className={`py-2 rounded-lg text-[10px] font-black tracking-widest transition-all ${activeCurrency === curr ? (isDarkMode ? 'text-gold' : 'bg-white text-slate-900 shadow-sm') : (isDarkMode ? 'text-white/20' : 'text-slate-400')}`}>{curr}</button>
+                ))}
+              </div>
+
+              <button onClick={() => setShowWasteModal(true)} className={`w-full py-4 rounded-xl font-bold text-xs uppercase tracking-widest border border-rose-500/20 text-rose-500 hover:bg-rose-500/10 transition-all`}>Log Daily Waste</button>
+            </>
+          )}
+
+          <div className={`p-4 border-t ${isDarkMode ? 'border-white/5' : 'border-slate-100'}`}>
+            {!isSidebarCollapsed && (
+              <div className="flex gap-2 mb-4">
+                  {(['en', 'fr', 'ar'] as Language[]).map(l => (
+                      <button 
+                          key={l}
+                          onClick={() => {
+                              setLang(l);
+                              localStorage.setItem('bakery_lang', l);
+                          }}
+                          className={`flex-1 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${lang === l ? 'bg-gold text-charcoal' : 'bg-white/5 text-cream/40 hover:bg-white/10'}`}
+                      >
+                          {l}
+                      </button>
+                  ))}
+              </div>
+            )}
+            <button 
+                onClick={() => { 
+                  localStorage.removeItem('bakery_token'); 
+                  localStorage.removeItem('bakery_user'); 
+                  setUser(null); 
+                }} 
+                className={`w-full flex items-center justify-center gap-2 py-4 rounded-xl font-bold text-xs uppercase tracking-widest bg-rose-600 hover:bg-rose-700 text-white shadow-lg transition-all ${isSidebarCollapsed ? 'px-0' : ''}`}
+            >
+                <LogOut size={16}/>
+                {!isSidebarCollapsed && t.logout}
+            </button>
+          </div>
+
+          {user?.role === 'owner' && !isSidebarCollapsed && (
             <button
               onClick={() => setEditMode(!editMode)}
               className={`w-full flex items-center justify-center gap-2 py-4 rounded-xl font-bold text-xs uppercase tracking-widest transition-all ${
@@ -623,29 +963,36 @@ const Dashboard: React.FC = () => {
           )}
 
           </div>
-      </aside>
+      </motion.aside>
 
       {/* Main Content */}
-      <main className={`flex-1 ml-72 p-10 transition-colors duration-500 ${isDarkMode ? 'bg-[#0a0a0b]' : 'bg-[#f8f9fa]'}`}>
+      <motion.main 
+        animate={{ marginLeft: isSidebarCollapsed ? 80 : 288 }}
+        className={`flex-1 p-10 transition-colors duration-500 ${isDarkMode ? 'bg-[#0a0a0b]' : 'bg-[#f8f9fa]'}`}
+      >
         <header className="flex justify-between items-end mb-12">
           <div>
-            <h2 className={`text-5xl font-bold luxury-font mb-2 tracking-tighter uppercase ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
-                {activeTab === 'dashboard' && "Operational Matrix"}
-                {activeTab === 'pos' && "Luxe Terminal"}
-                {activeTab === 'inventory' && "Full Inventory"}
-                {activeTab === 'fiche' && "Fiche Technique"}
-                {activeTab === 'simulator' && "Price Engine"}
-                {activeTab === 'history' && "Event History"}
-                {activeTab === 'planner' && "Batch Planner"}
+            <h2 className={`text-5xl font-bold luxury-font mb-2 tracking-tighter uppercase text-gold-gradient`}>
+                {activeTab === 'dashboard' && t.dashboard}
+                {activeTab === 'pos' && t.pos}
+                {activeTab === 'inventory' && t.inventory}
+                {activeTab === 'fiche' && t.fiche}
+                {activeTab === 'simulator' && t.simulator}
+                {activeTab === 'history' && t.history}
+                {activeTab === 'planner' && t.planner}
+                {activeTab === 'expenses' && t.expenses}
+                {activeTab === 'purchasing' && t.purchasing}
+                {activeTab === 'kitchen' && t.kitchen}
             </h2>
+            <div className="luxury-accent-bar mb-6" />
             <p className={`font-medium ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>Head Baker: Dane | Connected | {new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long' })}</p>
           </div>
           <div className="flex gap-4">
             <div className={`px-6 py-3 flex items-center gap-4 border rounded-2xl ${isDarkMode ? 'border-white/10 bg-black/20' : 'border-slate-200 bg-white shadow-sm'}`}>
               <div className="text-right">
-                <p className={`text-[10px] uppercase tracking-widest font-black ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>{isOnline ? 'Online' : 'Offline'}</p>
+                <p className={`text-[10px] uppercase tracking-widest font-black ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>{isOnline ? t.online : t.offline}</p>
                 <p className={`text-xs font-bold ${isOnline ? 'text-emerald-500' : 'text-rose-500'}`}>
-                  {isOnline ? 'Sync Active' : 'Offline Mode'}
+                  {isOnline ? t.sync_active : t.offline_mode}
                 </p>
               </div>
               <div className={`w-3 h-3 rounded-full ${isOnline ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]' : 'bg-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.5)] animate-pulse'}`} />
@@ -653,8 +1000,8 @@ const Dashboard: React.FC = () => {
 
             <div className={`px-6 py-3 flex items-center gap-4 border rounded-2xl ${isDarkMode ? 'border-gold/10 bg-black/20' : 'border-slate-200 bg-white shadow-sm'}`}>
               <div className="text-right">
-                <p className={`text-[10px] uppercase tracking-widest font-black ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>Session Profit</p>
-                <p className={`text-xl font-bold ${isDarkMode ? 'text-gold' : 'text-slate-900'}`}>{formatPrice(analytics.revenue - analytics.cost)}</p>
+                <p className={`text-[10px] uppercase tracking-widest font-black ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>{t.profit}</p>
+                <p className={`text-xl font-bold ${isDarkMode ? 'text-gold' : 'text-slate-900'}`}>{formatPrice(analytics.today_revenue - analytics.today_cost)}</p>
               </div>
               <div className={`p-2 rounded-lg ${isDarkMode ? 'bg-gold/10 text-gold' : 'bg-slate-100 text-slate-900'}`}><TrendingUp size={20} /></div>
             </div>
@@ -715,11 +1062,18 @@ const Dashboard: React.FC = () => {
                             onClick={() => {
                                 const year = new Date().getFullYear();
                                 const month = new Date().getMonth() + 1;
-                                window.open(`${API_BASE}/reports/monthly?month=${month}&year=${year}`, '_blank');
+                                const token = localStorage.getItem('bakery_token');
+                                window.open(`${API_BASE}/reports/monthly?month=${month}&year=${year}&token=${token}`, '_blank');
                             }}
                             className={`flex-1 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest border transition-all ${isDarkMode ? 'border-gold/20 text-gold hover:bg-gold hover:text-charcoal' : 'bg-slate-900 text-white shadow-xl'}`}
                         >
                             Generate {new Date().toLocaleString('default', { month: 'long' })} Report
+                        </button>
+                        <button 
+                            onClick={handleResetSession}
+                            className={`px-6 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest border border-gold/20 text-gold hover:bg-gold hover:text-charcoal transition-all`}
+                        >
+                            Close Shift / Reset Session
                         </button>
                     </div>
                   </div>
@@ -904,29 +1258,18 @@ const Dashboard: React.FC = () => {
                        </button>
                        <button 
                            onClick={() => {
-                               const name = window.prompt("Customer Name for Order?");
-                               const phone = window.prompt("Customer Phone?");
-                               const date = window.prompt("Pickup Date (YYYY-MM-DD HH:MM)?", new Date(Date.now() + 86400000).toISOString().slice(0, 16).replace('T', ' '));
-                               if (name && date) {
-                                  api.post('/orders', {
-                                       customer_name: name,
-                                       customer_phone: phone,
-                                       pickup_date: date.replace(' ', 'T'),
-                                       items: cart.map(i => ({id: i.id, qty: i.qty})),
-                                       deposit_paid: 0
-                                  }).then(() => {
-                                       setCart([]);
-                                       fetchData();
-                                       addToast("Booking Confirmed", "success");
-
-                                  });
-                               }
-
+                               setBookingForm({
+                                   ...bookingForm,
+                                   source: 'pos',
+                                   date: new Date(Date.now() + 86400000).toISOString().slice(0, 16)
+                               });
+                               setShowBookingModal(true);
                            }} 
                            disabled={cart.length === 0}
                            className={`p-6 rounded-2xl border transition-all ${isDarkMode ? 'border-white/10 bg-white/5 text-gold hover:bg-white/10' : 'border-slate-200 bg-white text-slate-900'}`}
                            title="Save as Pre-Order"
-                           >
+                       >
+
                            <Calendar size={24} />
                            </button>
                            </div>
@@ -948,6 +1291,90 @@ const Dashboard: React.FC = () => {
                     </div>
                  </div>
                </div>
+            )}
+
+            {activeTab === 'staff' && (
+              <div className="space-y-8 animate-in fade-in duration-500">
+                <div className="flex justify-between items-center">
+                    <div>
+                        <h3 className={`text-4xl font-bold luxury-font uppercase tracking-tighter ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{t.staff}</h3>
+                        <p className={`text-sm mt-1 ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>Manage your bakery team and access credentials</p>
+                    </div>
+                    <button 
+                        onClick={() => setShowAddStaff(true)}
+                        className={`px-8 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center gap-3 transition-all ${isDarkMode ? 'bg-gold text-charcoal shadow-gold-glow' : 'bg-slate-900 text-white'}`}
+                    >
+                        <Plus size={16}/>
+                        {t.add_staff}
+                    </button>
+                </div>
+
+                <div className={`rounded-[2.5rem] border overflow-hidden transition-colors ${isDarkMode ? 'border-white/5 bg-black/20' : 'border-slate-200 bg-white shadow-sm'}`}>
+                    <table className="w-full text-left">
+                        <thead>
+                            <tr className={`border-b text-[10px] font-black uppercase tracking-[0.2em] ${isDarkMode ? 'border-white/5 text-cream/40' : 'border-slate-100 text-slate-400'}`}>
+                                <th className="px-8 py-6">{t.username}</th>
+                                <th className="px-8 py-6">Role</th>
+                                <th className="px-8 py-6 text-right">{t.actions}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {staff.map((member) => (
+                                <tr key={member.id} className={`border-b last:border-0 ${isDarkMode ? 'border-white/5 hover:bg-white/5' : 'border-slate-50 hover:bg-slate-50'} transition-colors`}>
+                                    <td className="px-8 py-6 font-bold text-sm">{member.username}</td>
+                                    <td className="px-8 py-6"><span className="text-[10px] font-black uppercase tracking-widest bg-white/5 px-3 py-1 rounded-full">{member.role}</span></td>
+                                    <td className="px-8 py-6 text-right">
+                                        <button onClick={() => handleDeleteStaff(member.username)} className="text-rose-500/20 hover:text-rose-500 transition-colors p-2"><Trash2 size={16}/></button>
+                                    </td>
+                                </tr>
+                            ))}
+                            {staff.length === 0 && <tr><td colSpan={3} className="py-20 text-center opacity-10 font-black uppercase tracking-widest text-[10px]">No staff accounts created yet</td></tr>}
+                        </tbody>
+                    </table>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'expenses' && (
+              <div className="space-y-8 animate-in fade-in duration-500">
+                <div className="flex justify-between items-center">
+                    <div>
+                        <h3 className={`text-4xl font-bold luxury-font uppercase tracking-tighter ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{t.expenses}</h3>
+                        <p className={`text-sm mt-1 ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>Track business overhead, bills, and payroll</p>
+                    </div>
+                    <button 
+                        onClick={() => setShowAddExpense(true)}
+                        className={`px-8 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center gap-3 transition-all ${isDarkMode ? 'bg-gold text-charcoal shadow-gold-glow' : 'bg-slate-900 text-white'}`}
+                    >
+                        <Plus size={16}/>
+                        Log New Expense
+                    </button>
+                </div>
+
+                <div className={`rounded-[2.5rem] border overflow-hidden transition-colors ${isDarkMode ? 'border-white/5 bg-black/20' : 'border-slate-200 bg-white shadow-sm'}`}>
+                    <table className="w-full text-left">
+                        <thead>
+                            <tr className={`border-b text-[10px] font-black uppercase tracking-[0.2em] ${isDarkMode ? 'border-white/5 text-cream/40' : 'border-slate-100 text-slate-400'}`}>
+                                <th className="px-8 py-6">Date</th>
+                                <th className="px-8 py-6">Category</th>
+                                <th className="px-8 py-6">Description</th>
+                                <th className="px-8 py-6 text-right">Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {expenses.map((exp) => (
+                                <tr key={exp.id} className={`border-b last:border-0 ${isDarkMode ? 'border-white/5 hover:bg-white/5' : 'border-slate-50 hover:bg-slate-50'} transition-colors`}>
+                                    <td className="px-8 py-6 font-bold text-sm">{new Date(exp.date).toLocaleDateString()}</td>
+                                    <td className="px-8 py-6"><span className="text-[10px] font-black uppercase tracking-widest bg-white/5 px-3 py-1 rounded-full">{exp.category}</span></td>
+                                    <td className={`px-8 py-6 text-sm ${isDarkMode ? 'text-cream/40' : 'text-slate-500'}`}>{exp.description}</td>
+                                    <td className="px-8 py-6 text-right font-bold text-rose-500">-{formatPrice(exp.amount)}</td>
+                                </tr>
+                            ))}
+                            {expenses.length === 0 && <tr><td colSpan={4} className="py-20 text-center opacity-10 font-black uppercase tracking-widest text-[10px]">No expenses logged yet</td></tr>}
+                        </tbody>
+                    </table>
+                </div>
+              </div>
             )}
 
             {activeTab === 'purchasing' && (
@@ -979,12 +1406,22 @@ const Dashboard: React.FC = () => {
                                         </div>
                                     </div>
                                 ))}
-                                <button 
-                                    onClick={() => addToast("Purchase Order Drafted", "success")}
+                                <button
+                                    onClick={async () => {
+                                       const items = purchasingSuggestions.map(s => ({
+                                           name: s.name,
+                                           qty: s.suggested_buy,
+                                           price: inventory.materials[s.name]?.price || 0
+                                       }));
+                                       // Pick first supplier or generic
+                                       const supplierId = suppliers[0]?.id || 1;
+                                       await handleCreatePO({ supplier_id: supplierId, items });
+                                    }}
                                     className={`w-full py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${isDarkMode ? 'bg-gold text-charcoal shadow-gold-glow' : 'bg-slate-900 text-white'}`}
                                 >
                                     Generate Bulk Purchase Order
                                 </button>
+
                             </div>
                         ) : (
                             <div className="py-20 flex flex-col items-center opacity-20">
@@ -996,28 +1433,75 @@ const Dashboard: React.FC = () => {
                   </div>
 
                   {/* Supplier Directory */}
-                  <div className={`rounded-[2rem] border overflow-hidden transition-colors ${isDarkMode ? 'border-white/5 bg-black/20' : 'border-slate-200 bg-white shadow-sm'}`}>
-                    <div className="p-8 border-b border-white/5 flex justify-between items-center">
-                        <h3 className={`text-xl font-bold luxury-font uppercase ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Suppliers</h3>
-                        <button className="text-gold p-2 hover:bg-gold/10 rounded-lg transition-all"><Plus size={16}/></button>
-                    </div>
-                    <div className="p-6 space-y-4">
-                        {suppliers.length > 0 ? (
-                            suppliers.map(supp => (
-                                <div key={supp.id} className="p-4 rounded-2xl bg-white/5 border border-white/5 flex items-center justify-between">
-                                    <div>
-                                        <p className="font-bold text-sm">{supp.name}</p>
-                                        <p className="text-[10px] opacity-40 uppercase tracking-widest font-black">{supp.contact_info || 'No contact info'}</p>
+                  <div className="space-y-8">
+                    <div className={`rounded-[2rem] border overflow-hidden transition-colors ${isDarkMode ? 'border-white/5 bg-black/20' : 'border-slate-200 bg-white shadow-sm'}`}>
+                        <div className="p-8 border-b border-white/5 flex justify-between items-center">
+                            <h3 className={`text-xl font-bold luxury-font uppercase ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Recent Orders</h3>
+                            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                        </div>
+                        <div className="p-6 space-y-4">
+                            {purchaseOrders.length > 0 ? (
+                                purchaseOrders.map(po => (
+                                    <div key={po.id} className={`p-6 rounded-3xl border transition-all ${isDarkMode ? 'bg-white/5 border-white/5' : 'bg-slate-50 border-slate-100'}`}>
+                                        <div className="flex justify-between items-start mb-4">
+                                            <div>
+                                                <p className="text-[10px] font-black uppercase tracking-widest opacity-40 mb-1">Order ID</p>
+                                                <p className="font-bold font-mono text-sm">{po.id}</p>
+                                            </div>
+                                            <span className={`text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full ${po.status === 'received' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-gold/10 text-gold'}`}>
+                                                {po.status}
+                                            </span>
+                                        </div>
+                                        <div className="space-y-2 mb-6">
+                                            {po.items.map((item: any, idx: number) => (
+                                                <div key={idx} className="flex justify-between text-xs font-bold opacity-60">
+                                                    <span>{item.name}</span>
+                                                    <span>x{item.qty}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        {po.status === 'draft' && (
+                                            <button 
+                                                onClick={() => handleReceivePO(po.id)}
+                                                className={`w-full py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${isDarkMode ? 'bg-white/10 hover:bg-gold hover:text-charcoal' : 'bg-slate-900 text-white'}`}
+                                            >
+                                                Mark as Received
+                                            </button>
+                                        )}
                                     </div>
-                                    <ChevronRight size={16} className="opacity-20" />
+                                ))
+                            ) : (
+                                <div className="py-10 text-center opacity-20">
+                                    <FileText size={32} className="mx-auto mb-4" />
+                                    <p className="text-[10px] font-black uppercase tracking-widest">No Recent Orders</p>
                                 </div>
-                            ))
-                        ) : (
-                            <div className="py-10 text-center opacity-20">
-                                <Truck size={32} className="mx-auto mb-4" />
-                                <p className="text-[10px] font-black uppercase tracking-widest">No Registered Suppliers</p>
-                            </div>
-                        )}
+                            )}
+                        </div>
+                    </div>
+
+                    <div className={`rounded-[2rem] border overflow-hidden transition-colors ${isDarkMode ? 'border-white/5 bg-black/20' : 'border-slate-200 bg-white shadow-sm'}`}>
+                        <div className="p-8 border-b border-white/5 flex justify-between items-center">
+                            <h3 className={`text-xl font-bold luxury-font uppercase ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Suppliers</h3>
+                            <button className="text-gold p-2 hover:bg-gold/10 rounded-lg transition-all"><Plus size={16}/></button>
+                        </div>
+                        <div className="p-6 space-y-4">
+                            {suppliers.length > 0 ? (
+                                suppliers.map(supp => (
+                                    <div key={supp.id} className="p-4 rounded-2xl bg-white/5 border border-white/5 flex items-center justify-between">
+                                        <div>
+                                            <p className="font-bold text-sm">{supp.name}</p>
+                                            <p className={`text-[10px] opacity-40 uppercase tracking-widest font-black ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>{supp.contact_info || 'No contact info'}</p>
+                                        </div>
+                                        <ChevronRight size={16} className="opacity-20" />
+                                    </div>
+                                ))
+                            ) : (
+                                <div className="py-10 text-center opacity-20">
+                                    <Truck size={32} className="mx-auto mb-4" />
+                                    <p className="text-[10px] font-black uppercase tracking-widest">No Registered Suppliers</p>
+                                </div>
+                            )}
+                        </div>
                     </div>
                   </div>
                 </div>
@@ -1030,7 +1514,7 @@ const Dashboard: React.FC = () => {
                   <div className={`rounded-[2rem] border overflow-hidden transition-colors ${isDarkMode ? 'border-white/5 bg-black/20' : 'border-slate-200 bg-white shadow-sm'}`}>
                     <div className="p-8 border-b border-white/5 flex justify-between items-center">
                         <h3 className={`text-xl font-bold luxury-font uppercase ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Finished Goods</h3>
-                        <button onClick={() => setShowAddProduct(true)} className={`p-2 rounded-lg transition-all ${isDarkMode ? 'bg-gold/10 text-gold' : 'bg-slate-100 text-slate-900'}`}><Plus size={16}/></button>
+                        {editMode && <button onClick={() => setShowAddProduct(true)} className={`p-2 rounded-lg transition-all ${isDarkMode ? 'bg-gold/10 text-gold' : 'bg-slate-100 text-slate-900'}`}><Plus size={16}/></button>}
                     </div>
                     <table className="w-full text-left">
                         <thead>
@@ -1051,9 +1535,52 @@ const Dashboard: React.FC = () => {
                                                 <p className={`font-bold ${isDarkMode ? 'text-cream' : 'text-slate-900'}`}>{p.name}</p>
                                             </div>
                                         </td>
-                                        <td className="px-8 py-6"><span className={`font-bold ${isDarkMode ? 'text-cream/80' : 'text-slate-600'}`}>{p.stock} Units</span></td>
+                                        <td className="px-8 py-6">
+                                            <div className="flex items-center gap-3">
+                                                <button 
+                                                    onClick={() => handleAdjustStock('product', p.id, -1)}
+                                                    className={`w-6 h-6 rounded-md flex items-center justify-center text-xs transition-all ${isDarkMode ? 'bg-white/5 hover:bg-rose-500/20 text-rose-500' : 'bg-slate-100 hover:bg-rose-100 text-rose-600'}`}
+                                                >
+                                                    -
+                                                </button>
+                                                <span className={`font-bold text-sm min-w-[3ch] text-center ${p.stock < 10 ? 'text-rose-500' : ''}`}>{p.stock}</span>
+                                                <button 
+                                                    onClick={() => {
+                                                        openSelector({
+                                                            title: "Quick Stock",
+                                                            label: "Add Quantity",
+                                                            value: "50",
+                                                            type: "text",
+                                                            onConfirm: (val) => handleAdjustStock('product', p.id, parseInt(val))
+                                                        });
+                                                    }}
+                                                    className={`w-6 h-6 rounded-md flex items-center justify-center text-xs transition-all ${isDarkMode ? 'bg-white/5 hover:bg-emerald-500/20 text-emerald-500' : 'bg-slate-100 hover:bg-emerald-100 text-emerald-600'}`}
+                                                >
+                                                    +
+                                                </button>
+                                            </div>
+                                        </td>
                                         <td className="px-8 py-6 text-right">
-                                            <span className={`text-xs font-bold ${margin > 30 ? 'text-emerald-500' : 'text-rose-500'}`}>{margin.toFixed(1)}%</span>
+                                            <div className="flex flex-col items-end gap-1">
+                                                <div className="flex items-center gap-2 group/price">
+                                                    <span className={`text-sm font-bold ${isDarkMode ? 'text-gold' : 'text-slate-900'}`}>{formatPrice(p.price)}</span>
+                                                    {editMode && (
+                                                        <button 
+                                                            onClick={() => openSelector({
+                                                                title: "Update Price",
+                                                                label: "New Selling Price (MAD)",
+                                                                value: p.price.toString(),
+                                                                type: "text",
+                                                                onConfirm: (val) => handleUpdateProductPrice(p.id, parseFloat(val))
+                                                            })}
+                                                            className="text-gold/40 hover:text-gold transition-colors"
+                                                        >
+                                                            <Edit2 size={12}/>
+                                                        </button>
+                                                    )}
+                                                </div>
+                                                <span className={`text-[10px] font-bold ${margin > 30 ? 'text-emerald-500' : 'text-rose-500'}`}>{margin.toFixed(1)}% Margin</span>
+                                            </div>
                                         </td>
                                     </tr>
                                 );
@@ -1066,7 +1593,7 @@ const Dashboard: React.FC = () => {
                   <div className={`rounded-[2rem] border overflow-hidden transition-colors ${isDarkMode ? 'border-white/5 bg-black/20' : 'border-slate-200 bg-white shadow-sm'}`}>
                     <div className="p-8 border-b border-white/5 flex justify-between items-center">
                         <h3 className={`text-xl font-bold luxury-font uppercase ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Raw Materials</h3>
-                        <button onClick={() => setShowAddMaterial(true)} className={`p-2 rounded-lg transition-all ${isDarkMode ? 'bg-gold/10 text-gold' : 'bg-slate-100 text-slate-900'}`}><Plus size={16}/></button>
+                        {editMode && <button onClick={() => setShowAddMaterial(true)} className={`p-2 rounded-lg transition-all ${isDarkMode ? 'bg-gold/10 text-gold' : 'bg-slate-100 text-slate-900'}`}><Plus size={16}/></button>}
                     </div>
                     <table className="w-full text-left">
                         <thead>
@@ -1084,9 +1611,32 @@ const Dashboard: React.FC = () => {
                                         <p className={`text-[10px] uppercase font-bold tracking-widest ${isDarkMode ? 'text-gold/60' : 'text-slate-400'}`}>{formatPrice(data.price)} / {data.unit}</p>
                                     </td>
                                     <td className="px-8 py-6 font-bold">
-                                        <span className={`${data.stock < data.min_threshold ? 'text-rose-500' : (isDarkMode ? 'text-gold' : 'text-slate-900')}`}>
-                                            {displayUnit(data.stock, data.unit)}
-                                        </span>
+                                        <div className="flex items-center gap-3">
+                                            <button 
+                                                onClick={() => handleAdjustStock('material', name, -100)}
+                                                className={`w-6 h-6 rounded-md flex items-center justify-center text-xs transition-all ${isDarkMode ? 'bg-white/5 hover:bg-rose-500/20 text-rose-500' : 'bg-slate-100 hover:bg-rose-100 text-rose-600'}`}
+                                            >
+                                              -
+                                            </button>
+                                            <span className={`font-bold text-sm min-w-[5ch] text-center ${data.stock < data.min_threshold ? 'text-rose-500' : (isDarkMode ? 'text-gold' : 'text-slate-900')}`}>
+                                                {data.stock}
+                                            </span>
+                                            <button 
+                                                onClick={() => {
+                                                    openSelector({
+                                                        title: "Quick Stock",
+                                                        label: "Add Quantity (" + data.unit + ")",
+                                                        value: "1000",
+                                                        type: "text",
+                                                        onConfirm: (val) => handleAdjustStock('material', name, parseInt(val))
+                                                    });
+                                                }}
+                                                className={`w-6 h-6 rounded-md flex items-center justify-center text-xs transition-all ${isDarkMode ? 'bg-white/5 hover:bg-emerald-500/20 text-emerald-500' : 'bg-slate-100 hover:bg-emerald-100 text-emerald-600'}`}
+                                            >
+                                              +
+                                            </button>
+                                            <span className="text-[10px] opacity-40">{data.unit}</span>
+                                        </div>
                                     </td>
                                     <td className="px-8 py-6">
                                         <span className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-cream/20' : 'text-slate-300'}`}>
@@ -1136,54 +1686,62 @@ const Dashboard: React.FC = () => {
                         <div key={ing.name} className="flex justify-between items-center text-xs group/ing">
                           <span className={isDarkMode ? 'text-cream/40' : 'text-slate-500'}>{ing.name}</span>
                           <div className="flex items-center gap-3">
-                            <input 
-                              type="number" 
-                              value={ing.quantity}
-                              onChange={(e) => {
-                                const newIngs = [...p.ingredients];
-                                newIngs[idx].quantity = parseFloat(e.target.value);
-                                handleUpdateProductIngredients(p.id, newIngs);
-                              }}
-                              className={`w-16 text-right font-bold bg-transparent outline-none border-b border-transparent focus:border-gold/30 ${isDarkMode ? 'text-cream/80' : 'text-slate-700'}`}
-                            />
-                            <span className="opacity-40">{inventory.materials[ing.name]?.unit || 'g'}</span>
-                            <button 
-                              onClick={() => {
-                                const newIngs = p.ingredients.filter((_, i) => i !== idx);
-                                handleUpdateProductIngredients(p.id, newIngs);
-                              }}
-                              className="opacity-0 group-hover/ing:opacity-100 text-rose-500 transition-opacity"
-                            >
-                              <X size={12}/>
-                            </button>
+                            {editMode ? (
+                              <>
+                                <input 
+                                  type="number" 
+                                  value={ing.quantity}
+                                  onChange={(e) => {
+                                    const newIngs = [...p.ingredients];
+                                    newIngs[idx].quantity = parseFloat(e.target.value);
+                                    handleUpdateProductIngredients(p.id, newIngs);
+                                  }}
+                                  className={`w-16 text-right font-bold bg-transparent outline-none border-b border-transparent focus:border-gold/30 ${isDarkMode ? 'text-cream/80' : 'text-slate-700'}`}
+                                />
+                                <span className="opacity-40">{inventory.materials[ing.name]?.unit || 'g'}</span>
+                                <button 
+                                  onClick={() => {
+                                    const newIngs = p.ingredients.filter((_, i) => i !== idx);
+                                    handleUpdateProductIngredients(p.id, newIngs);
+                                  }}
+                                  className="text-rose-500 transition-opacity"
+                                >
+                                  <X size={12}/>
+                                </button>
+                              </>
+                            ) : (
+                              <span className="font-bold opacity-60">{ing.quantity} {inventory.materials[ing.name]?.unit || 'g'}</span>
+                            )}
                           </div>
                         </div>
                       ))}
                       
-                      <div className="pt-4">
-                        <select 
-                          className={`w-full bg-transparent border-b border-white/5 text-[10px] font-bold uppercase tracking-widest py-2 outline-none ${isDarkMode ? 'text-gold/40' : 'text-slate-400'}`}
-                          value=""
-                          onChange={(e) => {
-                            if (!e.target.value) return;
-                            if (p.ingredients.some(ing => ing.name === e.target.value)) return;
-                            const newIngs = [...p.ingredients, { name: e.target.value, quantity: 0 }];
-                            handleUpdateProductIngredients(p.id, newIngs);
-                          }}
-                        >
-                          <option value="">+ Add Ingredient</option>
-                          {Object.keys(inventory.materials).map(m => (
-                            <option key={m} value={m}>{m}</option>
-                          ))}
-                        </select>
-                      </div>
+                      {editMode && (
+                        <div className="pt-4">
+                          <select 
+                            className={`w-full border-b border-white/5 text-[10px] font-black uppercase tracking-widest py-3 px-2 outline-none rounded-xl transition-all ${isDarkMode ? 'bg-black text-gold' : 'bg-slate-100 text-slate-600'}`}
+                            value=""
+                            onChange={(e) => {
+                              if (!e.target.value) return;
+                              if (p.ingredients.some(ing => ing.name === e.target.value)) return;
+                              const newIngs = [...p.ingredients, { name: e.target.value, quantity: 0 }];
+                              handleUpdateProductIngredients(p.id, newIngs);
+                            }}
+                          >
+                            <option value="" className={isDarkMode ? 'bg-charcoal text-gold' : ''}>+ Add Ingredient</option>
+                            {Object.keys(inventory.materials).map(m => (
+                              <option key={m} value={m} className={isDarkMode ? 'bg-charcoal text-cream' : ''}>{m}</option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
                     </div>
                     <div className={`pt-6 border-t flex justify-between items-center ${isDarkMode ? 'border-white/5' : 'border-slate-100'}`}>
                       <div>
                         <p className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-emerald-500/50' : 'text-emerald-600'}`}>Projected Margin</p>
                         <p className="text-xl font-bold text-emerald-500">{p.price > 0 ? (((p.price - (p.live_cost || 0)) / p.price) * 100).toFixed(1) : 0}%</p>
                       </div>
-                      <button onClick={() => handleDeleteProduct(p.id)} className="text-rose-500/20 hover:text-rose-500 transition-colors"><Trash2 size={16}/></button>
+                      {editMode && <button onClick={() => handleDeleteProduct(p.id)} className="text-rose-500/20 hover:text-rose-500 transition-colors"><Trash2 size={16}/></button>}
                     </div>
                     
                     <button 
@@ -1194,22 +1752,24 @@ const Dashboard: React.FC = () => {
                     </button>
                   </div>
                 ))}
-                
-                {editMode && (
-                   <div onClick={handleCleanupProducts} className={`p-8 rounded-[2.5rem] border border-dashed flex flex-col items-center justify-center cursor-pointer border-rose-500/20 hover:border-rose-500 group transition-all min-h-[300px] ${isDarkMode ? 'bg-rose-500/5' : 'bg-rose-50'}`}>
-                        <div className="w-16 h-16 rounded-full border-2 border-dashed border-rose-500/20 flex items-center justify-center group-hover:border-rose-500 group-hover:scale-110 transition-all mb-4 text-rose-500">
-                            <Trash2 size={24} />
-                        </div>
-                        <p className="font-black text-[10px] uppercase tracking-[0.2em] text-rose-500 opacity-40 group-hover:opacity-100 transition-all text-center">Cleanup Broken Data<br/><span className="text-[8px] opacity-60">Removes empty IDs</span></p>
-                   </div>
-                )}
 
-                <div onClick={() => setShowAddProduct(true)} className={`p-8 rounded-[2.5rem] border border-dashed flex flex-col items-center justify-center cursor-pointer hover:border-gold/40 group transition-all min-h-[300px] ${isDarkMode ? 'border-white/10 bg-black/5' : 'border-slate-300 bg-slate-50'}`}>
-                    <div className="w-16 h-16 rounded-full border-2 border-dashed border-white/10 flex items-center justify-center group-hover:border-gold/40 group-hover:scale-110 transition-all mb-4">
-                        <Plus className="opacity-20 group-hover:opacity-100 group-hover:text-gold transition-all" />
+                {editMode && (
+                   <>
+                    <div onClick={handleCleanupProducts} className={`p-8 rounded-[2.5rem] border border-dashed flex flex-col items-center justify-center cursor-pointer border-rose-500/20 hover:border-rose-500 group transition-all min-h-[300px] ${isDarkMode ? 'bg-rose-500/5' : 'bg-rose-50'}`}>
+                          <div className="w-16 h-16 rounded-full border-2 border-dashed border-rose-500/20 flex items-center justify-center group-hover:border-rose-500 group-hover:scale-110 transition-all mb-4 text-rose-500">
+                              <Trash2 size={24} />
+                          </div>
+                          <p className="font-black text-[10px] uppercase tracking-[0.2em] text-rose-500 opacity-40 group-hover:opacity-100 transition-all text-center">Cleanup Broken Data<br/><span className="text-[8px] opacity-60">Removes empty IDs</span></p>
                     </div>
-                    <p className="font-black text-[10px] uppercase tracking-[0.2em] opacity-20 group-hover:opacity-100 group-hover:text-gold transition-all">New Entity</p>
-                </div>
+
+                    <div onClick={() => setShowAddProduct(true)} className={`p-8 rounded-[2.5rem] border border-dashed flex flex-col items-center justify-center cursor-pointer hover:border-gold/40 group transition-all min-h-[300px] ${isDarkMode ? 'border-white/10 bg-black/5' : 'border-slate-300 bg-slate-50'}`}>
+                        <div className="w-16 h-16 rounded-full border-2 border-dashed border-white/10 flex items-center justify-center group-hover:border-gold/40 group-hover:scale-110 transition-all mb-4">
+                            <Plus className="opacity-20 group-hover:opacity-100 group-hover:text-gold transition-all" />
+                        </div>
+                        <p className="font-black text-[10px] uppercase tracking-[0.2em] opacity-20 group-hover:opacity-100 group-hover:text-gold transition-all">New Entity</p>
+                    </div>
+                   </>
+                )}
               </div>
             )}
 
@@ -1272,17 +1832,75 @@ const Dashboard: React.FC = () => {
                     ))}
                   </div>
                   
-                  <button 
-                    onClick={saveSimulation} 
-                    className={`mt-10 w-full py-6 border rounded-2xl font-black text-xs uppercase tracking-widest transition-all ${isDarkMode ? 'border-gold/30 text-gold hover:bg-gold hover:text-charcoal shadow-gold-glow/20' : 'border-slate-900 text-slate-900 hover:bg-slate-900 hover:text-white'}`}
-                  >
-                    Apply New Global Pricing
-                  </button>
+                  {editMode && (
+                    <button 
+                      onClick={saveSimulation} 
+                      className={`mt-10 w-full py-6 border rounded-2xl font-black text-xs uppercase tracking-[0.2em] transition-all ${isDarkMode ? 'border-gold/30 text-gold hover:bg-gold hover:text-charcoal shadow-gold-glow/20' : 'border-slate-900 text-slate-900 hover:bg-slate-900 hover:text-white'}`}
+                    >
+                      Apply New Global Pricing
+                    </button>
+                  )}
                 </div>
 
                 <div className="space-y-6">
-                    <div className={`p-10 rounded-[3rem] border transition-colors ${isDarkMode ? 'border-white/5 bg-black/20' : 'border-slate-200 bg-white shadow-sm'}`}>
-                        <h3 className={`text-xl font-bold luxury-font uppercase mb-10 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Margin Forecast</h3>
+                    <div className={`lg:col-span-3 grid grid-cols-1 md:grid-cols-2 gap-8`}>
+                      {/* Hourly Heatmap */}
+                      <div className={`p-8 rounded-[2.5rem] border transition-colors ${isDarkMode ? 'border-white/5 bg-black/20' : 'border-slate-200 bg-white shadow-sm'}`}>
+                        <h3 className={`text-xl font-bold luxury-font uppercase mb-8 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Hourly Sales Heatmap</h3>
+                        <div className="h-[250px] w-full">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={analytics.hourlySales}>
+                              <CartesianGrid strokeDasharray="3 3" stroke={isDarkMode ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)"} vertical={false} />
+                              <XAxis dataKey="hour" fontSize={10} axisLine={false} tickLine={false} tick={{fill: isDarkMode ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.4)'}} />
+                              <Tooltip 
+                                  contentStyle={{ backgroundColor: isDarkMode ? '#0a0a0b' : '#fff', border: 'none', borderRadius: '15px', boxShadow: '0 10px 30px rgba(0,0,0,0.2)' }}
+                                  itemStyle={{ color: '#d4af37', fontWeight: 'bold' }}
+                              />
+                              <Bar dataKey="value" fill="#d4af37" radius={[4, 4, 0, 0]} />
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </div>
+                      </div>
+
+                      {/* Product Popularity */}
+                      <div className={`p-8 rounded-[2.5rem] border transition-colors ${isDarkMode ? 'border-white/5 bg-black/20' : 'border-slate-200 bg-white shadow-sm'}`}>
+                        <h3 className={`text-xl font-bold luxury-font uppercase mb-8 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Volume Distribution</h3>
+                        <div className="h-[250px] w-full">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                              <Pie
+                                data={analytics.topProducts}
+                                cx="50%"
+                                cy="50%"
+                                innerRadius={60}
+                                outerRadius={80}
+                                paddingAngle={5}
+                                dataKey="value"
+                              >
+                                {analytics.topProducts.map((entry, index) => (
+                                  <Cell key={`cell-${index}`} fill={['#d4af37', '#b8860b', '#f3e5ab', '#10b981', '#f43f5e'][index % 5]} />
+                                ))}
+                              </Pie>
+                              <Tooltip 
+                                  contentStyle={{ backgroundColor: isDarkMode ? '#0a0a0b' : '#fff', border: 'none', borderRadius: '15px', boxShadow: '0 10px 30px rgba(0,0,0,0.2)' }}
+                              />
+                            </PieChart>
+                          </ResponsiveContainer>
+                        </div>
+                        <div className="flex flex-wrap justify-center gap-4 mt-4">
+                          {analytics.topProducts.map((p, i) => (
+                              <div key={i} className="flex items-center gap-2">
+                                  <div className="w-2 h-2 rounded-full" style={{backgroundColor: ['#d4af37', '#b8860b', '#f3e5ab', '#10b981', '#f43f5e'][i % 5]}} />
+                                  <span className="text-[10px] font-bold uppercase tracking-widest opacity-40">{p.name}</span>
+                              </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className={`lg:col-span-2 rounded-[2.5rem] border p-8 transition-colors ${isDarkMode ? 'border-white/5 bg-black/20' : 'border-slate-200 bg-white shadow-sm'}`}>
+                      <h3 className={`text-xl font-bold luxury-font uppercase mb-8 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Market Performance</h3>
+
                         <div className="space-y-4">
                             {simulationResult.map((res: any) => {
                                 const marginDiff = res.margin_impact - ((inventory.products.find(p => p.name === res.name)?.price || 0 - (inventory.products.find(p => p.name === res.name)?.live_cost || 0)) / (inventory.products.find(p => p.name === res.name)?.price || 1) * 100);
@@ -1350,10 +1968,17 @@ const Dashboard: React.FC = () => {
                                 </button>
                                 <button 
                                   onClick={() => {
-                                    const itemsText = tx.items?.map((i: any) => `- ${i.name} x${i.qty}`).join('%0A') || '';
-                                    const text = `BAKERY OS: Receipt ${tx.id}%0A${itemsText}%0A%0ATOTAL: ${tx.revenue} MAD`;
-                                    const phone = window.prompt("Customer Phone?");
-                                    if (phone) window.open(`https://wa.me/${phone.replace(/\D/g,'')}?text=${text}`, '_blank');
+                                      openSelector({
+                                          title: "WhatsApp Share",
+                                          label: "Customer Number",
+                                          value: '',
+                                          type: 'text',
+                                          onConfirm: (phone) => {
+                                              const itemsText = tx.items?.map((i: any) => `- ${i.name} x${i.qty}`).join('%0A') || '';
+                                              const text = `BAKERY OS: Receipt ${tx.id}%0A${itemsText}%0A%0ATOTAL: ${tx.revenue} MAD`;
+                                              window.open(`https://wa.me/${phone.replace(/\D/g,'')}?text=${text}`, '_blank');
+                                          }
+                                      });
                                   }}
                                   className={`p-2 rounded-lg ${isDarkMode ? 'bg-emerald-500/10 text-emerald-500' : 'bg-emerald-50 text-emerald-600'}`}
                                   title="Share to WhatsApp"
@@ -1393,8 +2018,13 @@ const Dashboard: React.FC = () => {
                     <div className="flex gap-4">
                       <button 
                           onClick={() => {
-                              const date = window.prompt("Forecast for which date (YYYY-MM-DD)?", new Date(Date.now() + 86400000).toISOString().split('T')[0]);
-                              if (date) handleSmartForecast(date);
+                              openSelector({
+                                  title: "Smart Forecast",
+                                  label: "Target Date",
+                                  value: new Date(Date.now() + 86400000).toISOString().split('T')[0],
+                                  type: 'date',
+                                  onConfirm: (date) => handleSmartForecast(date)
+                              });
                           }}
                           disabled={isForecasting}
                           className={`flex items-center gap-3 px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${isDarkMode ? 'bg-white/5 text-gold border border-white/10 hover:bg-gold hover:text-charcoal' : 'bg-slate-100 text-slate-900 border border-slate-200 hover:bg-slate-200 shadow-sm'}`}
@@ -1404,8 +2034,13 @@ const Dashboard: React.FC = () => {
                       </button>
                       <button 
                           onClick={() => {
-                              const date = window.prompt("Print prep list for which date (YYYY-MM-DD)?", new Date().toISOString().split('T')[0]);
-                              if (date) window.open(`${API_BASE}/planner/prep-sheet?date=${date}`, '_blank');
+                              openSelector({
+                                  title: "Production Sheet",
+                                  label: "Sheet Date",
+                                  value: new Date().toISOString().split('T')[0],
+                                  type: 'date',
+                                  onConfirm: (date) => window.open(`${API_BASE}/planner/prep-sheet?date=${date}`, '_blank')
+                              });
                           }}
                           className={`flex items-center gap-3 px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${isDarkMode ? 'bg-gold/10 text-gold border border-gold/20 hover:bg-gold hover:text-charcoal' : 'bg-slate-900 text-white shadow-xl'}`}
                       >
@@ -1510,19 +2145,13 @@ const Dashboard: React.FC = () => {
                     </div>
                     <button 
                         onClick={() => {
-                            const name = window.prompt("Customer Name?");
-                            const phone = window.prompt("Customer Phone?");
-                            const date = window.prompt("Pickup Date (YYYY-MM-DD HH:MM)?", new Date().toISOString().slice(0, 16).replace('T', ' '));
-                            if (name && date) {
-                                api.post('/orders', {
-                                    customer_name: name,
-                                    customer_phone: phone,
-                                    pickup_date: date.replace(' ', 'T'),
-                                    items: [],
-                                    deposit_paid: 0
-                                }).then(() => fetchData());
-                            }
-
+                            setBookingForm({
+                                name: '',
+                                phone: '',
+                                date: new Date(Date.now() + 86400000).toISOString().slice(0, 16),
+                                source: 'ledger'
+                            });
+                            setShowBookingModal(true);
                         }} 
                         className={`px-8 py-4 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] transition-all active:scale-95 ${isDarkMode ? 'bg-gold text-charcoal shadow-gold-glow' : 'bg-slate-900 text-white shadow-xl'}`}
                     >
@@ -1559,7 +2188,9 @@ const Dashboard: React.FC = () => {
                               <select 
                                 value={order.status}
                                 onChange={async (e) => {
-                                  await api.patch(`/orders/${order.id}/status?status=${e.target.value}`, null);
+                                  const newStatus = e.target.value;
+                                  await api.patch(`/orders/${order.id}/status?status=${newStatus}`, null);
+                                  addToast(`Order ${newStatus.toUpperCase()}`, "success");
                                   fetchData();
                                 }}
 
@@ -1576,12 +2207,21 @@ const Dashboard: React.FC = () => {
                             <td className="px-8 py-6 text-right">
                                <button 
                                   onClick={() => {
-                                      const text = `Bonjour ${order.customer_name}, votre commande BakeryOS (${order.id}) est maintenant ${order.status.toUpperCase()}! À bientôt! 🥐`;
-                                      window.open(`https://wa.me/${order.customer_phone?.replace(/\D/g,'')}?text=${encodeURIComponent(text)}`, '_blank');
+                                      openSelector({
+                                          title: "WhatsApp Share",
+                                          label: "Customer Number",
+                                          value: order.customer_phone || '',
+                                          type: 'text',
+                                          onConfirm: (phone) => {
+                                              const text = `Bonjour ${order.customer_name}, votre commande BakeryOS (${order.id}) est maintenant ${order.status.toUpperCase()}! À bientôt! 🥐`;
+                                              window.open(`https://wa.me/${phone.replace(/\D/g,'')}?text=${encodeURIComponent(text)}`, '_blank');
+                                          }
+                                      });
                                   }}
                                   className={`p-4 rounded-2xl transition-all active:scale-90 ${isDarkMode ? 'bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500 hover:text-black shadow-emerald-500/20 shadow-lg' : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white'}`}
                                   title="Share via WhatsApp"
                                >
+
                                  <Zap size={18} fill="currentColor" />
                                </button>
                             </td>
@@ -1603,8 +2243,7 @@ const Dashboard: React.FC = () => {
             )}
           </motion.div>
         </AnimatePresence>
-      </main>
-
+        </motion.main>
       {/* Waste Logging Modal */}
       {showWasteModal && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-black/80 backdrop-blur-xl animate-in fade-in duration-300">
@@ -1651,7 +2290,8 @@ const Dashboard: React.FC = () => {
                                 await api.post('/waste', wasteForm);
                                 setShowWasteModal(false);
                                 fetchData();
-                            } catch (e: any) { alert(e.response?.data?.detail || "Log failed"); }
+                                addToast("Waste Logged", "success");
+                            } catch (e: any) { addToast("Log failed", "error"); }
                         }}
                         className={`w-full py-6 rounded-2xl font-black text-xs uppercase tracking-widest transition-all ${isDarkMode ? 'bg-rose-500 text-white shadow-lg' : 'bg-slate-900 text-white'}`}
                     >
@@ -1659,6 +2299,112 @@ const Dashboard: React.FC = () => {
                         Confirm Loss
                     </button>
                     <p className="text-[10px] text-center opacity-40 font-bold uppercase tracking-widest">This will deduct stock and adjust Net ROI</p>
+                </div>
+            </motion.div>
+        </div>
+      )}
+
+      {/* Add Staff Modal */}
+      {showAddStaff && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-black/80 backdrop-blur-xl animate-in fade-in duration-300">
+            <motion.div 
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                className={`w-full max-w-md p-10 rounded-[3.5rem] border shadow-2xl ${isDarkMode ? 'bg-[#0a0a0b] border-white/10' : 'bg-white border-slate-200'}`}
+            >
+                <div className="flex justify-between items-start mb-10">
+                    <h3 className={`text-2xl font-bold luxury-font uppercase tracking-tighter ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{t.add_staff}</h3>
+                    <button onClick={() => setShowAddStaff(false)} className="p-4 rounded-full bg-white/5 hover:bg-white/10 transition-colors"><X size={24}/></button>
+                </div>
+
+                <div className="space-y-8">
+                    <div>
+                        <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">{t.username}</label>
+                        <input 
+                            value={newStaff.username} 
+                            onChange={(e) => setNewStaff({...newStaff, username: e.target.value})}
+                            placeholder="e.g. staff_name"
+                            className={`w-full bg-transparent border-b text-lg font-bold py-4 outline-none ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`}
+                        />
+                    </div>
+
+                    <div>
+                        <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">{t.password}</label>
+                        <input 
+                            type="password"
+                            value={newStaff.password} 
+                            onChange={(e) => setNewStaff({...newStaff, password: e.target.value})}
+                            placeholder="••••••••"
+                            className={`w-full bg-transparent border-b text-lg font-bold py-4 outline-none ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`}
+                        />
+                    </div>
+
+                    <button 
+                        onClick={handleAddStaff}
+                        className={`w-full py-6 rounded-[2rem] font-black text-xs uppercase tracking-[0.2em] transition-all ${isDarkMode ? 'bg-gold text-charcoal shadow-gold-glow hover:scale-105' : 'bg-slate-900 text-white shadow-xl'}`}
+                    >
+                        Create Cashier Account
+                    </button>
+                </div>
+            </motion.div>
+        </div>
+      )}
+
+      {/* Add Expense Modal */}
+      {showAddExpense && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-black/80 backdrop-blur-xl animate-in fade-in duration-300">
+            <motion.div 
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                className={`w-full max-w-lg p-10 rounded-[3.5rem] border shadow-2xl ${isDarkMode ? 'bg-[#0a0a0b] border-white/10' : 'bg-white border-slate-200'}`}
+            >
+                <div className="flex justify-between items-start mb-10">
+                    <h3 className={`text-2xl font-bold luxury-font uppercase tracking-tighter ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Log Expenditure</h3>
+                    <button onClick={() => setShowAddExpense(false)} className="p-4 rounded-full bg-white/5 hover:bg-white/10 transition-colors"><X size={24}/></button>
+                </div>
+
+                <div className="space-y-8">
+                    <div>
+                        <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-4">Expense Category</label>
+                        <div className="grid grid-cols-2 gap-4">
+                            {['salary', 'rent', 'electricity', 'water', 'internet', 'other'].map(cat => (
+                                <button 
+                                    key={cat}
+                                    onClick={() => setNewExpense({...newExpense, category: cat})}
+                                    className={`py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest border transition-all ${newExpense.category === cat ? 'bg-gold text-charcoal' : 'bg-white/5 text-cream/40 border-white/5 hover:bg-white/10'}`}
+                                >
+                                    {cat}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">Amount ({activeCurrency})</label>
+                        <input 
+                            type="number" 
+                            value={newExpense.amount} 
+                            onChange={(e) => setNewExpense({...newExpense, amount: parseFloat(e.target.value)})}
+                            className={`w-full bg-transparent border-b text-2xl font-bold py-4 outline-none ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`}
+                        />
+                    </div>
+
+                    <div>
+                        <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">Description / Note</label>
+                        <input 
+                            value={newExpense.description} 
+                            onChange={(e) => setNewExpense({...newExpense, description: e.target.value})}
+                            placeholder="Electricity March 2026..."
+                            className={`w-full bg-transparent border-b text-sm py-4 outline-none ${isDarkMode ? 'border-white/10 text-cream/60' : 'border-slate-200 text-slate-600'}`}
+                        />
+                    </div>
+
+                    <button 
+                        onClick={handleAddExpense}
+                        className={`w-full py-6 rounded-[2rem] font-black text-xs uppercase tracking-[0.2em] transition-all ${isDarkMode ? 'bg-gold text-charcoal shadow-gold-glow hover:scale-105' : 'bg-slate-900 text-white shadow-xl'}`}
+                    >
+                        Register Expense
+                    </button>
                 </div>
             </motion.div>
         </div>
@@ -1941,13 +2687,21 @@ const Dashboard: React.FC = () => {
                         </button>
                         <button 
                             onClick={() => {
-                                const phone = window.prompt("Customer phone?");
-                                if (phone) window.open(`https://wa.me/${phone.replace(/\D/g,'')}?text=${encodeURIComponent(lastTransaction.whatsapp_text)}`, '_blank');
+                                openSelector({
+                                    title: "WhatsApp Share",
+                                    label: "Customer Number",
+                                    value: '',
+                                    type: 'text',
+                                    onConfirm: (phone) => {
+                                        window.open(`https://wa.me/${phone.replace(/\D/g,'')}?text=${encodeURIComponent(lastTransaction.whatsapp_text)}`, '_blank');
+                                    }
+                                });
                             }}
                             className="py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest bg-emerald-500 text-white shadow-lg shadow-emerald-500/20"
                         >
                             WhatsApp
                         </button>
+
                     </div>
                     
                     <button 
@@ -1987,6 +2741,141 @@ const Dashboard: React.FC = () => {
           ))}
         </AnimatePresence>
       </div>
+
+      {/* Selector Modal */}
+      <AnimatePresence>
+      {selectorConfig.isOpen && (
+          <div className="fixed inset-0 z-[500] flex items-center justify-center p-6 bg-black/90 backdrop-blur-2xl animate-in fade-in duration-300">
+              <motion.div 
+                  initial={{ scale: 0.95, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0.95, opacity: 0 }}
+                  className={`w-full max-w-sm p-10 rounded-[3.5rem] border shadow-2xl ${isDarkMode ? 'bg-[#0a0a0b] border-white/10' : 'bg-white border-slate-200'}`}
+              >
+                  <h3 className="text-xl font-bold luxury-font uppercase tracking-tighter mb-8">{selectorConfig.title}</h3>
+                  
+                  <div className="space-y-6">
+                      <div>
+                          <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">{selectorConfig.label}</label>
+                          <input 
+                              type={selectorConfig.type === 'datetime' ? 'datetime-local' : selectorConfig.type}
+                              value={selectorConfig.value}
+                              onChange={e => setSelectorConfig({...selectorConfig, value: e.target.value})}
+                              className={`w-full bg-transparent border-b py-3 outline-none font-bold text-lg ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`}
+                              autoFocus
+                          />
+                      </div>
+
+                      <div className="pt-6 flex gap-4">
+                          <button onClick={() => setSelectorConfig(prev => ({...prev, isOpen: false}))} className="flex-1 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest border border-white/5 opacity-40 hover:opacity-100 transition-all">Cancel</button>
+                          <button 
+                              onClick={() => {
+                                  selectorConfig.onConfirm(selectorConfig.value);
+                                  setSelectorConfig(prev => ({...prev, isOpen: false}));
+                              }} 
+                              className="flex-[2] py-4 rounded-2xl bg-gold text-charcoal font-black text-[10px] uppercase tracking-widest shadow-gold-glow"
+                          >
+                              Confirm
+                          </button>
+                      </div>
+                  </div>
+              </motion.div>
+          </div>
+      )}
+      </AnimatePresence>
+
+      {/* Booking Modal */}
+      <AnimatePresence>
+      {showBookingModal && (
+          <div className="fixed inset-0 z-[450] flex items-center justify-center p-6 bg-black/80 backdrop-blur-xl animate-in fade-in duration-300">
+              <motion.div 
+                  initial={{ y: 20, opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  exit={{ y: 20, opacity: 0 }}
+                  className={`w-full max-w-md p-10 rounded-[3.5rem] border shadow-2xl ${isDarkMode ? 'bg-[#0a0a0b] border-white/10' : 'bg-white border-slate-200'}`}
+              >
+                  <h3 className="text-2xl font-bold luxury-font uppercase tracking-tighter mb-8">Customer Booking</h3>
+                  
+                  <div className="space-y-6">
+                      <div>
+                          <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">Customer Identity</label>
+                          <input 
+                              placeholder="Full Name"
+                              value={bookingForm.name}
+                              onChange={e => setBookingForm({...bookingForm, name: e.target.value})}
+                              className={`w-full bg-transparent border-b py-3 outline-none font-bold ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`}
+                          />
+                      </div>
+
+                      <div>
+                          <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">Contact Number</label>
+                          <input 
+                              placeholder="+212..."
+                              value={bookingForm.phone}
+                              onChange={e => setBookingForm({...bookingForm, phone: e.target.value})}
+                              className={`w-full bg-transparent border-b py-3 outline-none font-bold ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`}
+                          />
+                      </div>
+
+                      <div>
+                          <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">Pickup Schedule</label>
+                          <input 
+                              type="datetime-local"
+                              value={bookingForm.date.includes(' ') ? bookingForm.date.replace(' ', 'T') : bookingForm.date}
+                              onChange={e => setBookingForm({...bookingForm, date: e.target.value})}
+                              className={`w-full bg-transparent border-b py-3 outline-none font-bold ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`}
+                          />
+                      </div>
+
+                      <div className="pt-6 flex gap-4">
+                          <button onClick={() => setShowBookingModal(false)} className="flex-1 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest border border-white/5 opacity-40 hover:opacity-100 transition-all">Cancel</button>
+                          <button onClick={handleSaveBooking} className="flex-[2] py-4 rounded-2xl bg-gold text-charcoal font-black text-[10px] uppercase tracking-widest shadow-gold-glow">Confirm Booking</button>
+                      </div>
+                  </div>
+              </motion.div>
+          </div>
+      )}
+      </AnimatePresence>
+
+      {/* Confirmation Modal */}
+      <AnimatePresence>
+        {confirmConfig.isOpen && (
+          <div className="fixed inset-0 z-[400] flex items-center justify-center p-6 bg-black/80 backdrop-blur-md animate-in fade-in duration-300">
+              <motion.div 
+                  initial={{ scale: 0.9, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0.9, opacity: 0 }}
+                  className={`w-full max-w-md p-8 rounded-[3rem] border shadow-2xl ${isDarkMode ? 'bg-[#0f0f11] border-white/10' : 'bg-white border-slate-200'}`}
+              >
+                  <div className={`w-16 h-16 rounded-3xl mb-6 flex items-center justify-center ${confirmConfig.type === 'danger' ? 'bg-rose-500/20 text-rose-500' : 'bg-gold/20 text-gold'}`}>
+                      {confirmConfig.type === 'danger' ? <Trash2 size={32}/> : <CheckCircle size={32}/>}
+                  </div>
+                  <h3 className="text-2xl font-bold luxury-font mb-2 uppercase tracking-tight">{confirmConfig.title}</h3>
+                  <p className={`text-sm mb-10 leading-relaxed ${isDarkMode ? 'text-cream/60' : 'text-slate-500'}`}>{confirmConfig.message}</p>
+                  
+                  <div className="flex gap-4">
+                      <button 
+                          onClick={() => setConfirmConfig(prev => ({ ...prev, isOpen: false }))}
+                          className={`flex-1 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest border transition-all ${isDarkMode ? 'border-white/10 text-white hover:bg-white/5' : 'border-slate-200 text-slate-900 hover:bg-slate-50'}`}
+                      >
+                          Cancel
+                      </button>
+                      <button 
+                          onClick={() => {
+                              confirmConfig.onConfirm();
+                              setConfirmConfig(prev => ({ ...prev, isOpen: false }));
+                          }}
+                          className={`flex-1 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl transition-all ${
+                              confirmConfig.type === 'danger' ? 'bg-rose-600 text-white hover:bg-rose-700' : 'bg-gold text-charcoal hover:scale-105'
+                          }`}
+                      >
+                          {confirmConfig.confirmText}
+                      </button>
+                  </div>
+              </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

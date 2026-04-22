@@ -22,14 +22,16 @@ export const api = {
             if (['inventory', 'analytics', 'settings'].includes(table)) {
                 await (db as any)[table].put({ ...data, id: 1 });
             } else if (Array.isArray(data)) {
-                const preparedData = data.map((item, index) => {
-                    if (item && typeof item === 'object') {
-                        return { id: item.id || item.transaction_id || `gen-${index}`, ...item };
-                    }
-                    return item;
-                });
-                await (db as any)[table].bulkAdd(preparedData);
-            } else {
+              const preparedData = data.map((item, index) => {
+                  if (item && typeof item === 'object') {
+                      // Use a unique combination for the key if id is missing
+                      const uniqueId = item.id || item.transaction_id || `gen-${table}-${index}-${Date.now()}`;
+                      return { ...item, id: uniqueId };
+                  }
+                  return item;
+              });
+              await (db as any)[table].bulkPut(preparedData);
+          } else {
                 const preparedItem = { id: data.id || 1, ...data };
                 await (db as any)[table].put(preparedItem);
             }

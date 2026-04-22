@@ -6,7 +6,9 @@ import datetime
 class Ingredient(Base):
     __tablename__ = "ingredients"
     
-    name = Column(String, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, index=True)
+    owner_id = Column(Integer, ForeignKey("users.id"))
     stock = Column(Float, default=0)
     unit = Column(String)
     price = Column(Float, default=0)
@@ -18,6 +20,7 @@ class Product(Base):
     __tablename__ = "products"
     
     id = Column(String, primary_key=True, index=True)
+    owner_id = Column(Integer, ForeignKey("users.id"))
     name = Column(String, index=True)
     stock = Column(Integer, default=0)
     price = Column(Float, default=0)
@@ -35,7 +38,7 @@ class RecipeItem(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     product_id = Column(String, ForeignKey("products.id"))
-    ingredient_name = Column(String, ForeignKey("ingredients.name"))
+    ingredient_id = Column(Integer, ForeignKey("ingredients.id"))
     quantity = Column(Float)
     
     product = relationship("Product", back_populates="recipe_items")
@@ -45,24 +48,25 @@ class Transaction(Base):
     __tablename__ = "transactions"
     
     id = Column(String, primary_key=True, index=True)
+    owner_id = Column(Integer, ForeignKey("users.id"))
     timestamp = Column(DateTime, default=datetime.datetime.utcnow)
     type = Column(String) # 'sale' or 'production'
     total_revenue = Column(Float, default=0)
     total_cost = Column(Float, default=0)
-    
-    # Store items as JSON for simplicity in history viewing, 
-    # but we could also use a TransactionItem table for more complex queries.
     items = Column(JSON, nullable=True)
 
 class User(Base):
     __tablename__ = "users"
-    username = Column(String, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String, unique=True, index=True)
     password = Column(String)
     role = Column(String) # 'owner' or 'cashier'
+    parent_owner_id = Column(Integer, ForeignKey("users.id"), nullable=True)
 
 class Order(Base):
     __tablename__ = "orders"
     id = Column(String, primary_key=True, index=True)
+    owner_id = Column(Integer, ForeignKey("users.id"))
     customer_name = Column(String)
     customer_phone = Column(String, nullable=True)
     items = Column(JSON) # List of items
@@ -75,6 +79,7 @@ class Order(Base):
 class WasteRecord(Base):
     __tablename__ = "waste_records"
     id = Column(Integer, primary_key=True, index=True)
+    owner_id = Column(Integer, ForeignKey("users.id"))
     date = Column(DateTime, default=datetime.datetime.utcnow)
     product_id = Column(String, ForeignKey("products.id"))
     quantity = Column(Integer)
@@ -82,16 +87,42 @@ class WasteRecord(Base):
     
     product = relationship("Product")
 
+class SystemSetting(Base):
+    __tablename__ = "system_settings"
+    key = Column(String, primary_key=True)
+    owner_id = Column(Integer, ForeignKey("users.id"))
+    value = Column(String)
+
+class Expense(Base):
+    __tablename__ = "expenses"
+    id = Column(Integer, primary_key=True, index=True)
+    owner_id = Column(Integer, ForeignKey("users.id"))
+    date = Column(DateTime, default=datetime.datetime.utcnow)
+    category = Column(String) # 'rent', 'electricity', 'salary', 'other'
+    amount = Column(Float)
+    description = Column(String, nullable=True)
+
 class Supplier(Base):
     __tablename__ = "suppliers"
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, unique=True, index=True)
+    owner_id = Column(Integer, ForeignKey("users.id"))
+    name = Column(String, index=True)
     contact_info = Column(String, nullable=True)
 
 class PurchaseOrder(Base):
     __tablename__ = "purchase_orders"
     id = Column(String, primary_key=True, index=True)
+    owner_id = Column(Integer, ForeignKey("users.id"))
     date = Column(DateTime, default=datetime.datetime.utcnow)
     supplier_id = Column(Integer, ForeignKey("suppliers.id"))
     items = Column(JSON) # List of {name, qty, price}
     status = Column(String, default="draft") # draft, ordered, received
+
+class Planner(Base):
+    __tablename__ = "planner"
+    id = Column(String, primary_key=True, index=True)
+    owner_id = Column(Integer, ForeignKey("users.id"))
+    product_id = Column(String, ForeignKey("products.id"))
+    date = Column(String) # YYYY-MM-DD
+    quantity = Column(Integer)
+    status = Column(String, default="pending") # pending, completed

@@ -1,5 +1,25 @@
-node_modules
-.env
-dist
-*.log
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+backend/venv/
+backend/backend.log
+backend/static.log
+*.db
+*.sqlite3
+
+# Node / React
+node_modules/
+frontend/node_modules/
+dist/
+frontend/dist/
 .DS_Store
+.env
+.env.local
+
+# Gemini / IDE
+.claude/
+.gemini/
+.superpowers/
+nohup.out

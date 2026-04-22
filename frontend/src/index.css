@@ -18,6 +18,30 @@
   .text-luxury {
     font-family: 'Playfair Display', serif;
   }
+
+  .text-gold-gradient {
+    @apply bg-clip-text text-transparent bg-gradient-to-br from-gold via-[#f3e5ab] to-[#b8860b];
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1));
+  }
+
+  .luxury-accent-bar {
+    @apply w-12 h-1 bg-gold rounded-full mt-4;
+    box-shadow: 0 0 15px rgba(212, 175, 55, 0.4);
+  }
+
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 3px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(212, 175, 55, 0.1);
+    border-radius: 10px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(212, 175, 55, 0.4);
+  }
 }
 
 body {

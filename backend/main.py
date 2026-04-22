@@ -51,6 +51,11 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = De
         raise HTTPException(status_code=401, detail="User not found")
     return user
 
+def get_effective_owner_id(current_user: models.User = Depends(get_current_user)):
+    if current_user.role == "owner":
+        return current_user.id
+    return current_user.parent_owner_id
+
 def requires_roles(roles: List[str]):
     def role_checker(current_user: models.User = Depends(get_current_user)):
         if current_user.role not in roles:
@@ -66,7 +71,12 @@ app = FastAPI(title="BakeryOS API")
 # Enable CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:8000",
+        "http://127.0.0.1:8000"
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -105,6 +115,17 @@ class SupplierCreate(BaseModel):
 class POCreate(BaseModel):
     supplier_id: int
     items: List[Dict]
+
+class ExpenseCreate(BaseModel):
+    category: str
+    amount: float
+    description: Optional[str] = None
+
+class StockAdjust(BaseModel):
+    item_type: str # 'product' or 'material'
+    id: str
+    amount: float
+    reason: Optional[str] = "Manual Adjustment"
 
 class ProductCreate(BaseModel):
     id: str
@@ -173,32 +194,121 @@ async def seed_users(db: Session = Depends(get_db)):
         db.commit()
     return {"message": "Users seeded. Use admin/password or cashier/password."}
 
+from google.oauth2 import id_token
+from google.auth.transport import requests as google_requests
+
+GOOGLE_CLIENT_ID = "183197193874-qhf5nd87o77oo86jhksat53ncq3ahjp8.apps.googleusercontent.com"
+
+# ... rest of your imports ...
+
+class GoogleLoginRequest(BaseModel):
+    credential: str
+
+@app.post("/api/auth/google")
+async def google_login(req: GoogleLoginRequest, db: Session = Depends(get_db)):
+    try:
+        # 1. Real Verification with Google
+        idinfo = id_token.verify_oauth2_token(req.credential, google_requests.Request(), GOOGLE_CLIENT_ID)
+        
+        # 2. Extract user info
+        email = idinfo['email']
+        
+        # 3. Check if user exists, if not create them
+        user = db.query(models.User).filter(models.User.username == email).first()
+        if not user:
+            # Create a new owner account automatically for Google users
+            user = models.User(
+                username=email, 
+                password=get_password_hash("google_oauth_protected"), 
+                role="owner",
+                parent_owner_id=None
+            )
+            db.add(user)
+            db.commit()
+            db.refresh(user)
+        else:
+            # Ensure existing Google user has owner role
+            if user.role != "owner":
+                user.role = "owner"
+                db.commit()
+            
+        # 4. Generate our system token
+        access_token = create_access_token(data={"sub": user.username})
+        return {
+            "access_token": access_token,
+            "token_type": "bearer",
+            "username": user.username,
+            "role": user.role
+        }
+    except Exception as e:
+        print(f"Google Auth Error: {e}")
+        raise HTTPException(status_code=400, detail="Google authentication failed")
+
 @app.post("/api/auth/login", response_model=Token)
 async def login(req: LoginRequest, db: Session = Depends(get_db)):
     user = db.query(models.User).filter(models.User.username == req.username).first()
     if not user or not verify_password(req.password, user.password):
         raise HTTPException(status_code=401, detail="Invalid username or password")
-    
+
     access_token = create_access_token(data={"sub": user.username})
     return {
         "access_token": access_token, 
         "token_type": "bearer", 
-        "username": user.username, 
+        "username": user.username,
         "role": user.role
     }
 
+# Staff Management
+@app.get("/api/staff", dependencies=[Depends(requires_roles(["owner"]))])
+async def get_staff(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    return db.query(models.User).filter(models.User.parent_owner_id == current_user.id).all()
+
+class StaffCreate(BaseModel):
+    username: str
+    password: str
+
+@app.post("/api/staff", dependencies=[Depends(requires_roles(["owner"]))])
+async def create_staff(req: StaffCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    existing = db.query(models.User).filter(models.User.username == req.username).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Username already taken")
+
+    new_user = models.User(
+        username=req.username,
+        password=get_password_hash(req.password),
+        role="cashier",
+        parent_owner_id=current_user.id
+    )
+    db.add(new_user)
+    db.commit()
+    return {"success": True}
+
+@app.delete("/api/staff/{username}", dependencies=[Depends(requires_roles(["owner"]))])
+async def delete_staff(username: str, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    user = db.query(models.User).filter(
+        models.User.username == username,
+        models.User.parent_owner_id == current_user.id
+    ).first()
+    if user:
+        db.delete(user)
+        db.commit()
+        return {"success": True}
+    raise HTTPException(status_code=404, detail="Staff member not found")
 # Orders
 @app.get("/api/orders")
-async def get_orders(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
-    return db.query(models.Order).order_by(models.Order.pickup_date.asc()).all()
+async def get_orders(db: Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
+    return db.query(models.Order).filter(models.Order.owner_id == owner_id).order_by(models.Order.pickup_date.asc()).all()
 
 @app.post("/api/orders")
-async def create_order(order_data: OrderCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+async def create_order(order_data: OrderCreate, db: Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
     total_price = 0
     items_snapshot = []
     
     for item in order_data.items:
-        product = db.query(models.Product).filter(models.Product.id == item.id).first()
+        product = db.query(models.Product).filter(
+            models.Product.id == item.id,
+            models.Product.owner_id == owner_id
+        ).first()
         if product:
             total_price += product.price * item.qty
             items_snapshot.append({
@@ -210,6 +320,7 @@ async def create_order(order_data: OrderCreate, db: Session = Depends(get_db), c
             
     new_order = models.Order(
         id=str(uuid.uuid4())[:8].upper(),
+        owner_id=owner_id,
         customer_name=order_data.customer_name,
         customer_phone=order_data.customer_phone,
         items=items_snapshot,
@@ -223,8 +334,11 @@ async def create_order(order_data: OrderCreate, db: Session = Depends(get_db), c
     return new_order
 
 @app.patch("/api/orders/{id}/status")
-async def update_order_status(id: str, status: str, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
-    order = db.query(models.Order).filter(models.Order.id == id).first()
+async def update_order_status(id: str, status: str, db: Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
+    order = db.query(models.Order).filter(
+        models.Order.id == id,
+        models.Order.owner_id == owner_id
+    ).first()
     if order:
         order.status = status
         db.commit()
@@ -233,8 +347,11 @@ async def update_order_status(id: str, status: str, db: Session = Depends(get_db
 
 # Waste
 @app.post("/api/waste")
-async def record_waste(waste: WasteCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
-    product = db.query(models.Product).filter(models.Product.id == waste.product_id).first()
+async def record_waste(waste: WasteCreate, db: Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
+    product = db.query(models.Product).filter(
+        models.Product.id == waste.product_id,
+        models.Product.owner_id == owner_id
+    ).first()
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
         
@@ -245,6 +362,7 @@ async def record_waste(waste: WasteCreate, db: Session = Depends(get_db), curren
     loss_cost = calculate_product_cost(product) * waste.quantity
     
     record = models.WasteRecord(
+        owner_id=owner_id,
         product_id=waste.product_id,
         quantity=waste.quantity,
         loss_cost=loss_cost
@@ -254,13 +372,14 @@ async def record_waste(waste: WasteCreate, db: Session = Depends(get_db), curren
     return {"success": True}
 
 @app.get("/api/inventory")
-async def inventory(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
-    ingredients = db.query(models.Ingredient).all()
-    products = db.query(models.Product).all()
+async def inventory(db: Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
+    ingredients = db.query(models.Ingredient).filter(models.Ingredient.owner_id == owner_id).all()
+    products = db.query(models.Product).filter(models.Product.owner_id == owner_id).all()
     
     # Map to frontend format
     materials_dict = {
         ing.name: {
+            "id": ing.id,
             "stock": ing.stock,
             "unit": ing.unit,
             "price": ing.price,
@@ -281,7 +400,7 @@ async def inventory(db: Session = Depends(get_db), current_user: models.User = D
             "yield_qty": p.yield_qty,
             "instructions": p.instructions or [],
             "live_cost": calculate_product_cost(p),
-            "ingredients": [{"name": i.ingredient_name, "quantity": i.quantity} for i in p.recipe_items]
+            "ingredients": [{"name": i.ingredient.name if i.ingredient else "Unknown", "quantity": i.quantity} for i in p.recipe_items]
         })
         
     return {
@@ -290,14 +409,12 @@ async def inventory(db: Session = Depends(get_db), current_user: models.User = D
     }
 
 @app.get("/api/planner/prep-sheet")
-async def get_prep_sheet(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
-    planner_path = os.path.join(DATA_DIR, 'planner.json')
-    plan = []
-    if os.path.exists(planner_path):
-        with open(planner_path, 'r') as f:
-            plan = json.load(f)
+async def get_prep_sheet(db: Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
+    pending = db.query(models.Planner).filter(
+        models.Planner.owner_id == owner_id,
+        models.Planner.status == 'pending'
+    ).all()
     
-    pending = [p for p in plan if p.get('status') == 'pending']
     if not pending:
         return "<h1>No pending batches in planner.</h1>"
 
@@ -306,18 +423,21 @@ async def get_prep_sheet(db: Session = Depends(get_db), current_user: models.Use
     production_summary = []
     
     for item in pending:
-        product = db.query(models.Product).filter(models.Product.id == item['product_id']).first()
+        product = db.query(models.Product).filter(
+            models.Product.id == item.product_id,
+            models.Product.owner_id == owner_id
+        ).first()
         if not product: continue
         
         production_summary.append({
             "name": product.name,
-            "qty": item['quantity'],
+            "qty": item.quantity,
             "icon": product.icon
         })
         
         for recipe_item in product.recipe_items:
-            name = recipe_item.ingredient_name
-            qty = recipe_item.quantity * item['quantity']
+            name = recipe_item.ingredient.name if recipe_item.ingredient else "Unknown"
+            qty = recipe_item.quantity * item.quantity
             unit = recipe_item.ingredient.unit if recipe_item.ingredient else "g"
             
             if name not in requirements:
@@ -396,8 +516,8 @@ async def get_prep_sheet(db: Session = Depends(get_db), current_user: models.Use
     return HTMLResponse(content=html_content)
 
 @app.get("/api/history")
-async def get_history(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
-    transactions = db.query(models.Transaction).order_by(models.Transaction.timestamp.desc()).all()
+async def get_history(db: Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
+    transactions = db.query(models.Transaction).filter(models.Transaction.owner_id == owner_id).order_by(models.Transaction.timestamp.desc()).all()
     return [
         {
             "id": tx.id,
@@ -411,45 +531,61 @@ async def get_history(db: Session = Depends(get_db), current_user: models.User =
     ]
 
 @app.get("/api/planner")
-async def get_planner(current_user: models.User = Depends(get_current_user)):
-    planner_path = os.path.join(DATA_DIR, 'planner.json')
-    if os.path.exists(planner_path):
-        with open(planner_path, 'r') as f:
-            return json.load(f)
-    return []
+async def get_planner(db: Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
+    return db.query(models.Planner).filter(models.Planner.owner_id == owner_id).all()
 
 @app.post("/api/planner")
-async def update_planner(plan: List[Dict], current_user: models.User = Depends(get_current_user)):
-    with open(os.path.join(DATA_DIR, 'planner.json'), 'w') as f:
-        json.dump(plan, f, indent=4)
+async def update_planner(plan: List[Dict], db: Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
+    # Clear old plan for this owner
+    db.query(models.Planner).filter(models.Planner.owner_id == owner_id).delete()
+    # Add new plan
+    for item in plan:
+        new_item = models.Planner(
+            id=item.get('id', str(uuid.uuid4())[:8].upper()),
+            owner_id=owner_id,
+            product_id=item['product_id'],
+            date=item['date'],
+            quantity=item['quantity'],
+            status=item.get('status', 'pending')
+        )
+        db.add(new_item)
+    db.commit()
     return {"success": True}
 
 @app.get("/api/settings")
-async def get_settings_api():
-    return get_settings()
+async def get_settings_api(db: Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
+    settings = db.query(models.SystemSetting).filter(models.SystemSetting.owner_id == owner_id).all()
+    return {s.key: s.value for s in settings}
 
 @app.post("/api/produce")
-async def produce(batch: ProductionBatch, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
-    product = db.query(models.Product).filter(models.Product.id == batch.product_id).first()
+async def produce(batch: ProductionBatch, db: Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
+    product = db.query(models.Product).filter(
+        models.Product.id == batch.product_id,
+        models.Product.owner_id == owner_id
+    ).first()
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
 
     production_cost = 0
     # Check and deduct ingredients
     for item in product.recipe_items:
-        ing = db.query(models.Ingredient).filter(models.Ingredient.name == item.ingredient_name).first()
+        ing = db.query(models.Ingredient).filter(
+            models.Ingredient.id == item.ingredient_id,
+            models.Ingredient.owner_id == owner_id
+        ).first()
         required = item.quantity * batch.quantity
         if not ing or ing.stock < required:
-            raise HTTPException(status_code=400, detail=f"Insufficient {item.ingredient_name}")
+            raise HTTPException(status_code=400, detail=f"Insufficient {item.ingredient.name if item.ingredient else 'Ingredient'}")
         ing.stock -= required
         production_cost += required * ing.price
 
     product.stock += batch.quantity
-    
+
     # Create transaction
     tx_id = str(uuid.uuid4())[:8].upper()
     transaction = models.Transaction(
         id=tx_id,
+        owner_id=owner_id,
         timestamp=datetime.utcnow(),
         type="production",
         total_revenue=0,
@@ -458,17 +594,19 @@ async def produce(batch: ProductionBatch, db: Session = Depends(get_db), current
     )
     db.add(transaction)
     db.commit()
-    
-    return {"success": True, "new_stock": product.stock}
 
+    return {"success": True, "new_stock": product.stock}
 @app.post("/api/complete")
-async def complete_sale(req: SaleRequest, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+async def complete_sale(req: SaleRequest, db: Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
     total_revenue = 0
     total_cost = 0
     items_snapshot = []
 
     for item in req.cart:
-        product = db.query(models.Product).filter(models.Product.id == item.id).first()
+        product = db.query(models.Product).filter(
+            models.Product.id == item.id,
+            models.Product.owner_id == owner_id
+        ).first()
         if not product: continue
         
         if product.stock < item.qty:
@@ -490,6 +628,7 @@ async def complete_sale(req: SaleRequest, db: Session = Depends(get_db), current
     tx_id = str(uuid.uuid4())[:8].upper()
     transaction = models.Transaction(
         id=tx_id,
+        owner_id=owner_id,
         timestamp=datetime.utcnow(),
         type="sale",
         total_revenue=total_revenue,
@@ -582,47 +721,86 @@ async def get_receipt(id: str, db: Session = Depends(get_db)):
     return HTMLResponse(content=html_content)
 
 @app.get("/api/analytics", dependencies=[Depends(requires_roles(["owner"]))])
-async def analytics(db: Session = Depends(get_db)):
-    transactions = db.query(models.Transaction).all()
-    waste_total = sum(w.loss_cost for w in db.query(models.WasteRecord).all())
-    settings = get_settings()
+async def analytics(db: Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
+    transactions = db.query(models.Transaction).filter(models.Transaction.owner_id == owner_id).all()
+    waste_records = db.query(models.WasteRecord).filter(models.WasteRecord.owner_id == owner_id).all()
+    settings_data = get_settings() # We could also make this per-owner later
     
+    # Get last reset time
+    reset_setting = db.query(models.SystemSetting).filter(
+        models.SystemSetting.key == "last_reset_at",
+        models.SystemSetting.owner_id == owner_id
+    ).first()
+    
+    if reset_setting:
+        last_reset = datetime.fromisoformat(reset_setting.value)
+    else:
+        # Default to start of today
+        now = datetime.now()
+        last_reset = datetime(now.year, now.month, now.day)
+
+    # Total historical data (Always all data)
     total_revenue = sum(t.total_revenue for t in transactions if t.type == 'sale')
-    total_cost = sum(t.total_cost for t in transactions) + waste_total
+    total_cost = sum(t.total_cost for t in transactions) + sum(w.loss_cost for w in waste_records)
     
+    # Session data (Only since last reset)
+    session_txs = [t for t in transactions if t.timestamp >= last_reset]
+    session_waste = [w for w in waste_records if w.date >= last_reset]
+    
+    today_revenue = sum(t.total_revenue for t in session_txs if t.type == 'sale')
+    today_cost = sum(t.total_cost for t in session_txs) + sum(w.loss_cost for w in session_waste)
+
     # Generate daily data for chart (last 7 days)
     daily_data = []
     now = datetime.now()
     for i in range(6, -1, -1):
         day = now - timedelta(days=i)
         day_str = day.strftime('%a')
+        s_day = datetime(day.year, day.month, day.day)
+        e_day = s_day + timedelta(days=1)
         
-        # Filter transactions for this day
-        start_of_day = datetime(day.year, day.month, day.day)
-        end_of_day = start_of_day + timedelta(days=1)
-        
-        day_txs = db.query(models.Transaction).filter(
-            models.Transaction.timestamp >= start_of_day,
-            models.Transaction.timestamp < end_of_day
-        ).all()
-        
+        day_txs = [t for t in transactions if t.timestamp >= s_day and t.timestamp < e_day]
         daily_data.append({
             "name": day_str,
             "revenue": sum(t.total_revenue for t in day_txs if t.type == 'sale'),
             "cost": sum(t.total_cost for t in day_txs)
         })
 
+    # Hourly Heatmap (0-23)
+    hourly_sales = [{"hour": f"{h:02d}h", "value": 0} for h in range(24)]
+    for tx in [t for t in transactions if t.type == 'sale']:
+        hour = tx.timestamp.hour
+        hourly_sales[hour]["value"] += tx.total_revenue
+        
+    # Top Products
+    product_stats = {}
+    for tx in [t for t in transactions if t.type == 'sale']:
+        if tx.items:
+            for item in tx.items:
+                name = item.get('name', 'Unknown')
+                qty = item.get('qty', 0)
+                product_stats[name] = product_stats.get(name, 0) + qty
+                
+    top_products = [
+        {"name": name, "value": qty} 
+        for name, qty in sorted(product_stats.items(), key=lambda x: x[1], reverse=True)[:5]
+    ]
+
     return {
         "revenue": round(total_revenue, 2),
         "cost": round(total_cost, 2),
-        "currency": settings.get("currency", "MAD"),
-        "chartData": daily_data
+        "today_revenue": round(today_revenue, 2),
+        "today_cost": round(today_cost, 2),
+        "currency": settings_data.get("currency", "MAD"),
+        "chartData": daily_data,
+        "hourlySales": hourly_sales,
+        "topProducts": top_products
     }
 
 @app.get("/api/alerts")
-async def get_alerts(db: Session = Depends(get_db)):
-    ingredients = db.query(models.Ingredient).all()
-    products = db.query(models.Product).all()
+async def get_alerts(db: Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
+    ingredients = db.query(models.Ingredient).filter(models.Ingredient.owner_id == owner_id).all()
+    products = db.query(models.Product).filter(models.Product.owner_id == owner_id).all()
     
     alerts = []
     
@@ -651,13 +829,13 @@ async def get_alerts(db: Session = Depends(get_db)):
     return alerts
 
 @app.post("/api/simulate_price", dependencies=[Depends(requires_roles(["owner"]))])
-async def simulate_price(materials_update: Dict[str, float], db: Session = Depends(get_db)):
+async def simulate_price(materials_update: Dict[str, float], db: Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
     # Calculate impact on product costs without saving
     impact = []
-    products = db.query(models.Product).all()
+    products = db.query(models.Product).filter(models.Product.owner_id == owner_id).all()
     
     # Create a temporary mapping for simulation
-    all_ingredients = {ing.name: ing for ing in db.query(models.Ingredient).all()}
+    all_ingredients = {ing.name: ing for ing in db.query(models.Ingredient).filter(models.Ingredient.owner_id == owner_id).all()}
     
     for p in products:
         old_cost = calculate_product_cost(p)
@@ -665,7 +843,9 @@ async def simulate_price(materials_update: Dict[str, float], db: Session = Depen
         # Calculate new cost with simulated prices
         new_cost = 0
         for item in p.recipe_items:
-            price = materials_update.get(item.ingredient_name, all_ingredients[item.ingredient_name].price)
+            # item.ingredient is loaded via relationship, but we can also use our simulated mapping
+            price = materials_update.get(item.ingredient.name if item.ingredient else "", 
+                                         item.ingredient.price if item.ingredient else 0)
             new_cost += item.quantity * price
             
         impact.append({
@@ -677,22 +857,29 @@ async def simulate_price(materials_update: Dict[str, float], db: Session = Depen
     return impact
 
 @app.post("/api/update_material_prices", dependencies=[Depends(requires_roles(["owner"]))])
-async def update_material_prices(materials_update: Dict[str, float], db: Session = Depends(get_db)):
+async def update_material_prices(materials_update: Dict[str, float], db: Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
     for name, new_price in materials_update.items():
-        ing = db.query(models.Ingredient).filter(models.Ingredient.name == name).first()
+        ing = db.query(models.Ingredient).filter(
+            models.Ingredient.name == name,
+            models.Ingredient.owner_id == owner_id
+        ).first()
         if ing:
             ing.price = new_price
     db.commit()
     return {"success": True}
 
 @app.post("/api/materials", dependencies=[Depends(requires_roles(["owner"]))])
-async def add_material(mat: MaterialCreate, db: Session = Depends(get_db)):
-    existing = db.query(models.Ingredient).filter(models.Ingredient.name == mat.name).first()
+async def add_material(mat: MaterialCreate, db: Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
+    existing = db.query(models.Ingredient).filter(
+        models.Ingredient.name == mat.name,
+        models.Ingredient.owner_id == owner_id
+    ).first()
     if existing:
         raise HTTPException(status_code=400, detail="Material already exists")
     
     new_ing = models.Ingredient(
         name=mat.name,
+        owner_id=owner_id,
         price=mat.price,
         unit=mat.unit,
         min_threshold=mat.min_threshold,
@@ -712,16 +899,20 @@ async def delete_material(name: str, db: Session = Depends(get_db)):
     raise HTTPException(status_code=404, detail="Material not found")
 
 @app.post("/api/products", dependencies=[Depends(requires_roles(["owner"]))])
-async def add_product(prod: ProductCreate, db: Session = Depends(get_db)):
+async def add_product(prod: ProductCreate, db: Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
     if not prod.id.strip():
         raise HTTPException(status_code=400, detail="Product ID cannot be empty")
     
-    existing = db.query(models.Product).filter(models.Product.id == prod.id).first()
+    existing = db.query(models.Product).filter(
+        models.Product.id == prod.id,
+        models.Product.owner_id == owner_id
+    ).first()
     if existing:
         raise HTTPException(status_code=400, detail="Product ID already exists")
     
     new_prod = models.Product(
         id=prod.id,
+        owner_id=owner_id,
         name=prod.name,
         price=prod.price,
         icon=prod.icon,
@@ -736,11 +927,15 @@ async def add_product(prod: ProductCreate, db: Session = Depends(get_db)):
     
     created_ingredients = []
     for ing_data in prod.ingredients:
-        # Check if ingredient exists, if not create it
-        ing = db.query(models.Ingredient).filter(models.Ingredient.name == ing_data.name).first()
+        # Check if ingredient exists for this owner, if not create it
+        ing = db.query(models.Ingredient).filter(
+            models.Ingredient.name == ing_data.name,
+            models.Ingredient.owner_id == owner_id
+        ).first()
         if not ing:
             ing = models.Ingredient(
                 name=ing_data.name,
+                owner_id=owner_id,
                 stock=0,
                 unit="g",
                 price=0,
@@ -752,7 +947,7 @@ async def add_product(prod: ProductCreate, db: Session = Depends(get_db)):
 
         recipe_item = models.RecipeItem(
             product_id=new_prod.id,
-            ingredient_name=ing_data.name,
+            ingredient_id=ing.id,
             quantity=ing_data.quantity
         )
         db.add(recipe_item)
@@ -764,8 +959,11 @@ async def add_product(prod: ProductCreate, db: Session = Depends(get_db)):
     }
 
 @app.put("/api/products/{id}", dependencies=[Depends(requires_roles(["owner"]))])
-async def update_product(id: str, update: ProductUpdate, db: Session = Depends(get_db)):
-    product = db.query(models.Product).filter(models.Product.id == id).first()
+async def update_product(id: str, update: ProductUpdate, db: Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
+    product = db.query(models.Product).filter(
+        models.Product.id == id,
+        models.Product.owner_id == owner_id
+    ).first()
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
         
@@ -782,11 +980,17 @@ async def update_product(id: str, update: ProductUpdate, db: Session = Depends(g
         db.query(models.RecipeItem).filter(models.RecipeItem.product_id == id).delete()
         # Add new ones
         for ing_data in update.ingredients:
-            db.add(models.RecipeItem(
-                product_id=id,
-                ingredient_name=ing_data.name,
-                quantity=ing_data.quantity
-            ))
+            # Find the ingredient ID for this owner
+            ing = db.query(models.Ingredient).filter(
+                models.Ingredient.name == ing_data.name,
+                models.Ingredient.owner_id == owner_id
+            ).first()
+            if ing:
+                db.add(models.RecipeItem(
+                    product_id=id,
+                    ingredient_id=ing.id,
+                    quantity=ing_data.quantity
+                ))
             
     db.commit()
     return {"success": True}
@@ -958,9 +1162,23 @@ if os.path.exists(FRONTEND_DIR):
     if os.path.exists(assets_path):
         app.mount("/assets", StaticFiles(directory=assets_path), name="assets")
 
+@app.post("/api/inventory/adjust")
+async def adjust_stock(adj: StockAdjust, db: Session = Depends(get_db)):
+    if adj.item_type == 'product':
+        item = db.query(models.Product).filter(models.Product.id == adj.id).first()
+    else:
+        item = db.query(models.Ingredient).filter(models.Ingredient.name == adj.id).first()
+    
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+        
+    item.stock += adj.amount
+    db.commit()
+    return {"success": True, "new_stock": item.stock}
+
 @app.get("/api/purchasing/suggest", dependencies=[Depends(requires_roles(["owner"]))])
-async def suggest_purchase(db: Session = Depends(get_db)):
-    ingredients = db.query(models.Ingredient).all()
+async def suggest_purchase(db: Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
+    ingredients = db.query(models.Ingredient).filter(models.Ingredient.owner_id == owner_id).all()
     suggestions = []
     for ing in ingredients:
         if ing.stock < ing.min_threshold:
@@ -975,23 +1193,25 @@ async def suggest_purchase(db: Session = Depends(get_db)):
     return suggestions
 
 @app.get("/api/suppliers", dependencies=[Depends(requires_roles(["owner"]))])
-async def get_suppliers(db: Session = Depends(get_db)):
-    return db.query(models.Supplier).all()
+async def get_suppliers(db: Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
+    return db.query(models.Supplier).filter(models.Supplier.owner_id == owner_id).all()
 
 @app.post("/api/suppliers", dependencies=[Depends(requires_roles(["owner"]))])
-async def add_supplier(supp: SupplierCreate, db: Session = Depends(get_db)):
-    new_supp = models.Supplier(**supp.dict())
+async def add_supplier(supp: SupplierCreate, db: Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
+    new_supp = models.Supplier(**supp.dict(), owner_id=owner_id)
     db.add(new_supp)
     db.commit()
     return {"success": True}
 
 @app.get("/api/purchase-orders", dependencies=[Depends(requires_roles(["owner"]))])
-async def get_pos(db: Session = Depends(get_db)):
-    return db.query(models.PurchaseOrder).all()
+async def get_pos(db: Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
+    return db.query(models.PurchaseOrder).filter(models.PurchaseOrder.owner_id == owner_id).all()
 
 @app.post("/api/purchase-orders", dependencies=[Depends(requires_roles(["owner"]))])
-async def create_po(po: POCreate, db: Session = Depends(get_db)):
+async def create_po(po: POCreate, db: Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
     new_po = models.PurchaseOrder(
+        id=str(uuid.uuid4())[:8].upper(),
+        owner_id=owner_id,
         supplier_id=po.supplier_id,
         items=po.items,
         status="draft"
@@ -1000,29 +1220,98 @@ async def create_po(po: POCreate, db: Session = Depends(get_db)):
     db.commit()
     return {"success": True}
 
-@app.get("/api/reports/monthly", dependencies=[Depends(requires_roles(["owner"]))])
-async def get_monthly_report(month: int, year: int, db: Session = Depends(get_db)):
-    start_date = datetime(year, month, 1)
-    if month == 12:
-        end_date = datetime(year + 1, 1, 1)
-    else:
-        end_date = datetime(year, month + 1, 1)
+@app.patch("/api/purchase-orders/{id}/status", dependencies=[Depends(requires_roles(["owner"]))])
+async def update_po_status(id: str, status: str, db: Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
+    po = db.query(models.PurchaseOrder).filter(
+        models.PurchaseOrder.id == id,
+        models.PurchaseOrder.owner_id == owner_id
+    ).first()
+    
+    if not po:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    # If transitioning to 'received', update stock
+    if status == "received" and po.status != "received":
+        for item in po.items:
+            # item format: {name, qty, price}
+            ing = db.query(models.Ingredient).filter(
+                models.Ingredient.name == item['name'],
+                models.Ingredient.owner_id == owner_id
+            ).first()
+            if ing:
+                ing.stock += float(item['qty'])
+                ing.price = float(item['price']) # Update price to current purchase price
         
+    po.status = status
+    db.commit()
+    return {"success": True}
+
+@app.get("/api/expenses", dependencies=[Depends(requires_roles(["owner"]))])
+async def get_expenses(db: Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
+    return db.query(models.Expense).filter(models.Expense.owner_id == owner_id).order_by(models.Expense.date.desc()).all()
+
+@app.post("/api/expenses", dependencies=[Depends(requires_roles(["owner"]))])
+async def add_expense(exp: ExpenseCreate, db: Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
+    new_exp = models.Expense(**exp.dict(), owner_id=owner_id)
+    db.add(new_exp)
+    db.commit()
+    return {"success": True}
+
+@app.post("/api/maintenance/reset-session", dependencies=[Depends(requires_roles(["owner"]))])
+async def reset_session(db: Session = Depends(get_db)):
+    # Update shift start time to now
+    now_str = datetime.now().isoformat()
+    setting = db.query(models.SystemSetting).filter(models.SystemSetting.key == "last_reset_at").first()
+    if setting:
+        setting.value = now_str
+    else:
+        setting = models.SystemSetting(key="last_reset_at", value=now_str)
+        db.add(setting)
+    db.commit()
+    return {"success": True, "message": "Shift has been closed. Session profit reset to 0. Historical data preserved."}
+
+@app.get("/api/reports/monthly")
+async def get_monthly_report(month: int, year: int, token: Optional[str] = None, db: Session = Depends(get_db)):
+    # Manual token verification for new tab opening
+    auth_user = None
+    if token:
+        try:
+            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+            username = payload.get("sub")
+            auth_user = db.query(models.User).filter(models.User.username == username).first()
+        except: pass
+        
+    if not auth_user or auth_user.role != "owner":
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+    owner_id = auth_user.id
+    start_date = datetime(year, month, 1)
+    if month == 12: end_date = datetime(year + 1, 1, 1)
+    else: end_date = datetime(year, month + 1, 1)
+
     transactions = db.query(models.Transaction).filter(
+        models.Transaction.owner_id == owner_id,
         models.Transaction.timestamp >= start_date,
         models.Transaction.timestamp < end_date
     ).all()
-    
+
     waste_records = db.query(models.WasteRecord).filter(
+        models.WasteRecord.owner_id == owner_id,
         models.WasteRecord.date >= start_date,
         models.WasteRecord.date < end_date
     ).all()
-    
+
+    expenses = db.query(models.Expense).filter(
+        models.Expense.owner_id == owner_id,
+        models.Expense.date >= start_date,
+        models.Expense.date < end_date
+    ).all()
     total_revenue = sum(t.total_revenue for t in transactions if t.type == 'sale')
     total_cogs = sum(t.total_cost for t in transactions if t.type == 'sale')
     total_waste = sum(w.loss_cost for w in waste_records)
+    total_overhead = sum(e.amount for e in expenses)
     
-    net_profit = total_revenue - total_cogs - total_waste
+    net_profit = total_revenue - total_cogs - total_waste - total_overhead
     margin = (net_profit / total_revenue * 100) if total_revenue > 0 else 0
     
     settings = get_settings()
@@ -1085,6 +1374,10 @@ async def get_monthly_report(month: int, year: int, db: Session = Depends(get_db
                 <p class="card-label">Waste Loss</p>
                 <p class="card-value" style="color: #f43f5e;">{total_waste:,.2f} {currency}</p>
             </div>
+            <div class="card">
+                <p class="card-label">Fixed Overhead</p>
+                <p class="card-value" style="color: #f43f5e;">{total_overhead:,.2f} {currency}</p>
+            </div>
         </div>
 
         <div class="card" style="margin-bottom: 40px; background: #000; color: #fff; border: none;">
@@ -1099,6 +1392,7 @@ async def get_monthly_report(month: int, year: int, db: Session = Depends(get_db
             </thead>
             <tbody>
                 <tr><td>Direct Sales</td><td>{len([t for t in transactions if t.type == 'sale'])}</td><td>{total_revenue:,.2f} {currency}</td></tr>
+                <tr><td>Fixed Expenses</td><td>{len(expenses)}</td><td style="color: #f43f5e;">-{total_overhead:,.2f} {currency}</td></tr>
                 <tr><td>Waste Deductions</td><td>{len(waste_records)}</td><td style="color: #f43f5e;">-{total_waste:,.2f} {currency}</td></tr>
             </tbody>
         </table>
@@ -1113,34 +1407,34 @@ async def get_monthly_report(month: int, year: int, db: Session = Depends(get_db
     return HTMLResponse(content=html_content)
 
 @app.get("/api/forecast")
-async def get_forecast(target_date: str, db: Session = Depends(get_db)):
+async def get_forecast(target_date: str, db: Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
     # target_date format: YYYY-MM-DD
     try:
         target_dt = datetime.strptime(target_date, '%Y-%m-%d')
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD.")
-        
+
     suggestions = []
-    products = db.query(models.Product).all()
-    
+    products = db.query(models.Product).filter(models.Product.owner_id == owner_id).all()
+
     # Look back at the last 4 weeks of the same weekday
     history_dates = []
     for i in range(1, 5):
         history_dates.append(target_dt - timedelta(weeks=i))
-        
+
     for product in products:
         sales_data = []
         for h_date in history_dates:
             start = datetime(h_date.year, h_date.month, h_date.day)
             end = start + timedelta(days=1)
-            
+
             # Find transactions for this product on this day
             txs = db.query(models.Transaction).filter(
+                models.Transaction.owner_id == owner_id,
                 models.Transaction.type == 'sale',
                 models.Transaction.timestamp >= start,
                 models.Transaction.timestamp < end
             ).all()
-            
             day_qty = 0
             for tx in txs:
                 if tx.items:
