@@ -17,18 +17,17 @@ from sqlalchemy.orm import Session
 from database import engine, SessionLocal, Base, get_db
 import models
 
-# Create tables
-models.Base.metadata.create_all(bind=engine)
-
-from passlib.context import CryptContext
-import jwt
-from fastapi.security import OAuth2PasswordBearer
-
 # Security
 SECRET_KEY = "bakery-secret-key-change-me"
 ALGORITHM = "HS256"
 pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/auth/login")
+
+def init_db():
+    try:
+        models.Base.metadata.create_all(bind=engine)
+    except Exception as e:
+        print(f"Database init warning: {e}")
 
 def verify_password(plain_password, hashed_password):
     return pwd_context.verify(plain_password, hashed_password)
