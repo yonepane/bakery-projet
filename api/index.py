@@ -79,10 +79,16 @@ def requires_roles(roles: List[str]):
     return role_checker
 
 app = FastAPI(title="BakeryOS API")
+handler = app # Alias for Vercel
 
 @app.on_event("startup")
 async def startup_event():
     init_db()
+
+@app.get("/api/init")
+async def force_init():
+    init_db()
+    return {"status": "Database initialization triggered"}
 
 # Enable CORS
 app.add_middleware(
