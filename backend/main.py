@@ -228,27 +228,27 @@ def get_settings():
             return json.load(f)
     return {"currency": "MAD", "tax_rate": 0.2}
 
-@app.get("/api/seed")
-async def seed_users(db: Session = Depends(get_db)):
+@app.get("/api/seed", dependencies=[Depends(requires_roles(["owner"]))])
+async def seed_users(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
     try:
-        # Force table creation on seed too
-        init_db()
-        
-        # Check if admin already exists
-        admin = db.query(models.User).filter(models.User.username == "admin").first()
-        if not admin:
-            admin = models.User(id=1, username="admin", password=get_password_hash("password"), role="owner")
-            db.add(admin)
-            db.commit()
-            db.refresh(admin)
-        
-        # Check for cashier
-        cashier = db.query(models.User).filter(models.User.username == "cashier").first()
+        # Keep this endpoint only as a dev convenience for a signed-in owner.
+        cashier = db.query(models.User).filter(
+            models.User.username == "cashier",
+            models.User.parent_owner_id == current_user.id
+        ).first()
         if not cashier:
-            db.add(models.User(username="cashier", password=get_password_hash("password"), role="cashier", parent_owner_id=admin.id))
+            db.add(models.User(
+                username=f"cashier-{current_user.id}",
+                password=get_password_hash("password"),
+                role="cashier",
+                parent_owner_id=current_user.id
+            ))
             db.commit()
             
-        return {"message": "SaaS Sync Complete. Use admin/password. Version: 3.3"}
+        return {"message": "Seed complete for current owner."}
     except Exception as e:
         return {"status": "Error", "message": str(e)}
 
@@ -304,6 +304,25 @@ async def google_login(req: GoogleLoginRequest, db: Session = Depends(get_db)):
     except Exception as e:
         print(f"Google Auth Error: {e}")
         raise HTTPException(status_code=400, detail="Google authentication failed")
+
+@app.post("/api/auth/signup")
+async def signup(req: LoginRequest, db: Session = Depends(get_db)):
+    # Check if user exists
+    existing = db.query(models.User).filter(models.User.username == req.username).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Username already taken")
+    
+    # Create new owner
+    new_user = models.User(
+        username=req.username,
+        password=get_password_hash(req.password),
+        role="owner"
+    )
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+    
+    return {"message": "Bakery registered successfully. You can now log in."}
 
 @app.post("/api/auth/login", response_model=Token)
 async def login(req: LoginRequest, db: Session = Depends(get_db)):
@@ -709,8 +728,15 @@ async def complete_sale(req: SaleRequest, db: Session = Depends(get_db), owner_i
     return {"success": True, "transaction_id": tx_id, "whatsapp_text": whatsapp_text}
 
 @app.get("/api/transactions/{id}/receipt")
-async def get_receipt(id: str, db: Session = Depends(get_db)):
-    tx = db.query(models.Transaction).filter(models.Transaction.id == id).first()
+async def get_receipt(
+    id: str,
+    db: Session = Depends(get_db),
+    owner_id: int = Depends(get_effective_owner_id),
+):
+    tx = db.query(models.Transaction).filter(
+        models.Transaction.id == id,
+        models.Transaction.owner_id == owner_id
+    ).first()
     if not tx:
         raise HTTPException(status_code=404, detail="Transaction not found")
     
@@ -951,8 +977,15 @@ async def add_material(mat: MaterialCreate, db: Session = Depends(get_db), owner
     return {"success": True}
 
 @app.delete("/api/materials/{name}", dependencies=[Depends(requires_roles(["owner"]))])
-async def delete_material(name: str, db: Session = Depends(get_db)):
-    ing = db.query(models.Ingredient).filter(models.Ingredient.name == name).first()
+async def delete_material(
+    name: str,
+    db: Session = Depends(get_db),
+    owner_id: int = Depends(get_effective_owner_id),
+):
+    ing = db.query(models.Ingredient).filter(
+        models.Ingredient.name == name,
+        models.Ingredient.owner_id == owner_id
+    ).first()
     if ing:
         db.delete(ing)
         db.commit()
@@ -1057,8 +1090,15 @@ async def update_product(id: str, update: ProductUpdate, db: Session = Depends(g
     return {"success": True}
 
 @app.delete("/api/products/{id}", dependencies=[Depends(requires_roles(["owner"]))])
-async def delete_product(id: str, db: Session = Depends(get_db)):
-    product = db.query(models.Product).filter(models.Product.id == id).first()
+async def delete_product(
+    id: str,
+    db: Session = Depends(get_db),
+    owner_id: int = Depends(get_effective_owner_id),
+):
+    product = db.query(models.Product).filter(
+        models.Product.id == id,
+        models.Product.owner_id == owner_id
+    ).first()
     if product:
         db.delete(product)
         db.commit()
@@ -1066,17 +1106,29 @@ async def delete_product(id: str, db: Session = Depends(get_db)):
     raise HTTPException(status_code=404, detail="Product not found")
 
 @app.post("/api/maintenance/delete-empty-products", dependencies=[Depends(requires_roles(["owner"]))])
-async def delete_empty_product(db: Session = Depends(get_db)):
+async def delete_empty_product(
+    db: Session = Depends(get_db),
+    owner_id: int = Depends(get_effective_owner_id),
+):
     # Use direct SQL as a last resort if ORM is being tricky
     from sqlalchemy import text
-    result = db.execute(text("DELETE FROM products WHERE id = '' OR id IS NULL"))
+    db.execute(
+        text("DELETE FROM products WHERE owner_id = :owner_id AND (id = '' OR id IS NULL)"),
+        {"owner_id": owner_id},
+    )
     db.commit()
     return {"success": True, "deleted": "Done"}
 
 @app.post("/api/maintenance/cleanup-products", dependencies=[Depends(requires_roles(["owner"]))])
-async def cleanup_invalid_products(db: Session = Depends(get_db)):
+async def cleanup_invalid_products(
+    db: Session = Depends(get_db),
+    owner_id: int = Depends(get_effective_owner_id),
+):
     # Delete anything with empty id or empty name
-    invalid = db.query(models.Product).filter((models.Product.id == '') | (models.Product.name == '')).all()
+    invalid = db.query(models.Product).filter(
+        models.Product.owner_id == owner_id,
+        ((models.Product.id == '') | (models.Product.name == ''))
+    ).all()
     count = len(invalid)
     for p in invalid:
         db.delete(p)
@@ -1223,12 +1275,22 @@ if os.path.exists(FRONTEND_DIR):
     if os.path.exists(assets_path):
         app.mount("/assets", StaticFiles(directory=assets_path), name="assets")
 
-@app.post("/api/inventory/adjust")
-async def adjust_stock(adj: StockAdjust, db: Session = Depends(get_db)):
+@app.post("/api/inventory/adjust", dependencies=[Depends(requires_roles(["owner"]))])
+async def adjust_stock(
+    adj: StockAdjust,
+    db: Session = Depends(get_db),
+    owner_id: int = Depends(get_effective_owner_id),
+):
     if adj.item_type == 'product':
-        item = db.query(models.Product).filter(models.Product.id == adj.id).first()
+        item = db.query(models.Product).filter(
+            models.Product.id == adj.id,
+            models.Product.owner_id == owner_id
+        ).first()
     else:
-        item = db.query(models.Ingredient).filter(models.Ingredient.name == adj.id).first()
+        item = db.query(models.Ingredient).filter(
+            models.Ingredient.name == adj.id,
+            models.Ingredient.owner_id == owner_id
+        ).first()
     
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
@@ -1270,6 +1332,13 @@ async def get_pos(db: Session = Depends(get_db), owner_id: int = Depends(get_eff
 
 @app.post("/api/purchase-orders", dependencies=[Depends(requires_roles(["owner"]))])
 async def create_po(po: POCreate, db: Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
+    supplier = db.query(models.Supplier).filter(
+        models.Supplier.id == po.supplier_id,
+        models.Supplier.owner_id == owner_id
+    ).first()
+    if not supplier:
+        raise HTTPException(status_code=404, detail="Supplier not found")
+
     new_po = models.PurchaseOrder(
         id=str(uuid.uuid4())[:8].upper(),
         owner_id=owner_id,
@@ -1319,14 +1388,20 @@ async def add_expense(exp: ExpenseCreate, db: Session = Depends(get_db), owner_i
     return {"success": True}
 
 @app.post("/api/maintenance/reset-session", dependencies=[Depends(requires_roles(["owner"]))])
-async def reset_session(db: Session = Depends(get_db)):
+async def reset_session(
+    db: Session = Depends(get_db),
+    owner_id: int = Depends(get_effective_owner_id),
+):
     # Update shift start time to now
     now_str = datetime.now().isoformat()
-    setting = db.query(models.SystemSetting).filter(models.SystemSetting.key == "last_reset_at").first()
+    setting = db.query(models.SystemSetting).filter(
+        models.SystemSetting.key == "last_reset_at",
+        models.SystemSetting.owner_id == owner_id
+    ).first()
     if setting:
         setting.value = now_str
     else:
-        setting = models.SystemSetting(key="last_reset_at", value=now_str)
+        setting = models.SystemSetting(key="last_reset_at", owner_id=owner_id, value=now_str)
         db.add(setting)
     db.commit()
     return {"success": True, "message": "Shift has been closed. Session profit reset to 0. Historical data preserved."}

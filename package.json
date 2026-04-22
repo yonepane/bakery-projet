@@ -1,6 +1,6 @@
 {
   "name": "bakery-os-enterprise",
-  "version": "3.3.0",
+  "version": "BETA 0.1",
   "private": true,
   "scripts": {
     "dev": "npm --prefix frontend run dev",

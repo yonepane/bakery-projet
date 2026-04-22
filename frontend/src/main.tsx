@@ -6,7 +6,7 @@ import { registerSW } from 'virtual:pwa-register'
 
 registerSW({ immediate: true })
 
-// Build: v3.3-ENTERPRISE-SaaS-PRO-FIX
+// Build: BETA 0.1-TRUE-SAAS-RELEASE
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

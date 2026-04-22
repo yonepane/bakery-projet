@@ -95,7 +95,7 @@ class WasteRecord(Base):
 class SystemSetting(Base):
     __tablename__ = "system_settings"
     key = Column(String, primary_key=True)
-    owner_id = Column(Integer, ForeignKey("users.id"))
+    owner_id = Column(Integer, ForeignKey("users.id"), primary_key=True)
     value = Column(String)
 
 class Expense(Base):
