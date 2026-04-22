@@ -21,6 +21,10 @@ import database as db_mod
 import models
 from database import engine, SessionLocal, Base, get_db
 
+from passlib.context import CryptContext
+import jwt
+from fastapi.security import OAuth2PasswordBearer
+
 # Security
 SECRET_KEY = "bakery-secret-key-change-me"
 ALGORITHM = "HS256"
