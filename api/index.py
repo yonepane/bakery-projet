@@ -34,8 +34,10 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/auth/login")
 def init_db():
     try:
         models.Base.metadata.create_all(bind=engine)
+        print("Database tables initialized successfully.")
     except Exception as e:
-        print(f"Database init warning: {e}")
+        print(f"DATABASE FATAL ERROR: {e}")
+        raise e
 
 def verify_password(plain_password, hashed_password):
     return pwd_context.verify(plain_password, hashed_password)
