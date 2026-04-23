@@ -906,6 +906,15 @@ const Dashboard: React.FC = () => {
     finally { setIsSearchingRecipes(false); }
   };
 
+  const openExternal = (url: string) => {
+    const opened = window.open(url, '_blank', 'noopener,noreferrer');
+    if (opened) {
+      opened.opener = null;
+      return;
+    }
+    window.location.assign(url);
+  };
+
   const handleImportRecipe = async (recipeId: string) => {
     try {
       const res = await http.get(`/external-recipes/${recipeId}/details`);
@@ -1452,7 +1461,7 @@ const Dashboard: React.FC = () => {
                                 const year = new Date().getFullYear();
                                 const month = new Date().getMonth() + 1;
                                 const token = localStorage.getItem('bakery_token');
-                                window.open(`${API_BASE}/reports/monthly?month=${month}&year=${year}&format=pdf&token=${token}`, '_blank');
+                                openExternal(`${API_BASE}/reports/monthly?month=${month}&year=${year}&format=pdf&token=${token}`);
                             }}
                             className={`flex-1 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest border transition-all ${isDarkMode ? 'border-gold/20 text-gold hover:bg-gold hover:text-charcoal' : 'bg-slate-900 text-white shadow-xl'}`}
                         >
@@ -1811,7 +1820,7 @@ const Dashboard: React.FC = () => {
                         <button
                             onClick={() => {
                                 const token = localStorage.getItem('bakery_token');
-                                window.open(`${API_BASE}/accounting/export?start=${accountingRange.start}&end=${accountingRange.end}&token=${token}`, '_blank');
+                                openExternal(`${API_BASE}/accounting/export?start=${accountingRange.start}&end=${accountingRange.end}&token=${token}`);
                             }}
                             className={`px-8 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center gap-3 transition-all ${isDarkMode ? 'border border-white/10 text-white hover:bg-white/5' : 'border border-slate-200 bg-white text-slate-900'}`}
                         >
@@ -1823,7 +1832,7 @@ const Dashboard: React.FC = () => {
                                 const year = now.getFullYear();
                                 const month = now.getMonth() + 1;
                                 const token = localStorage.getItem('bakery_token');
-                                window.open(`${API_BASE}/reports/monthly?month=${month}&year=${year}&format=pdf&token=${token}`, '_blank');
+                                openExternal(`${API_BASE}/reports/monthly?month=${month}&year=${year}&format=pdf&token=${token}`);
                             }}
                             className={`px-8 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center gap-3 transition-all ${isDarkMode ? 'border border-gold/20 text-gold hover:bg-gold hover:text-charcoal' : 'border border-slate-200 bg-white text-slate-900'}`}
                         >
@@ -2794,7 +2803,7 @@ const Dashboard: React.FC = () => {
                                 <button 
                                   onClick={() => {
                                   const token = localStorage.getItem('bakery_token');
-                                  window.open(`${API_BASE}/transactions/${tx.id}/receipt?format=pdf&paper=80mm&token=${token}`, '_blank');
+                                  openExternal(`${API_BASE}/transactions/${tx.id}/receipt?format=pdf&paper=80mm&token=${token}`);
                                 }}
                                   className={`p-2 rounded-lg ${isDarkMode ? 'bg-gold/10 text-gold' : 'bg-slate-100 text-slate-900'}`}
                                   title="Print Receipt"
@@ -2876,7 +2885,7 @@ const Dashboard: React.FC = () => {
                                   type: 'date',
                                   onConfirm: (date) => {
                                   const token = localStorage.getItem('bakery_token');
-                                  window.open(`${API_BASE}/planner/prep-sheet?date=${date}&token=${token}`, '_blank');
+                                  openExternal(`${API_BASE}/planner/prep-sheet?date=${date}&token=${token}`);
                                 }
                               });
                           }}
@@ -3547,7 +3556,7 @@ const Dashboard: React.FC = () => {
                         <button 
                             onClick={() => {
                              const token = localStorage.getItem('bakery_token');
-                             window.open(`${API_BASE}/transactions/${lastTransaction.transaction_id}/receipt?format=pdf&paper=80mm&token=${token}`, '_blank');
+                             openExternal(`${API_BASE}/transactions/${lastTransaction.transaction_id}/receipt?format=pdf&paper=80mm&token=${token}`);
                            }}
                             className={`py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest border transition-all ${isDarkMode ? 'border-white/10 text-white hover:bg-white/5' : 'border-slate-200 text-slate-900'}`}
                         >
