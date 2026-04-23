@@ -916,30 +916,14 @@ const Dashboard: React.FC = () => {
   };
 
   const openDocument = async (url: string, fallbackFilename: string) => {
-    try {
-      const token = localStorage.getItem('bakery_token');
-      const res = await fetch(url, {
-        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-      });
-      if (!res.ok) {
-        throw new Error(`Document request failed with status ${res.status}`);
-      }
-      const blob = await res.blob();
-      const blobUrl = window.URL.createObjectURL(blob);
-      const opened = window.open(blobUrl, '_blank', 'noopener,noreferrer');
-      if (!opened) {
-        const anchor = document.createElement('a');
-        anchor.href = blobUrl;
-        anchor.download = fallbackFilename;
-        document.body.appendChild(anchor);
-        anchor.click();
-        anchor.remove();
-      }
-      window.setTimeout(() => window.URL.revokeObjectURL(blobUrl), 60_000);
-    } catch (error) {
-      console.error(error);
-      addToast("Failed to open document", "error");
+    const popup = window.open('', '_blank');
+    const absoluteUrl = new URL(url, window.location.origin).toString();
+    if (popup) {
+      popup.opener = null;
+      popup.location.replace(absoluteUrl);
+      return;
     }
+    window.location.assign(absoluteUrl);
   };
 
   const handleImportRecipe = async (recipeId: string) => {
