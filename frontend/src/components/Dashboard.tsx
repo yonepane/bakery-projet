@@ -915,6 +915,33 @@ const Dashboard: React.FC = () => {
     window.location.assign(url);
   };
 
+  const openDocument = async (url: string, fallbackFilename: string) => {
+    try {
+      const token = localStorage.getItem('bakery_token');
+      const res = await fetch(url, {
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      });
+      if (!res.ok) {
+        throw new Error(`Document request failed with status ${res.status}`);
+      }
+      const blob = await res.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const opened = window.open(blobUrl, '_blank', 'noopener,noreferrer');
+      if (!opened) {
+        const anchor = document.createElement('a');
+        anchor.href = blobUrl;
+        anchor.download = fallbackFilename;
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+      }
+      window.setTimeout(() => window.URL.revokeObjectURL(blobUrl), 60_000);
+    } catch (error) {
+      console.error(error);
+      addToast("Failed to open document", "error");
+    }
+  };
+
   const handleImportRecipe = async (recipeId: string) => {
     try {
       const res = await http.get(`/external-recipes/${recipeId}/details`);
@@ -1461,7 +1488,7 @@ const Dashboard: React.FC = () => {
                                 const year = new Date().getFullYear();
                                 const month = new Date().getMonth() + 1;
                                 const token = localStorage.getItem('bakery_token');
-                                openExternal(`${API_BASE}/reports/monthly?month=${month}&year=${year}&format=pdf&token=${token}`);
+                                openDocument(`${API_BASE}/reports/monthly?month=${month}&year=${year}&format=pdf&token=${token}`, `monthly-report-${year}-${month}.pdf`);
                             }}
                             className={`flex-1 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest border transition-all ${isDarkMode ? 'border-gold/20 text-gold hover:bg-gold hover:text-charcoal' : 'bg-slate-900 text-white shadow-xl'}`}
                         >
@@ -1832,7 +1859,7 @@ const Dashboard: React.FC = () => {
                                 const year = now.getFullYear();
                                 const month = now.getMonth() + 1;
                                 const token = localStorage.getItem('bakery_token');
-                                openExternal(`${API_BASE}/reports/monthly?month=${month}&year=${year}&format=pdf&token=${token}`);
+                                openDocument(`${API_BASE}/reports/monthly?month=${month}&year=${year}&format=pdf&token=${token}`, `monthly-report-${year}-${month}.pdf`);
                             }}
                             className={`px-8 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center gap-3 transition-all ${isDarkMode ? 'border border-gold/20 text-gold hover:bg-gold hover:text-charcoal' : 'border border-slate-200 bg-white text-slate-900'}`}
                         >
@@ -2803,7 +2830,7 @@ const Dashboard: React.FC = () => {
                                 <button 
                                   onClick={() => {
                                   const token = localStorage.getItem('bakery_token');
-                                  openExternal(`${API_BASE}/transactions/${tx.id}/receipt?format=pdf&paper=80mm&token=${token}`);
+                                  openDocument(`${API_BASE}/transactions/${tx.id}/receipt?format=pdf&paper=80mm&token=${token}`, `receipt-${tx.id}.pdf`);
                                 }}
                                   className={`p-2 rounded-lg ${isDarkMode ? 'bg-gold/10 text-gold' : 'bg-slate-100 text-slate-900'}`}
                                   title="Print Receipt"
@@ -2885,7 +2912,7 @@ const Dashboard: React.FC = () => {
                                   type: 'date',
                                   onConfirm: (date) => {
                                   const token = localStorage.getItem('bakery_token');
-                                  openExternal(`${API_BASE}/planner/prep-sheet?date=${date}&token=${token}`);
+                                  openDocument(`${API_BASE}/planner/prep-sheet?date=${date}&token=${token}`, `prep-sheet-${date}.pdf`);
                                 }
                               });
                           }}
@@ -3556,7 +3583,7 @@ const Dashboard: React.FC = () => {
                         <button 
                             onClick={() => {
                              const token = localStorage.getItem('bakery_token');
-                             openExternal(`${API_BASE}/transactions/${lastTransaction.transaction_id}/receipt?format=pdf&paper=80mm&token=${token}`);
+                             openDocument(`${API_BASE}/transactions/${lastTransaction.transaction_id}/receipt?format=pdf&paper=80mm&token=${token}`, `receipt-${lastTransaction.transaction_id}.pdf`);
                            }}
                             className={`py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest border transition-all ${isDarkMode ? 'border-white/10 text-white hover:bg-white/5' : 'border-slate-200 text-slate-900'}`}
                         >
