@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   LayoutDashboard, 
   Package, 
@@ -1042,6 +1042,17 @@ const Dashboard: React.FC = () => {
       return acc;
     }, {})
   ).sort((a: any, b: any) => b.loss - a.loss).slice(0, 6);
+  const sortedMaterialEntries = useMemo(
+    () =>
+      Object.entries(inventory.materials).sort(([nameA], [nameB]) =>
+        nameA.localeCompare(nameB)
+      ),
+    [inventory.materials]
+  );
+  const sortedMaterialNames = useMemo(
+    () => sortedMaterialEntries.map(([name]) => name),
+    [sortedMaterialEntries]
+  );
 
   if (loading) return (
     <div className="h-screen w-screen flex flex-col items-center justify-center bg-charcoal text-gold">
@@ -1080,7 +1091,7 @@ const Dashboard: React.FC = () => {
                       Bakery<span>Os</span>
                     </span>
                   </h1>
-                  <span className="inline-flex mt-2 text-[10px] bg-gold/10 text-gold px-2 py-0.5 rounded-full font-black">BETA 0.1</span>
+                  <span className="inline-flex mt-3 text-[10px] bg-gold/10 text-gold px-2 py-0.5 rounded-full font-black">BETA 0.1</span>
               </motion.div>
             )}
           </div>
@@ -2367,7 +2378,7 @@ const Dashboard: React.FC = () => {
                             </tr>
                         </thead>
                         <tbody className={`divide-y ${isDarkMode ? 'divide-white/5' : 'divide-slate-100'}`}>
-                            {Object.entries(inventory.materials).map(([name, data]) => (
+                            {sortedMaterialEntries.map(([name, data]) => (
                                 <tr key={name} className="group hover:bg-white/[0.02] transition-colors">
                                     <td className="px-8 py-6">
                                         <p className={`font-bold ${isDarkMode ? 'text-cream' : 'text-slate-900'}`}>{name}</p>
@@ -2546,7 +2557,7 @@ const Dashboard: React.FC = () => {
                             }}
                           >
                             <option value="" className={isDarkMode ? 'bg-charcoal text-gold' : ''}>+ Add Ingredient</option>
-                            {Object.keys(inventory.materials).map(m => (
+                            {sortedMaterialNames.map(m => (
                               <option key={m} value={m} className={isDarkMode ? 'bg-charcoal text-cream' : ''}>{m}</option>
                             ))}
                           </select>
@@ -2602,7 +2613,7 @@ const Dashboard: React.FC = () => {
                   </div>
                   
                   <div className="space-y-4 max-h-[600px] overflow-y-auto pr-6 custom-scrollbar">
-                    {Object.entries(inventory.materials).map(([name, data]) => (
+                    {sortedMaterialEntries.map(([name, data]) => (
                       <div key={name} className="p-6 rounded-2xl border border-white/5 bg-white/5 space-y-4">
                         <div className="flex justify-between items-end">
                           <div>
@@ -2946,7 +2957,7 @@ const Dashboard: React.FC = () => {
                                     });
                                     return acc;
                                 }, {} as Record<string, number>)
-                            ).map(([name, req]) => (
+                            ).sort(([nameA], [nameB]) => nameA.localeCompare(nameB)).map(([name, req]) => (
                                 <div key={name} className="flex justify-between items-end">
                                     <div>
                                         <p className={`text-xs font-bold ${isDarkMode ? 'text-cream/60' : 'text-slate-500'}`}>{name}</p>
