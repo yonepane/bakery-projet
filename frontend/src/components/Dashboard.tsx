@@ -28,6 +28,7 @@ import {
   LogOut,
   CheckCircle,
   Info,
+  Brain,
   XCircle,
   Truck,
   ChefHat
@@ -201,8 +202,14 @@ const Dashboard: React.FC = () => {
     currency: 'MAD', 
     chartData: [] as any[],
     hourlySales: [] as any[],
-    topProducts: [] as any[]
+    topProducts: [] as any[],
+    intelligence: {
+        total_portfolio_cost: 0,
+        average_margin: '0%',
+        products_count: 0
+    }
   });
+  const [profitReport, setProfitReport] = useState<any[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [history, setHistory] = useState<Transaction[]>([]);
   const [planner, setPlanner] = useState<PlanItem[]>([]);
@@ -244,10 +251,23 @@ const Dashboard: React.FC = () => {
   // Management States
   const [showAddProduct, setShowAddProduct] = useState(false);
   const [showAddMaterial, setShowAddMaterial] = useState(false);
+  const [editingMaterialName, setEditingMaterialName] = useState<string | null>(null);
   const [showWasteModal, setShowWasteModal] = useState(false);
   const [showReceiptModal, setShowReceiptModal] = useState(false);
   const [showAddExpense, setShowAddExpense] = useState(false);
+  const [showAddSupplier, setShowAddSupplier] = useState(false);
+  const [editingSupplier, setEditingSupplier] = useState<any>(null);
+  const [showPOModal, setShowPOModal] = useState(false);
+  const [selectedPO, setSelectedPO] = useState<any>(null);
+  const [poReceiveDraft, setPoReceiveDraft] = useState<Record<string, { qty: number; price: number }>>({});
   const [newExpense, setNewExpense] = useState({ category: 'other', amount: 0, description: '' });
+  const [newSupplier, setNewSupplier] = useState({ name: '', contact_info: '' });
+  const [generalNote, setGeneralNote] = useState('');
+  const [isSavingGeneralNote, setIsSavingGeneralNote] = useState(false);
+  const today = new Date();
+  const monthStart = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10);
+  const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().slice(0, 10);
+  const [accountingRange, setAccountingRange] = useState({ start: monthStart, end: monthEnd });
   const [lastTransaction, setLastTransaction] = useState<any>(null);
   const [newProduct, setNewProduct] = useState<any>({ 
     id: '', 
@@ -273,8 +293,10 @@ const Dashboard: React.FC = () => {
 
   const [purchasingSuggestions, setPurchasingSuggestions] = useState<any[]>([]);
   const [suppliers, setSuppliers] = useState<any[]>([]);
+  const [selectedSupplierId, setSelectedSupplierId] = useState<number | null>(null);
   const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
   const [expenses, setExpenses] = useState<any[]>([]);
+  const [wasteRecords, setWasteRecords] = useState<any[]>([]);
   const [staff, setStaff] = useState<any[]>([]);
   const [showAddStaff, setShowAddStaff] = useState(false);
   const [newStaff, setNewStaff] = useState({ username: '', password: '' });
@@ -286,6 +308,66 @@ const Dashboard: React.FC = () => {
       fetchData();
       addToast(t.add_staff + " Success", "success");
     } catch (e: any) { addToast("Failed to add staff", "error"); }
+  };
+
+  const handleAddSupplier = async () => {
+    if (!newSupplier.name.trim()) {
+      addToast("Supplier name is required", "error");
+      return;
+    }
+    try {
+      const payload = {
+        name: newSupplier.name.trim(),
+        contact_info: newSupplier.contact_info.trim() || null
+      };
+      if (editingSupplier) {
+        await http.put(`/suppliers/${editingSupplier.id}`, payload);
+      } else {
+        await http.post('/suppliers', payload);
+      }
+      setShowAddSupplier(false);
+      setEditingSupplier(null);
+      setNewSupplier({ name: '', contact_info: '' });
+      fetchData();
+      addToast(editingSupplier ? "Supplier Updated" : "Supplier Added", "success");
+    } catch (e: any) {
+      addToast(editingSupplier ? "Failed to update supplier" : "Failed to add supplier", "error");
+    }
+  };
+
+  const handleDeleteSupplier = async (supplier: any) => {
+    showConfirm({
+      title: "Delete Supplier",
+      message: `Delete supplier ${supplier.name}?`,
+      type: 'danger',
+      confirmText: "Delete",
+      onConfirm: async () => {
+        try {
+          await http.delete(`/suppliers/${supplier.id}`);
+          fetchData();
+          addToast("Supplier Deleted", "success");
+        } catch (e: any) {
+          addToast("Supplier has order history or could not be deleted", "error");
+        }
+      }
+    });
+  };
+
+  const handleSaveGeneralNote = async () => {
+    setIsSavingGeneralNote(true);
+    try {
+      await http.patch('/settings', {
+        updates: {
+          operations_note: generalNote
+        }
+      });
+      setSettings((prev: any) => ({ ...prev, operations_note: generalNote }));
+      addToast("Operations note saved", "success");
+    } catch (e: any) {
+      addToast("Failed to save operations note", "error");
+    } finally {
+      setIsSavingGeneralNote(false);
+    }
   };
 
   const handleDeleteStaff = async (username: string) => {
@@ -368,9 +450,9 @@ const Dashboard: React.FC = () => {
         catch (e) { console.warn(`Failed to fetch ${url}:`, e); return fallback; }
       };
 
-      const [invData, anaData, aleData, histData, planData, settData, ordData, purData, suppData, posData, expData, staffData] = await Promise.all([
+      const [invData, anaData, aleData, histData, planData, settData, ordData, purData, suppData, posData, expData, staffData, profData, wasteData] = await Promise.all([
         safeGet('/inventory'),
-        isOwner ? safeGet('/analytics') : Promise.resolve({ revenue: 0, cost: 0, today_revenue: 0, today_cost: 0, currency: 'MAD', chartData: [] }),
+        isOwner ? safeGet('/analytics') : Promise.resolve({ ...analytics }),
         safeGet('/alerts', []),
         safeGet('/history', []),
         isOwner ? safeGet('/planner', []) : Promise.resolve([]),
@@ -380,7 +462,9 @@ const Dashboard: React.FC = () => {
         isOwner ? safeGet('/suppliers', []) : Promise.resolve([]),
         isOwner ? safeGet('/purchase-orders', []) : Promise.resolve([]),
         isOwner ? safeGet('/expenses', []) : Promise.resolve([]),
-        isOwner ? safeGet('/staff', []) : Promise.resolve([])
+        isOwner ? safeGet('/staff', []) : Promise.resolve([]),
+        isOwner ? safeGet('/intelligence/profit-report', []) : Promise.resolve([]),
+        isOwner ? safeGet('/waste', []) : Promise.resolve([])
       ]);
       
       console.log("Data sync completed");
@@ -389,13 +473,25 @@ const Dashboard: React.FC = () => {
       if (aleData) setAlerts(aleData);
       if (histData) setHistory(histData);
       if (planData) setPlanner(planData);
-      if (settData) setSettings(settData);
+      if (settData) {
+        setSettings(settData);
+        setGeneralNote(settData.operations_note || '');
+      }
       if (ordData) setOrders(ordData);
       if (purData) setPurchasingSuggestions(purData);
-      if (suppData) setSuppliers(suppData);
+      if (suppData) {
+        setSuppliers(suppData);
+        setSelectedSupplierId(prev => {
+          if (!suppData.length) return null;
+          if (prev && suppData.some((supp: any) => supp.id === prev)) return prev;
+          return suppData[0].id;
+        });
+      }
       if (posData) setPurchaseOrders(posData);
       if (expData) setExpenses(expData);
       if (staffData) setStaff(staffData);
+      if (profData) setProfitReport(profData);
+      if (wasteData) setWasteRecords(wasteData);
       
       if (invData && invData.materials) {
         const initialPrices: Record<string, number> = {};
@@ -472,7 +568,7 @@ const Dashboard: React.FC = () => {
             <div className="text-center mb-10">
               <div className="text-6xl mb-6">🥐</div>
               <h1 className="text-4xl font-bold luxury-font tracking-tighter uppercase mb-2">BakeryOS</h1>
-              <p className="text-[10px] font-black uppercase tracking-[0.3em] opacity-40">Luxe Enterprise Terminal</p>
+              <p className="text-[10px] font-black uppercase tracking-[0.3em] opacity-40">Luxe Enterprise Terminal v4.2-STABLE-POS</p>
             </div>
 
             <form onSubmit={handleLogin} className="space-y-6">
@@ -482,7 +578,7 @@ const Dashboard: React.FC = () => {
                   type="text"
                   value={loginForm.username}
                   onChange={(e) => setLoginForm({...loginForm, username: e.target.value})}
-                  className={`w-full p-4 rounded-2xl border outline-none font-bold transition-all ${isDarkMode ? 'bg-white/5 border-white/10 focus:border-gold/40' : 'bg-slate-50 border-slate-200 focus:border-slate-400'}`}
+                  className={`login-input w-full font-bold ${isDarkMode ? 'login-input--dark' : ''}`}
                   placeholder="Username"
                 />
               </div>
@@ -492,7 +588,7 @@ const Dashboard: React.FC = () => {
                   type="password"
                   value={loginForm.password}
                   onChange={(e) => setLoginForm({...loginForm, password: e.target.value})}
-                  className={`w-full p-4 rounded-2xl border outline-none font-bold transition-all ${isDarkMode ? 'bg-white/5 border-white/10 focus:border-gold/40' : 'bg-slate-50 border-slate-200 focus:border-slate-400'}`}
+                  className={`login-input w-full font-bold ${isDarkMode ? 'login-input--dark' : ''}`}
                   placeholder="••••••••"
                 />
               </div>
@@ -594,11 +690,28 @@ const Dashboard: React.FC = () => {
 
   const handleAddMaterial = async () => {
     try {
-      await api.post('/materials', newMaterial);
+      if (editingMaterialName) {
+        await api.put(`/materials/${editingMaterialName}`, newMaterial);
+        addToast("Ingredient Updated", "success");
+      } else {
+        await api.post('/materials', newMaterial);
+        addToast(t.add_material + " Success", "success");
+      }
       setShowAddMaterial(false);
+      setEditingMaterialName(null);
       fetchData();
-      addToast(t.add_material + " Success", "success");
-    } catch (e: any) { addToast("Failed to add material", "error"); }
+    } catch (e: any) { addToast(editingMaterialName ? "Failed to update" : "Failed to add material", "error"); }
+  };
+
+  const startEditingMaterial = (name: string, data: any) => {
+    setEditingMaterialName(name);
+    setNewMaterial({
+        name: name,
+        unit: data.unit || 'g',
+        price: data.price || 0,
+        min_threshold: data.min_threshold || 0
+    });
+    setShowAddMaterial(true);
   };
 
   const handleAddExpense = async () => {
@@ -700,12 +813,87 @@ const Dashboard: React.FC = () => {
     } catch (e: any) { addToast("Failed to update price", "error"); }
   };
 
-  const handleReceivePO = async (id: string) => {
+  const handleUpdateProductField = async (productId: string, field: string, value: any) => {
+    if (!editMode) return;
     try {
-        await http.patch(`/purchase-orders/${id}/status?status=received`);
+        await api.put(`/products/${productId}`, { [field]: value });
+        fetchData();
+    } catch (e: any) { addToast(`Failed to update ${field}`, "error"); }
+  };
+
+  const handleCreatePO = async (data: { supplier_id: number, items: any[] }) => {
+    if (!suppliers.length) {
+        addToast("Add a supplier before generating a bulk purchase order", "error");
+        return;
+    }
+    try {
+        await api.post('/purchase-orders', data);
+        fetchData();
+        addToast("Bulk Order Generated", "success");
+    } catch (e: any) { addToast("Failed to create bulk order", "error"); }
+  };
+
+  const handleReceivePO = async (id: string, payload?: { items: any[] }) => {
+    try {
+        if (payload) {
+            await http.post(`/purchase-orders/${id}/receive`, payload);
+        } else {
+            await http.patch(`/purchase-orders/${id}/status?status=received`);
+        }
         fetchData();
         addToast("Goods Received & Stock Updated", "success");
     } catch (e: any) { addToast("Failed to receive goods", "error"); }
+  };
+
+  const openPOModal = (po: any) => {
+    setSelectedPO({
+      ...po,
+      expected_delivery_date: po.expected_delivery_date ? po.expected_delivery_date.slice(0, 10) : '',
+      notes: po.notes || ''
+    });
+    setPoReceiveDraft(
+      Object.fromEntries(
+        po.items.map((item: any) => [
+          item.name,
+          { qty: Math.max(0, (Number(item.qty) || 0) - (Number(item.received_qty) || 0)), price: Number(item.price) || 0 }
+        ])
+      )
+    );
+    setShowPOModal(true);
+  };
+
+  const handleSavePO = async () => {
+    if (!selectedPO) return;
+    try {
+      await http.patch(`/purchase-orders/${selectedPO.id}`, {
+        supplier_id: selectedPO.supplier_id,
+        notes: selectedPO.notes || null,
+        expected_delivery_date: selectedPO.expected_delivery_date ? `${selectedPO.expected_delivery_date}T00:00:00` : null,
+        items: selectedPO.items
+      });
+      fetchData();
+      addToast("Purchase order updated", "success");
+      setShowPOModal(false);
+    } catch (e: any) {
+      addToast("Failed to update purchase order", "error");
+    }
+  };
+
+  const handlePartialReceivePO = async () => {
+    if (!selectedPO) return;
+    const items = selectedPO.items
+      .map((item: any) => ({
+        name: item.name,
+        qty: Math.max(0, Number(poReceiveDraft[item.name]?.qty) || 0),
+        price: Number(poReceiveDraft[item.name]?.price) || Number(item.price) || 0
+      }))
+      .filter((item: any) => item.qty > 0);
+    if (!items.length) {
+      addToast("Enter received quantities first", "error");
+      return;
+    }
+    await handleReceivePO(selectedPO.id, { items });
+    setShowPOModal(false);
   };
 
   const handleSearchRecipes = async () => {
@@ -773,9 +961,98 @@ const Dashboard: React.FC = () => {
     }
   };
 
+  const now = new Date();
+  const isWithinAccountingRange = (value?: string) => {
+    if (!value) return false;
+    const date = new Date(value);
+    const start = new Date(`${accountingRange.start}T00:00:00`);
+    const end = new Date(`${accountingRange.end}T23:59:59`);
+    return date >= start && date <= end;
+  };
+
+  const filteredSales = history.filter(tx => tx.type === 'sale' && isWithinAccountingRange(tx.timestamp));
+  const filteredExpenses = expenses.filter((exp: any) => isWithinAccountingRange(exp.date));
+  const filteredPurchaseOrders = purchaseOrders.filter((po: any) => isWithinAccountingRange(po.date));
+  const filteredWaste = wasteRecords.filter((record: any) => isWithinAccountingRange(record.date));
+
+  const monthlySales = filteredSales
+    .reduce((sum, tx) => sum + (tx.revenue || 0), 0);
+  const monthlyExpensesTotal = filteredExpenses
+    .reduce((sum: number, exp: any) => sum + (Number(exp.amount) || 0), 0);
+  const draftPurchaseCommitment = filteredPurchaseOrders
+    .filter((po: any) => po.status !== 'received')
+    .reduce((sum: number, po: any) => sum + po.items.reduce((poSum: number, item: any) => poSum + ((Number(item.qty) || 0) * (Number(item.price) || 0)), 0), 0);
+  const monthlyNetAfterExpenses = monthlySales - monthlyExpensesTotal;
+  const expenseBreakdown = Object.entries(
+    filteredExpenses
+      .reduce((acc: Record<string, number>, exp: any) => {
+        const key = exp.category || 'other';
+        acc[key] = (acc[key] || 0) + (Number(exp.amount) || 0);
+        return acc;
+      }, {})
+  )
+    .sort((a, b) => b[1] - a[1]);
+  const accountingFeed = [
+    ...filteredExpenses.map((exp: any) => ({
+      id: `expense-${exp.id}`,
+      type: 'expense',
+      date: exp.date,
+      label: exp.description || exp.category,
+      meta: exp.category,
+      amount: Number(exp.amount) || 0,
+    })),
+    ...filteredPurchaseOrders.map((po: any) => ({
+      id: `po-${po.id}`,
+      type: 'purchase_order',
+      date: po.date,
+      label: suppliers.find(supp => supp.id === po.supplier_id)?.name || `Supplier #${po.supplier_id}`,
+      meta: `${po.items.length} lines`,
+      amount: po.items.reduce((sum: number, item: any) => sum + ((Number(item.qty) || 0) * (Number(item.price) || 0)), 0),
+      status: po.status,
+    })),
+  ]
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+    .slice(0, 8);
+  const productProfitability = Object.values(
+    filteredSales.reduce((acc: Record<string, any>, tx) => {
+      (tx.items || []).forEach((item: any) => {
+        const key = item.name || 'Unknown';
+        if (!acc[key]) {
+          acc[key] = { name: key, qty: 0, revenue: 0, cost: 0, profit: 0 };
+        }
+        const qty = Number(item.qty) || 0;
+        const price = Number(item.price) || 0;
+        const unitCost = Number(item.cost) || 0;
+        acc[key].qty += qty;
+        acc[key].revenue += qty * price;
+        acc[key].cost += qty * unitCost;
+        acc[key].profit = acc[key].revenue - acc[key].cost;
+      });
+      return acc;
+    }, {})
+  ).sort((a: any, b: any) => b.profit - a.profit).slice(0, 6);
+  const wasteByProduct = Object.values(
+    filteredWaste.reduce((acc: Record<string, any>, record: any) => {
+      const key = record.product_name || 'Unknown';
+      if (!acc[key]) {
+        acc[key] = { name: key, qty: 0, loss: 0 };
+      }
+      acc[key].qty += Number(record.quantity) || 0;
+      acc[key].loss += Number(record.loss_cost) || 0;
+      return acc;
+    }, {})
+  ).sort((a: any, b: any) => b.loss - a.loss).slice(0, 6);
+
   if (loading) return (
     <div className="h-screen w-screen flex flex-col items-center justify-center bg-charcoal text-gold">
-       <div className="w-16 h-16 border-4 border-gold/20 border-t-gold rounded-full animate-spin mb-4"></div>
+       <div className="pinwheel mb-5" aria-hidden="true">
+         <div className="pinwheel__line"></div>
+         <div className="pinwheel__line"></div>
+         <div className="pinwheel__line"></div>
+         <div className="pinwheel__line"></div>
+         <div className="pinwheel__line"></div>
+         <div className="pinwheel__line"></div>
+       </div>
        <p className="font-bold tracking-widest uppercase text-xs">Re-engaging Luxe Logiciel...</p>
     </div>
   );
@@ -795,8 +1072,15 @@ const Dashboard: React.FC = () => {
             </div>
             {!isSidebarCollapsed && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                  <h1 className={`text-2xl font-bold luxury-font tracking-tight ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Bakery<span className="text-gold">OS</span></h1>
-                    <span className="text-[10px] bg-gold/10 text-gold px-2 py-0.5 rounded-full font-black">BETA 0.1</span>
+                  <h1 className="brand-title" style={{ ['--brand-hover' as any]: '#d4af37' }}>
+                    <span className={`brand-title__base text-2xl font-bold luxury-font tracking-tight ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
+                      Bakery<span className="text-gold">Os</span>
+                    </span>
+                    <span aria-hidden="true" className="brand-title__hover text-2xl font-bold luxury-font tracking-tight">
+                      Bakery<span>Os</span>
+                    </span>
+                  </h1>
+                  <span className="inline-flex mt-2 text-[10px] bg-gold/10 text-gold px-2 py-0.5 rounded-full font-black">BETA 0.1</span>
               </motion.div>
             )}
           </div>
@@ -804,6 +1088,7 @@ const Dashboard: React.FC = () => {
           <nav className="space-y-1">
             {[
               { id: 'dashboard', icon: LayoutDashboard, label: t.dashboard },
+              { id: 'intelligence', icon: Brain, label: 'Intelligence' },
               { id: 'pos', icon: ShoppingCart, label: t.pos },
               { id: 'kitchen', icon: ChefHat, label: t.kitchen },
               { id: 'inventory', icon: Package, label: t.inventory },
@@ -812,7 +1097,7 @@ const Dashboard: React.FC = () => {
               { id: 'simulator', icon: Calculator, label: t.simulator },
               { id: 'history', icon: HistoryIcon, label: t.history },
               ].filter(item => {
-              if (user?.role === 'cashier' && ['simulator', 'inventory', 'purchasing'].includes(item.id)) return false;
+              if (user?.role === 'cashier' && ['simulator', 'inventory', 'purchasing', 'intelligence'].includes(item.id)) return false;
               return true;
               })
 .map((item) => (
@@ -859,6 +1144,7 @@ const Dashboard: React.FC = () => {
                         >
                             {[
                                 { id: 'expenses', icon: Coins, label: t.expenses },
+                                { id: 'comptabilite', icon: Coins, label: t.comptabilite },
                                 { id: 'planner', icon: Calendar, label: t.planner },
                                 { id: 'orders', icon: FileText, label: t.orders },
                                 { id: 'staff', icon: Settings, label: t.staff },
@@ -904,10 +1190,35 @@ const Dashboard: React.FC = () => {
                 <button onClick={() => setIsDarkMode(false)} className={`py-2 rounded-lg flex justify-center transition-all ${!isDarkMode ? 'bg-white text-slate-900 shadow-lg' : 'text-white/20 hover:text-white'}`}><Sun size={16}/></button>
               </div>
               
-              <div className={`grid grid-cols-3 gap-1 p-1 rounded-xl ${isDarkMode ? 'bg-white/5' : 'bg-slate-100'}`}>
-                {['MAD', 'EUR', 'USD'].map(curr => (
-                  <button key={curr} onClick={() => setActiveCurrency(curr)} className={`py-2 rounded-lg text-[10px] font-black tracking-widest transition-all ${activeCurrency === curr ? (isDarkMode ? 'text-gold' : 'bg-white text-slate-900 shadow-sm') : (isDarkMode ? 'text-white/20' : 'text-slate-400')}`}>{curr}</button>
-                ))}
+              <div className="glass-radio-group">
+                <input
+                  type="radio"
+                  id="glass-mad"
+                  name="currency-switcher"
+                  checked={activeCurrency === 'MAD'}
+                  onChange={() => setActiveCurrency('MAD')}
+                />
+                <label htmlFor="glass-mad">MAD</label>
+
+                <input
+                  type="radio"
+                  id="glass-eur"
+                  name="currency-switcher"
+                  checked={activeCurrency === 'EUR'}
+                  onChange={() => setActiveCurrency('EUR')}
+                />
+                <label htmlFor="glass-eur">EUR</label>
+
+                <input
+                  type="radio"
+                  id="glass-usd"
+                  name="currency-switcher"
+                  checked={activeCurrency === 'USD'}
+                  onChange={() => setActiveCurrency('USD')}
+                />
+                <label htmlFor="glass-usd">USD</label>
+
+                <div className="glass-glider" aria-hidden="true"></div>
               </div>
 
               <button onClick={() => setShowWasteModal(true)} className={`w-full py-4 rounded-xl font-bold text-xs uppercase tracking-widest border border-rose-500/20 text-rose-500 hover:bg-rose-500/10 transition-all`}>Log Daily Waste</button>
@@ -944,18 +1255,6 @@ const Dashboard: React.FC = () => {
             </button>
           </div>
 
-          {user?.role === 'owner' && !isSidebarCollapsed && (
-            <button
-              onClick={() => setEditMode(!editMode)}
-              className={`w-full flex items-center justify-center gap-2 py-4 rounded-xl font-bold text-xs uppercase tracking-widest transition-all ${
-                  editMode ? 'bg-rose-500 text-white shadow-lg' : (isDarkMode ? 'bg-gold text-charcoal shadow-gold-glow' : 'bg-slate-900 text-white shadow-xl')
-              }`}
-            >
-              {editMode ? <X size={16}/> : <Edit2 size={16}/>}
-              {editMode ? 'Exit Control' : 'Master Control'}
-            </button>
-          )}
-
           </div>
       </motion.aside>
 
@@ -975,11 +1274,25 @@ const Dashboard: React.FC = () => {
                 {activeTab === 'history' && t.history}
                 {activeTab === 'planner' && t.planner}
                 {activeTab === 'expenses' && t.expenses}
+                {activeTab === 'comptabilite' && t.comptabilite}
                 {activeTab === 'purchasing' && t.purchasing}
                 {activeTab === 'kitchen' && t.kitchen}
             </h2>
             <div className="luxury-accent-bar mb-6" />
-            <p className={`font-medium ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>Head Baker: Dane | Connected | {new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long' })}</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'bg-white/5 text-cream/45' : 'bg-white text-slate-500 border border-slate-200'}`}>
+                {user?.role === 'owner' ? 'Head Baker' : user?.role || 'Staff'}
+              </span>
+              <span className={`px-3 py-1 rounded-full text-[10px] font-bold ${isDarkMode ? 'bg-gold/10 text-gold' : 'bg-slate-900 text-white'}`}>
+                {user?.username || 'Operator'}
+              </span>
+              <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${isOnline ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500'}`}>
+                {isOnline ? 'Connected' : 'Offline'}
+              </span>
+              <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'bg-white/5 text-cream/45' : 'bg-white text-slate-500 border border-slate-200'}`}>
+                {new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long' })}
+              </span>
+            </div>
           </div>
           <div className="flex gap-4">
             <div className={`px-6 py-3 flex items-center gap-4 border rounded-2xl ${isDarkMode ? 'border-white/10 bg-black/20' : 'border-slate-200 bg-white shadow-sm'}`}>
@@ -991,6 +1304,64 @@ const Dashboard: React.FC = () => {
               </div>
               <div className={`w-3 h-3 rounded-full ${isOnline ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]' : 'bg-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.5)] animate-pulse'}`} />
             </div>
+
+            {user?.role === 'owner' && (
+              <div className={`px-5 py-3 flex items-start gap-3 border rounded-2xl ${isDarkMode ? 'border-gold/10 bg-black/20' : 'border-slate-200 bg-white shadow-sm'}`}>
+                <div className="text-right">
+                  <p className={`text-[10px] uppercase tracking-widest font-black ${isDarkMode ? 'text-gold' : 'text-slate-500'}`}>Master Control</p>
+                  <p className={`text-xs font-bold ${editMode ? 'text-gold' : isDarkMode ? 'text-cream/40' : 'text-slate-500'}`}>
+                    {editMode ? 'Active' : 'Standby'}
+                  </p>
+                </div>
+                <div className="neo-toggle-container shrink-0">
+                  <input
+                    className="neo-toggle-input"
+                    id="master-control-toggle"
+                    type="checkbox"
+                    checked={editMode}
+                    onChange={(e) => setEditMode(e.target.checked)}
+                  />
+                  <label className={`neo-toggle ${editMode ? 'neo-activated neo-progress' : ''}`} htmlFor="master-control-toggle">
+                    <div className="neo-track">
+                      <div className="neo-background-layer"></div>
+                      <div className="neo-grid-layer"></div>
+                      <div className="neo-spectrum-analyzer">
+                        <div className="neo-spectrum-bar"></div>
+                        <div className="neo-spectrum-bar"></div>
+                        <div className="neo-spectrum-bar"></div>
+                        <div className="neo-spectrum-bar"></div>
+                        <div className="neo-spectrum-bar"></div>
+                      </div>
+                      <div className="neo-track-highlight"></div>
+                    </div>
+
+                    <div className="neo-thumb">
+                      <div className="neo-thumb-ring"></div>
+                      <div className="neo-thumb-core">
+                        <div className="neo-thumb-icon">
+                          <div className="neo-thumb-wave"></div>
+                          <div className="neo-thumb-pulse"></div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="neo-gesture-area"></div>
+
+                    <div className="neo-interaction-feedback">
+                      <div className="neo-ripple"></div>
+                      <div className="neo-progress-arc"></div>
+                    </div>
+
+                    <div className="neo-status">
+                      <div className="neo-status-indicator">
+                        <div className="neo-status-dot"></div>
+                        <div className="neo-status-text"></div>
+                      </div>
+                    </div>
+                  </label>
+                </div>
+              </div>
+            )}
 
             <div className={`px-6 py-3 flex items-center gap-4 border rounded-2xl ${isDarkMode ? 'border-gold/10 bg-black/20' : 'border-slate-200 bg-white shadow-sm'}`}>
               <div className="text-right">
@@ -1049,6 +1420,26 @@ const Dashboard: React.FC = () => {
                     </div>
                   </div>
                   <div className={`p-8 rounded-[2.5rem] border transition-colors ${isDarkMode ? 'border-gold/10 bg-black/20' : 'border-slate-200 bg-white shadow-sm'}`}>
+                    <h3 className={`text-xl font-bold luxury-font uppercase mb-6 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Operations Note</h3>
+                    <p className={`text-sm mb-6 ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>Shared shift note for handoff context, vendor issues, reminders, or anything the next person should see immediately.</p>
+                    <textarea
+                      value={generalNote}
+                      onChange={(e) => setGeneralNote(e.target.value)}
+                      placeholder="Shift handoff, urgent stock note, delivery issue, tomorrow prep reminder..."
+                      className={`w-full min-h-[190px] resize-none rounded-2xl border p-5 text-sm leading-6 outline-none transition-all ${isDarkMode ? 'bg-white/5 border-white/10 text-cream placeholder:text-cream/20' : 'bg-slate-50 border-slate-200 text-slate-900 placeholder:text-slate-400'}`}
+                    />
+                    <div className="mt-5 flex items-center justify-between gap-4">
+                      <p className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-cream/25' : 'text-slate-400'}`}>{generalNote.trim().length} chars</p>
+                      <button
+                        onClick={handleSaveGeneralNote}
+                        disabled={isSavingGeneralNote}
+                        className={`px-6 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all disabled:cursor-not-allowed disabled:opacity-40 ${isDarkMode ? 'bg-gold text-charcoal shadow-gold-glow' : 'bg-slate-900 text-white shadow-xl'}`}
+                      >
+                        {isSavingGeneralNote ? 'Saving...' : 'Save Note'}
+                      </button>
+                    </div>
+                  </div>
+                  <div className={`p-8 rounded-[2.5rem] border transition-colors ${isDarkMode ? 'border-gold/10 bg-black/20' : 'border-slate-200 bg-white shadow-sm'}`}>
                     <h3 className={`text-xl font-bold luxury-font uppercase mb-8 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Financial Intelligence</h3>
                     <p className={`text-sm mb-6 ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>Generate executive summaries for accounting and performance review.</p>
                     <div className="flex gap-4">
@@ -1057,7 +1448,7 @@ const Dashboard: React.FC = () => {
                                 const year = new Date().getFullYear();
                                 const month = new Date().getMonth() + 1;
                                 const token = localStorage.getItem('bakery_token');
-                                window.open(`${API_BASE}/reports/monthly?month=${month}&year=${year}&token=${token}`, '_blank');
+                                window.open(`${API_BASE}/reports/monthly?month=${month}&year=${year}&format=pdf&token=${token}`, '_blank');
                             }}
                             className={`flex-1 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest border transition-all ${isDarkMode ? 'border-gold/20 text-gold hover:bg-gold hover:text-charcoal' : 'bg-slate-900 text-white shadow-xl'}`}
                         >
@@ -1205,6 +1596,82 @@ const Dashboard: React.FC = () => {
               </div>
             )}
 
+            {activeTab === 'intelligence' && (
+              <div className="space-y-8">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div className={`p-8 rounded-[2.5rem] border transition-all ${isDarkMode ? 'border-gold/20 bg-black/40 shadow-[0_0_50px_rgba(212,175,55,0.05)]' : 'border-slate-200 bg-white shadow-xl'}`}>
+                        <div className="flex items-center gap-4 mb-4">
+                            <div className="p-3 rounded-2xl bg-gold/20 text-gold"><Zap size={24} /></div>
+                            <div>
+                                <p className="text-[10px] font-black uppercase tracking-widest opacity-40">Portfolio Cost</p>
+                                <h4 className="text-2xl font-bold">{formatPrice(analytics.intelligence.total_portfolio_cost)}</h4>
+                            </div>
+                        </div>
+                        <p className="text-xs opacity-40">Total theoretical cost to produce 1 unit of every SKU in your inventory.</p>
+                    </div>
+                    <div className={`p-8 rounded-[2.5rem] border transition-all ${isDarkMode ? 'border-emerald-500/20 bg-black/40' : 'border-emerald-100 bg-white shadow-xl'}`}>
+                        <div className="flex items-center gap-4 mb-4">
+                            <div className="p-3 rounded-2xl bg-emerald-500/20 text-emerald-500"><TrendingUp size={24} /></div>
+                            <div>
+                                <p className="text-[10px] font-black uppercase tracking-widest opacity-40">Average Margin</p>
+                                <h4 className="text-2xl font-bold text-emerald-500">{analytics.intelligence.average_margin}</h4>
+                            </div>
+                        </div>
+                        <p className="text-xs opacity-40">Weighted average gross margin across all active product entities.</p>
+                    </div>
+                    <div className={`p-8 rounded-[2.5rem] border transition-all ${isDarkMode ? 'border-gold/20 bg-black/40' : 'border-slate-200 bg-white shadow-xl'}`}>
+                        <div className="flex items-center gap-4 mb-4">
+                            <div className="p-3 rounded-2xl bg-gold/20 text-gold"><Box size={24} /></div>
+                            <div>
+                                <p className="text-[10px] font-black uppercase tracking-widest opacity-40">SKU Intelligence</p>
+                                <h4 className="text-2xl font-bold">{profitReport.length} Products</h4>
+                            </div>
+                        </div>
+                        <p className="text-xs opacity-40">Active products currently being tracked for financial performance.</p>
+                    </div>
+                </div>
+
+                <div className={`p-8 rounded-[2.5rem] border transition-all ${isDarkMode ? 'border-white/5 bg-black/20' : 'border-slate-200 bg-white shadow-xl'}`}>
+                    <div className="flex items-center justify-between mb-8">
+                        <div>
+                            <h3 className="text-xl font-bold luxury-font uppercase">Recipe Financial Intelligence</h3>
+                            <p className="text-sm opacity-40">Granular unit-level profitability analysis</p>
+                        </div>
+                    </div>
+                    <div className="overflow-x-auto">
+                        <table className="w-full">
+                            <thead>
+                                <tr className="text-left border-b border-white/5">
+                                    <th className="pb-4 text-[10px] font-black uppercase tracking-widest opacity-40">Product</th>
+                                    <th className="pb-4 text-[10px] font-black uppercase tracking-widest opacity-40">Cost Price</th>
+                                    <th className="pb-4 text-[10px] font-black uppercase tracking-widest opacity-40">Selling Price</th>
+                                    <th className="pb-4 text-[10px] font-black uppercase tracking-widest opacity-40">Net Profit</th>
+                                    <th className="pb-4 text-[10px] font-black uppercase tracking-widest opacity-40">ROI</th>
+                                    <th className="pb-4 text-[10px] font-black uppercase tracking-widest opacity-40">Margin</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-white/5">
+                                {profitReport.map((item, i) => (
+                                    <tr key={i} className="group hover:bg-white/5 transition-colors">
+                                        <td className="py-4 font-bold">{item.product_name}</td>
+                                        <td className="py-4 font-mono text-rose-400">{formatPrice(item.cost_price)}</td>
+                                        <td className="py-4 font-mono">{formatPrice(item.selling_price)}</td>
+                                        <td className={`py-4 font-mono font-bold ${item.net_profit > 0 ? 'text-emerald-400' : 'text-rose-500'}`}>{formatPrice(item.net_profit)}</td>
+                                        <td className="py-4">
+                                            <span className={`px-3 py-1 rounded-full text-[10px] font-black ${parseFloat(item.roi_percentage) > 50 ? 'bg-emerald-500/20 text-emerald-500' : 'bg-gold/20 text-gold'}`}>
+                                                {item.roi_percentage}
+                                            </span>
+                                        </td>
+                                        <td className="py-4 font-bold text-cream/60">{item.margin_percentage}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+              </div>
+            )}
+
             {activeTab === 'pos' && (
               <div className="flex gap-8 h-[calc(100vh-250px)]">
                 <div className="flex-1 grid grid-cols-2 lg:grid-cols-3 gap-6 overflow-y-auto pr-4 custom-scrollbar">
@@ -1276,7 +1743,7 @@ const Dashboard: React.FC = () => {
                             }`}
                         >
                             <QRCodeSVG 
-                                value={window.location.origin + API_BASE + "/transactions/" + lastTransaction.transaction_id + "/receipt"}
+                                value={window.location.origin + API_BASE + "/transactions/" + lastTransaction.transaction_id + "/receipt?format=pdf&paper=80mm"}
                                 size={16}
                             />
                             Show Last Receipt
@@ -1325,6 +1792,212 @@ const Dashboard: React.FC = () => {
                             {staff.length === 0 && <tr><td colSpan={3} className="py-20 text-center opacity-10 font-black uppercase tracking-widest text-[10px]">No staff accounts created yet</td></tr>}
                         </tbody>
                     </table>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'comptabilite' && (
+              <div className="space-y-8 animate-in fade-in duration-500">
+                <div className="flex justify-between items-center">
+                    <div>
+                        <h3 className={`text-4xl font-bold luxury-font uppercase tracking-tighter ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{t.comptabilite}</h3>
+                        <p className={`text-sm mt-1 ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>Accounting overview, filtered performance, and purchase commitments.</p>
+                    </div>
+                    <div className="flex gap-4">
+                        <button
+                            onClick={() => {
+                                const token = localStorage.getItem('bakery_token');
+                                window.open(`${API_BASE}/accounting/export?start=${accountingRange.start}&end=${accountingRange.end}&token=${token}`, '_blank');
+                            }}
+                            className={`px-8 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center gap-3 transition-all ${isDarkMode ? 'border border-white/10 text-white hover:bg-white/5' : 'border border-slate-200 bg-white text-slate-900'}`}
+                        >
+                            <FileText size={16}/>
+                            Export CSV
+                        </button>
+                        <button
+                            onClick={() => {
+                                const year = now.getFullYear();
+                                const month = now.getMonth() + 1;
+                                const token = localStorage.getItem('bakery_token');
+                                window.open(`${API_BASE}/reports/monthly?month=${month}&year=${year}&format=pdf&token=${token}`, '_blank');
+                            }}
+                            className={`px-8 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center gap-3 transition-all ${isDarkMode ? 'border border-gold/20 text-gold hover:bg-gold hover:text-charcoal' : 'border border-slate-200 bg-white text-slate-900'}`}
+                        >
+                            <FileText size={16}/>
+                            Monthly Report
+                        </button>
+                        <button 
+                            onClick={() => setShowAddExpense(true)}
+                            className={`px-8 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center gap-3 transition-all ${isDarkMode ? 'bg-gold text-charcoal shadow-gold-glow' : 'bg-slate-900 text-white'}`}
+                        >
+                            <Plus size={16}/>
+                            Log Expense
+                        </button>
+                    </div>
+                </div>
+
+                <div className={`p-6 rounded-[2rem] border flex flex-wrap items-end gap-4 transition-colors ${isDarkMode ? 'border-white/5 bg-black/20' : 'border-slate-200 bg-white shadow-sm'}`}>
+                    <div>
+                        <p className={`text-[10px] font-black uppercase tracking-widest mb-2 ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>From</p>
+                        <input
+                            type="date"
+                            value={accountingRange.start}
+                            max={accountingRange.end}
+                            onChange={(e) => setAccountingRange(prev => ({ ...prev, start: e.target.value }))}
+                            className={`border-b py-3 px-2 outline-none text-sm font-bold rounded-xl transition-all ${isDarkMode ? 'bg-black text-gold border-white/10' : 'bg-white text-slate-700 border-slate-200'}`}
+                        />
+                    </div>
+                    <div>
+                        <p className={`text-[10px] font-black uppercase tracking-widest mb-2 ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>To</p>
+                        <input
+                            type="date"
+                            value={accountingRange.end}
+                            min={accountingRange.start}
+                            onChange={(e) => setAccountingRange(prev => ({ ...prev, end: e.target.value }))}
+                            className={`border-b py-3 px-2 outline-none text-sm font-bold rounded-xl transition-all ${isDarkMode ? 'bg-black text-gold border-white/10' : 'bg-white text-slate-700 border-slate-200'}`}
+                        />
+                    </div>
+                    <button
+                        onClick={() => setAccountingRange({ start: monthStart, end: monthEnd })}
+                        className={`px-5 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${isDarkMode ? 'border border-white/10 text-cream/60 hover:text-white hover:bg-white/5' : 'border border-slate-200 text-slate-500 hover:bg-slate-50'}`}
+                    >
+                        This Month
+                    </button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+                    {[
+                        { label: 'Filtered Revenue', value: formatPrice(monthlySales), tone: isDarkMode ? 'text-white' : 'text-slate-900' },
+                        { label: 'Filtered Expenses', value: formatPrice(monthlyExpensesTotal), tone: 'text-rose-500' },
+                        { label: 'Net After Expenses', value: formatPrice(monthlyNetAfterExpenses), tone: monthlyNetAfterExpenses >= 0 ? 'text-emerald-500' : 'text-rose-500' },
+                        { label: 'Open PO Commitment', value: formatPrice(draftPurchaseCommitment), tone: isDarkMode ? 'text-gold' : 'text-slate-900' },
+                    ].map((card, idx) => (
+                        <div key={idx} className={`p-6 rounded-[2rem] border transition-colors ${isDarkMode ? 'border-white/5 bg-black/20' : 'border-slate-200 bg-white shadow-sm'}`}>
+                            <p className={`text-[10px] font-black uppercase tracking-widest mb-2 ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>{card.label}</p>
+                            <p className={`text-3xl font-bold ${card.tone}`}>{card.value}</p>
+                        </div>
+                    ))}
+                </div>
+
+                <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
+                    <div className={`xl:col-span-2 rounded-[2.5rem] border overflow-hidden transition-colors ${isDarkMode ? 'border-white/5 bg-black/20' : 'border-slate-200 bg-white shadow-sm'}`}>
+                        <div className="p-8 border-b border-white/5 flex justify-between items-center">
+                            <h3 className={`text-xl font-bold luxury-font uppercase ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Accounting Feed</h3>
+                            <p className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-cream/30' : 'text-slate-400'}`}>Latest 8 entries</p>
+                        </div>
+                        <div className="p-6 space-y-4">
+                            {accountingFeed.length > 0 ? accountingFeed.map((entry) => (
+                                <div key={entry.id} className={`p-5 rounded-2xl border flex items-center justify-between ${isDarkMode ? 'bg-white/5 border-white/5' : 'bg-slate-50 border-slate-100'}`}>
+                                    <div>
+                                        <p className={`text-[10px] font-black uppercase tracking-widest mb-1 ${entry.type === 'expense' ? 'text-rose-500' : 'text-gold'}`}>
+                                            {entry.type === 'expense' ? 'Expense' : 'Purchase Order'}
+                                        </p>
+                                        <p className={`font-bold text-sm ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{entry.label}</p>
+                                        <p className={`text-[10px] font-bold uppercase tracking-widest mt-1 ${isDarkMode ? 'text-cream/30' : 'text-slate-400'}`}>
+                                            {new Date(entry.date).toLocaleDateString()} | {entry.meta}{entry.status ? ` | ${entry.status}` : ''}
+                                        </p>
+                                    </div>
+                                    <p className={`text-sm font-black ${entry.type === 'expense' ? 'text-rose-500' : 'text-gold'}`}>
+                                        {entry.type === 'expense' ? '-' : ''}{formatPrice(entry.amount)}
+                                    </p>
+                                </div>
+                            )) : (
+                                <div className="py-20 text-center opacity-10 font-black uppercase tracking-widest text-[10px]">No accounting activity yet</div>
+                            )}
+                        </div>
+                    </div>
+
+                    <div className="space-y-8">
+                        <div className={`rounded-[2.5rem] border overflow-hidden transition-colors ${isDarkMode ? 'border-white/5 bg-black/20' : 'border-slate-200 bg-white shadow-sm'}`}>
+                            <div className="p-8 border-b border-white/5">
+                                <h3 className={`text-xl font-bold luxury-font uppercase ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Expense Breakdown</h3>
+                            </div>
+                            <div className="p-6 space-y-4">
+                                {expenseBreakdown.length > 0 ? expenseBreakdown.map(([category, total]) => (
+                                    <div key={category} className={`p-4 rounded-2xl border flex items-center justify-between ${isDarkMode ? 'bg-white/5 border-white/5' : 'bg-slate-50 border-slate-100'}`}>
+                                        <div>
+                                            <p className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-cream/30' : 'text-slate-400'}`}>Category</p>
+                                            <p className={`font-bold text-sm mt-1 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{category}</p>
+                                        </div>
+                                        <p className="font-black text-rose-500 text-sm">-{formatPrice(total as number)}</p>
+                                    </div>
+                                )) : (
+                                    <div className="py-16 text-center opacity-10 font-black uppercase tracking-widest text-[10px]">No expenses in selected range</div>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className={`rounded-[2.5rem] border overflow-hidden transition-colors ${isDarkMode ? 'border-white/5 bg-black/20' : 'border-slate-200 bg-white shadow-sm'}`}>
+                            <div className="p-8 border-b border-white/5">
+                                <h3 className={`text-xl font-bold luxury-font uppercase ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Quick Ledger</h3>
+                            </div>
+                            <div className="p-6 space-y-3">
+                                <div className="flex items-center justify-between">
+                                    <p className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-cream/30' : 'text-slate-400'}`}>Range</p>
+                                    <p className={`font-bold text-sm ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{accountingRange.start} to {accountingRange.end}</p>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                    <p className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-cream/30' : 'text-slate-400'}`}>Sales Entries</p>
+                                    <p className={`font-bold text-sm ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{filteredSales.length}</p>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                    <p className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-cream/30' : 'text-slate-400'}`}>Expense Entries</p>
+                                    <p className={`font-bold text-sm ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{filteredExpenses.length}</p>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                    <p className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-cream/30' : 'text-slate-400'}`}>Open Purchase Orders</p>
+                                    <p className={`font-bold text-sm ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{filteredPurchaseOrders.filter((po: any) => po.status !== 'received').length}</p>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                    <p className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-cream/30' : 'text-slate-400'}`}>Waste Entries</p>
+                                    <p className={`font-bold text-sm ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{filteredWaste.length}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+                    <div className={`rounded-[2.5rem] border overflow-hidden transition-colors ${isDarkMode ? 'border-white/5 bg-black/20' : 'border-slate-200 bg-white shadow-sm'}`}>
+                        <div className="p-8 border-b border-white/5">
+                            <h3 className={`text-xl font-bold luxury-font uppercase ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Product Profitability</h3>
+                        </div>
+                        <div className="p-6 space-y-4">
+                            {productProfitability.length > 0 ? productProfitability.map((entry: any) => (
+                                <div key={entry.name} className={`p-4 rounded-2xl border ${isDarkMode ? 'bg-white/5 border-white/5' : 'bg-slate-50 border-slate-100'}`}>
+                                    <div className="flex items-center justify-between">
+                                        <p className={`font-bold text-sm ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{entry.name}</p>
+                                        <p className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-cream/30' : 'text-slate-400'}`}>{entry.qty} sold</p>
+                                    </div>
+                                    <div className="mt-4 space-y-1 text-sm font-bold">
+                                        <div className="flex justify-between"><span className={isDarkMode ? 'text-cream/40' : 'text-slate-500'}>Revenue</span><span>{formatPrice(entry.revenue)}</span></div>
+                                        <div className="flex justify-between"><span className={isDarkMode ? 'text-cream/40' : 'text-slate-500'}>Cost</span><span className="text-rose-500">{formatPrice(entry.cost)}</span></div>
+                                        <div className="flex justify-between"><span className={isDarkMode ? 'text-cream/40' : 'text-slate-500'}>Profit</span><span className={entry.profit >= 0 ? 'text-emerald-500' : 'text-rose-500'}>{formatPrice(entry.profit)}</span></div>
+                                    </div>
+                                </div>
+                            )) : (
+                                <div className="py-16 text-center opacity-10 font-black uppercase tracking-widest text-[10px]">No sales in selected range</div>
+                            )}
+                        </div>
+                    </div>
+
+                    <div className={`rounded-[2.5rem] border overflow-hidden transition-colors ${isDarkMode ? 'border-white/5 bg-black/20' : 'border-slate-200 bg-white shadow-sm'}`}>
+                        <div className="p-8 border-b border-white/5">
+                            <h3 className={`text-xl font-bold luxury-font uppercase ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Waste Visibility</h3>
+                        </div>
+                        <div className="p-6 space-y-4">
+                            {wasteByProduct.length > 0 ? wasteByProduct.map((entry: any) => (
+                                <div key={entry.name} className={`p-4 rounded-2xl border flex items-center justify-between ${isDarkMode ? 'bg-white/5 border-white/5' : 'bg-slate-50 border-slate-100'}`}>
+                                    <div>
+                                        <p className={`font-bold text-sm ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{entry.name}</p>
+                                        <p className={`text-[10px] font-black uppercase tracking-widest mt-1 ${isDarkMode ? 'text-cream/30' : 'text-slate-400'}`}>{entry.qty} wasted units</p>
+                                    </div>
+                                    <p className="font-black text-rose-500 text-sm">-{formatPrice(entry.loss)}</p>
+                                </div>
+                            )) : (
+                                <div className="py-16 text-center opacity-10 font-black uppercase tracking-widest text-[10px]">No waste in selected range</div>
+                            )}
+                        </div>
+                    </div>
                 </div>
               </div>
             )}
@@ -1383,6 +2056,27 @@ const Dashboard: React.FC = () => {
                     <div className="p-8 space-y-6">
                         {purchasingSuggestions.length > 0 ? (
                             <div className="space-y-4">
+                                <div className={`p-5 rounded-2xl border flex items-center justify-between gap-4 ${isDarkMode ? 'bg-white/5 border-white/10' : 'bg-slate-50 border-slate-200'}`}>
+                                    <div>
+                                        <p className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>Bulk Order Supplier</p>
+                                        <p className={`text-sm font-bold mt-1 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
+                                            {selectedSupplierId ? suppliers.find(supp => supp.id === selectedSupplierId)?.name || 'Select supplier' : 'No supplier selected'}
+                                        </p>
+                                    </div>
+                                    <select
+                                        value={selectedSupplierId ?? ''}
+                                        onChange={(e) => setSelectedSupplierId(e.target.value ? Number(e.target.value) : null)}
+                                        className={`min-w-[220px] border-b py-3 px-2 outline-none text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${isDarkMode ? 'bg-black text-gold border-white/10' : 'bg-white text-slate-700 border-slate-200'}`}
+                                    >
+                                        {suppliers.length === 0 ? (
+                                            <option value="">Add supplier first</option>
+                                        ) : (
+                                            suppliers.map((supp: any) => (
+                                                <option key={supp.id} value={supp.id}>{supp.name}</option>
+                                            ))
+                                        )}
+                                    </select>
+                                </div>
                                 {purchasingSuggestions.map(s => (
                                     <div key={s.name} className={`p-6 rounded-3xl border flex items-center justify-between transition-all ${isDarkMode ? 'bg-white/5 border-white/10 hover:border-gold/20' : 'bg-slate-50 border-slate-200'}`}>
                                         <div className="flex items-center gap-4">
@@ -1402,16 +2096,23 @@ const Dashboard: React.FC = () => {
                                 ))}
                                 <button
                                     onClick={async () => {
+                                       if (!suppliers.length) {
+                                           addToast("Add a supplier before generating a bulk purchase order", "error");
+                                           return;
+                                       }
+                                       if (!selectedSupplierId) {
+                                           addToast("Select a supplier before generating a bulk purchase order", "error");
+                                           return;
+                                       }
                                        const items = purchasingSuggestions.map(s => ({
                                            name: s.name,
                                            qty: s.suggested_buy,
                                            price: inventory.materials[s.name]?.price || 0
                                        }));
-                                       // Pick first supplier or generic
-                                       const supplierId = suppliers[0]?.id || 1;
-                                       await handleCreatePO({ supplier_id: supplierId, items });
+                                       await handleCreatePO({ supplier_id: selectedSupplierId, items });
                                     }}
-                                    className={`w-full py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${isDarkMode ? 'bg-gold text-charcoal shadow-gold-glow' : 'bg-slate-900 text-white'}`}
+                                    disabled={!suppliers.length || !selectedSupplierId}
+                                    className={`w-full py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all disabled:cursor-not-allowed disabled:opacity-40 ${isDarkMode ? 'bg-gold text-charcoal shadow-gold-glow' : 'bg-slate-900 text-white'}`}
                                 >
                                     Generate Bulk Purchase Order
                                 </button>
@@ -1431,9 +2132,12 @@ const Dashboard: React.FC = () => {
                     <div className={`rounded-[2rem] border overflow-hidden transition-colors ${isDarkMode ? 'border-white/5 bg-black/20' : 'border-slate-200 bg-white shadow-sm'}`}>
                         <div className="p-8 border-b border-white/5 flex justify-between items-center">
                             <h3 className={`text-xl font-bold luxury-font uppercase ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Recent Orders</h3>
-                            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                            <div className="flex items-center gap-3">
+                                <p className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-cream/30' : 'text-slate-400'}`}>{purchaseOrders.length} orders</p>
+                                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                            </div>
                         </div>
-                        <div className="p-6 space-y-4">
+                        <div className="p-6 space-y-4 max-h-[640px] overflow-y-auto custom-scrollbar">
                             {purchaseOrders.length > 0 ? (
                                 purchaseOrders.map(po => (
                                     <div key={po.id} className={`p-6 rounded-3xl border transition-all ${isDarkMode ? 'bg-white/5 border-white/5' : 'bg-slate-50 border-slate-100'}`}>
@@ -1446,22 +2150,56 @@ const Dashboard: React.FC = () => {
                                                 {po.status}
                                             </span>
                                         </div>
+                                        <div className={`grid grid-cols-2 gap-3 mb-5 text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-cream/35' : 'text-slate-400'}`}>
+                                            <div>
+                                                <p>Supplier</p>
+                                                <p className={`mt-1 text-xs font-bold normal-case tracking-normal ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
+                                                    {suppliers.find(supp => supp.id === po.supplier_id)?.name || `Supplier #${po.supplier_id}`}
+                                                </p>
+                                            </div>
+                                            <div>
+                                                <p>Date</p>
+                                                <p className={`mt-1 text-xs font-bold normal-case tracking-normal ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
+                                                    {new Date(po.date).toLocaleDateString()}
+                                                </p>
+                                            </div>
+                                            <div>
+                                                <p>Lines</p>
+                                                <p className={`mt-1 text-xs font-bold normal-case tracking-normal ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
+                                                    {po.items.length}
+                                                </p>
+                                            </div>
+                                            <div>
+                                                <p>Estimated Total</p>
+                                                <p className="mt-1 text-xs font-bold normal-case tracking-normal text-gold">
+                                                    {formatPrice(po.items.reduce((sum: number, item: any) => sum + ((Number(item.qty) || 0) * (Number(item.price) || 0)), 0))}
+                                                </p>
+                                            </div>
+                                        </div>
                                         <div className="space-y-2 mb-6">
                                             {po.items.map((item: any, idx: number) => (
                                                 <div key={idx} className="flex justify-between text-xs font-bold opacity-60">
                                                     <span>{item.name}</span>
-                                                    <span>x{item.qty}</span>
+                                                    <span>x{item.received_qty ? `${item.received_qty}/${item.qty}` : item.qty}</span>
                                                 </div>
                                             ))}
                                         </div>
-                                        {po.status === 'draft' && (
+                                        <div className="space-y-2">
                                             <button 
-                                                onClick={() => handleReceivePO(po.id)}
-                                                className={`w-full py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${isDarkMode ? 'bg-white/10 hover:bg-gold hover:text-charcoal' : 'bg-slate-900 text-white'}`}
+                                                onClick={() => openPOModal(po)}
+                                                className={`w-full py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${isDarkMode ? 'bg-white/10 hover:bg-white/15' : 'bg-slate-200 text-slate-900'}`}
                                             >
-                                                Mark as Received
+                                                Manage Order
                                             </button>
-                                        )}
+                                            {po.status === 'draft' && (
+                                                <button 
+                                                    onClick={() => handleReceivePO(po.id)}
+                                                    className={`w-full py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${isDarkMode ? 'bg-gold text-charcoal hover:opacity-90' : 'bg-slate-900 text-white'}`}
+                                                >
+                                                    Mark as Fully Received
+                                                </button>
+                                            )}
+                                        </div>
                                     </div>
                                 ))
                             ) : (
@@ -1476,17 +2214,36 @@ const Dashboard: React.FC = () => {
                     <div className={`rounded-[2rem] border overflow-hidden transition-colors ${isDarkMode ? 'border-white/5 bg-black/20' : 'border-slate-200 bg-white shadow-sm'}`}>
                         <div className="p-8 border-b border-white/5 flex justify-between items-center">
                             <h3 className={`text-xl font-bold luxury-font uppercase ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Suppliers</h3>
-                            <button className="text-gold p-2 hover:bg-gold/10 rounded-lg transition-all"><Plus size={16}/></button>
+                            <button onClick={() => setShowAddSupplier(true)} className="text-gold p-2 hover:bg-gold/10 rounded-lg transition-all"><Plus size={16}/></button>
                         </div>
                         <div className="p-6 space-y-4">
                             {suppliers.length > 0 ? (
                                 suppliers.map(supp => (
-                                    <div key={supp.id} className="p-4 rounded-2xl bg-white/5 border border-white/5 flex items-center justify-between">
-                                        <div>
-                                            <p className="font-bold text-sm">{supp.name}</p>
-                                            <p className={`text-[10px] opacity-40 uppercase tracking-widest font-black ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>{supp.contact_info || 'No contact info'}</p>
+                                    <div key={supp.id} className={`p-4 rounded-2xl border flex items-center justify-between gap-4 ${isDarkMode ? 'bg-white/5 border-white/5' : 'bg-slate-50 border-slate-100'}`}>
+                                        <div className="min-w-0">
+                                            <p className="font-bold text-sm truncate">{supp.name}</p>
+                                            <p className={`text-[10px] opacity-40 uppercase tracking-widest font-black truncate ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>{supp.contact_info || 'No contact info'}</p>
                                         </div>
-                                        <ChevronRight size={16} className="opacity-20" />
+                                        <div className="flex items-center gap-2 shrink-0">
+                                            <button
+                                                onClick={() => {
+                                                    setEditingSupplier(supp);
+                                                    setNewSupplier({ name: supp.name || '', contact_info: supp.contact_info || '' });
+                                                    setShowAddSupplier(true);
+                                                }}
+                                                className={`p-2 rounded-xl transition-all ${isDarkMode ? 'bg-white/5 hover:bg-white/10 text-gold' : 'bg-white hover:bg-slate-100 text-slate-700'}`}
+                                                title="Edit supplier"
+                                            >
+                                                <Edit2 size={14} />
+                                            </button>
+                                            <button
+                                                onClick={() => handleDeleteSupplier(supp)}
+                                                className={`p-2 rounded-xl transition-all ${isDarkMode ? 'bg-white/5 hover:bg-rose-500/20 text-rose-400' : 'bg-white hover:bg-rose-50 text-rose-600'}`}
+                                                title="Delete supplier"
+                                            >
+                                                <Trash2 size={14} />
+                                            </button>
+                                        </div>
                                     </div>
                                 ))
                             ) : (
@@ -1587,7 +2344,18 @@ const Dashboard: React.FC = () => {
                   <div className={`rounded-[2rem] border overflow-hidden transition-colors ${isDarkMode ? 'border-white/5 bg-black/20' : 'border-slate-200 bg-white shadow-sm'}`}>
                     <div className="p-8 border-b border-white/5 flex justify-between items-center">
                         <h3 className={`text-xl font-bold luxury-font uppercase ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Raw Materials</h3>
-                        {editMode && <button onClick={() => setShowAddMaterial(true)} className={`p-2 rounded-lg transition-all ${isDarkMode ? 'bg-gold/10 text-gold' : 'bg-slate-100 text-slate-900'}`}><Plus size={16}/></button>}
+                        {editMode && (
+                            <button 
+                                onClick={() => {
+                                    setEditingMaterialName(null);
+                                    setNewMaterial({ name: '', unit: 'g', price: 0, min_threshold: 0 });
+                                    setShowAddMaterial(true);
+                                }} 
+                                className={`p-2 rounded-lg transition-all ${isDarkMode ? 'bg-gold/10 text-gold' : 'bg-slate-100 text-slate-900'}`}
+                            >
+                                <Plus size={16}/>
+                            </button>
+                        )}
                     </div>
                     <table className="w-full text-left">
                         <thead>
@@ -1595,6 +2363,7 @@ const Dashboard: React.FC = () => {
                                 <th className="px-8 py-6">Ingredient</th>
                                 <th className="px-8 py-6">Level</th>
                                 <th className="px-8 py-6">Supplier</th>
+                                {editMode && <th className="px-8 py-6 text-right">Actions</th>}
                             </tr>
                         </thead>
                         <tbody className={`divide-y ${isDarkMode ? 'divide-white/5' : 'divide-slate-100'}`}>
@@ -1637,6 +2406,34 @@ const Dashboard: React.FC = () => {
                                             {(data as any).supplier || 'Standard'}
                                         </span>
                                     </td>
+                                    {editMode && (
+                                        <td className="px-8 py-6 text-right">
+                                            <div className="flex justify-end">
+                                                <button 
+                                                    onClick={(e) => {
+                                                        const rect = e.currentTarget.getBoundingClientRect();
+                                                        openSelector({
+                                                            title: `Ingredient: ${name}`,
+                                                            label: "Select Action",
+                                                            value: "edit",
+                                                            type: "choice",
+                                                            options: [
+                                                                { label: "✏️ Edit Definition", value: "edit" },
+                                                                { label: "🗑️ Delete Ingredient", value: "delete" }
+                                                            ],
+                                                            onConfirm: (val) => {
+                                                                if (val === 'edit') startEditingMaterial(name, data);
+                                                                else if (val === 'delete') handleDeleteMaterial(name);
+                                                            }
+                                                        });
+                                                    }}
+                                                    className={`p-2 rounded-lg transition-all ${isDarkMode ? 'bg-white/5 text-cream/40 hover:text-gold hover:bg-gold/10' : 'bg-slate-50 text-slate-400 hover:text-slate-900 hover:bg-slate-100'}`}
+                                                >
+                                                    <Settings size={14}/>
+                                                </button>
+                                            </div>
+                                        </td>
+                                    )}
                                 </tr>
                             ))}
                         </tbody>
@@ -1662,20 +2459,46 @@ const Dashboard: React.FC = () => {
                       <div className="grid grid-cols-3 gap-2 mb-8 p-3 rounded-2xl bg-white/5 border border-white/5">
                        <div className="text-center">
                            <p className="text-[8px] uppercase font-black opacity-40 mb-1">Prep</p>
-                           <p className="text-xs font-bold">{p.prep_time}m</p>
+                           {editMode ? (
+                               <input 
+                                 type="number" 
+                                 value={p.prep_time}
+                                 onChange={(e) => handleUpdateProductField(p.id, 'prep_time', parseInt(e.target.value) || 0)}
+                                 className="w-full bg-transparent text-center font-bold text-xs outline-none"
+                               />
+                           ) : (
+                               <p className="text-xs font-bold">{p.prep_time}m</p>
+                           )}
                        </div>
                        <div className="text-center border-x border-white/5">
                            <p className="text-[8px] uppercase font-black opacity-40 mb-1">Cook</p>
-                           <p className="text-xs font-bold">{p.cook_time}m</p>
+                           {editMode ? (
+                               <input 
+                                 type="number" 
+                                 value={p.cook_time}
+                                 onChange={(e) => handleUpdateProductField(p.id, 'cook_time', parseInt(e.target.value) || 0)}
+                                 className="w-full bg-transparent text-center font-bold text-xs outline-none"
+                               />
+                           ) : (
+                               <p className="text-xs font-bold">{p.cook_time}m</p>
+                           )}
                        </div>
                        <div className="text-center">
                            <p className="text-[8px] uppercase font-black opacity-40 mb-1">Yield</p>
-                           <p className="text-xs font-bold">{p.yield_qty}</p>
+                           {editMode ? (
+                               <input 
+                                 type="number" 
+                                 value={p.yield_qty}
+                                 onChange={(e) => handleUpdateProductField(p.id, 'yield_qty', parseInt(e.target.value) || 0)}
+                                 className="w-full bg-transparent text-center font-bold text-xs outline-none"
+                               />
+                           ) : (
+                               <p className="text-xs font-bold">{p.yield_qty}</p>
+                           )}
                        </div>
                       </div>
 
-                      <div className="space-y-4 mb-8">
-
+                      <div className="space-y-2 mb-8">
                       {p.ingredients.map((ing, idx) => (
                         <div key={ing.name} className="flex justify-between items-center text-xs group/ing">
                           <span className={isDarkMode ? 'text-cream/40' : 'text-slate-500'}>{ing.name}</span>
@@ -1778,7 +2601,7 @@ const Dashboard: React.FC = () => {
                     <button onClick={runSimulation} className={`p-4 rounded-2xl shadow-lg transition-all hover:scale-105 active:scale-95 ${isDarkMode ? 'bg-gold text-charcoal shadow-gold-glow' : 'bg-slate-900 text-white'}`}><Zap size={24}/></button>
                   </div>
                   
-                  <div className="space-y-8 max-h-[600px] overflow-y-auto pr-6 custom-scrollbar">
+                  <div className="space-y-4 max-h-[600px] overflow-y-auto pr-6 custom-scrollbar">
                     {Object.entries(inventory.materials).map(([name, data]) => (
                       <div key={name} className="p-6 rounded-2xl border border-white/5 bg-white/5 space-y-4">
                         <div className="flex justify-between items-end">
@@ -1788,7 +2611,7 @@ const Dashboard: React.FC = () => {
                           </div>
                           <div className="text-right flex flex-col items-end gap-2">
                              <div className="flex items-center gap-2">
-                                <span className="text-[10px] font-black opacity-20 uppercase tracking-widest">New Price:</span>
+                                <span className="text-[10px] font-black opacity-20 uppercase tracking-widest">New:</span>
                                 <input 
                                     type="number" 
                                     step="0.01"
@@ -1897,29 +2720,40 @@ const Dashboard: React.FC = () => {
 
                         <div className="space-y-4">
                             {simulationResult.map((res: any) => {
-                                const marginDiff = res.margin_impact - ((inventory.products.find(p => p.name === res.name)?.price || 0 - (inventory.products.find(p => p.name === res.name)?.live_cost || 0)) / (inventory.products.find(p => p.name === res.name)?.price || 1) * 100);
+                                const isPositive = res.profit_delta > 0;
                                 return (
-                                    <div key={res.name} className={`p-6 rounded-2xl border transition-all ${isDarkMode ? 'bg-white/5 border-white/5' : 'bg-slate-50 border-slate-100'}`}>
-                                        <div className="flex justify-between items-center mb-4">
+                                    <motion.div 
+                                        key={res.name}
+                                        initial={{ opacity: 0, x: -10 }}
+                                        animate={{ opacity: 1, x: 0 }}
+                                        className={`p-6 rounded-3xl border transition-all ${isDarkMode ? 'border-white/5 bg-white/5' : 'border-slate-200 bg-white shadow-sm'}`}
+                                    >
+                                        <div className="flex justify-between items-start mb-4">
                                             <div>
-                                                <p className={`font-bold ${isDarkMode ? 'text-cream' : 'text-slate-900'}`}>{res.name}</p>
-                                                <p className="text-[10px] font-black uppercase tracking-widest text-gold">Projected Cost: {formatPrice(res.new_cost)}</p>
+                                                <h5 className="font-black luxury-font uppercase text-xs">{res.name}</h5>
+                                                <p className="text-[10px] opacity-40">Margin: {res.margin_impact}%</p>
                                             </div>
-                                            <div className="text-right">
-                                                <div className={`text-2xl font-black luxury-font ${res.margin_impact > 30 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                                                    {res.margin_impact.toFixed(1)}%
+                                            <div className={`px-3 py-1 rounded-full text-[10px] font-black ${isPositive ? 'bg-emerald-500/20 text-emerald-500' : 'bg-rose-500/20 text-rose-500'}`}>
+                                                {isPositive ? '+' : ''}{formatPrice(res.profit_delta)} / unit
+                                            </div>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div className="space-y-1">
+                                                <p className="text-[8px] font-black uppercase tracking-widest opacity-40">Unit Cost</p>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-xs line-through opacity-20">{formatPrice(res.old_cost)}</span>
+                                                    <span className="text-xs font-bold text-rose-400">{formatPrice(res.new_cost)}</span>
                                                 </div>
-                                                <p className="text-[10px] font-black uppercase tracking-widest opacity-20">New Margin</p>
+                                            </div>
+                                            <div className="space-y-1">
+                                                <p className="text-[8px] font-black uppercase tracking-widest opacity-40">Unit Profit</p>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-xs line-through opacity-20">{formatPrice(res.old_profit)}</span>
+                                                    <span className={`text-xs font-bold ${isPositive ? 'text-emerald-400' : 'text-rose-400'}`}>{formatPrice(res.new_profit)}</span>
+                                                </div>
                                             </div>
                                         </div>
-                                        <div className="w-full h-1 bg-white/5 rounded-full overflow-hidden">
-                                            <motion.div 
-                                                initial={{ width: 0 }}
-                                                animate={{ width: `${Math.min(100, Math.max(0, res.margin_impact))}%` }}
-                                                className={`h-full ${res.margin_impact > 30 ? 'bg-emerald-500' : 'bg-rose-500'}`}
-                                            />
-                                        </div>
-                                    </div>
+                                    </motion.div>
                                 );
                             })}
                             {!simulationResult.length && (
@@ -1954,7 +2788,10 @@ const Dashboard: React.FC = () => {
                             {tx.type === 'sale' && (
                               <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-all">
                                 <button 
-                                  onClick={() => window.open(`${API_BASE}/transactions/${tx.id}/receipt`, '_blank')}
+                                  onClick={() => {
+                                  const token = localStorage.getItem('bakery_token');
+                                  window.open(`${API_BASE}/transactions/${tx.id}/receipt?format=pdf&paper=80mm&token=${token}`, '_blank');
+                                }}
                                   className={`p-2 rounded-lg ${isDarkMode ? 'bg-gold/10 text-gold' : 'bg-slate-100 text-slate-900'}`}
                                   title="Print Receipt"
                                 >
@@ -2033,7 +2870,10 @@ const Dashboard: React.FC = () => {
                                   label: "Sheet Date",
                                   value: new Date().toISOString().split('T')[0],
                                   type: 'date',
-                                  onConfirm: (date) => window.open(`${API_BASE}/planner/prep-sheet?date=${date}`, '_blank')
+                                  onConfirm: (date) => {
+                                  const token = localStorage.getItem('bakery_token');
+                                  window.open(`${API_BASE}/planner/prep-sheet?date=${date}&token=${token}`, '_blank');
+                                }
                               });
                           }}
                           className={`flex items-center gap-3 px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${isDarkMode ? 'bg-gold/10 text-gold border border-gold/20 hover:bg-gold hover:text-charcoal' : 'bg-slate-900 text-white shadow-xl'}`}
@@ -2507,7 +3347,19 @@ const Dashboard: React.FC = () => {
                             </div>
 
                             <div className="space-y-2 max-h-[300px] overflow-y-auto custom-scrollbar">
-                                {isSearchingRecipes && <div className="py-10 flex justify-center animate-pulse text-gold text-xs font-black uppercase tracking-widest">Querying Global Matrix...</div>}
+                                {isSearchingRecipes && (
+                                  <div className="py-10 flex flex-col items-center justify-center gap-4 text-gold">
+                                    <div className="pinwheel pinwheel--sm" aria-hidden="true">
+                                      <div className="pinwheel__line"></div>
+                                      <div className="pinwheel__line"></div>
+                                      <div className="pinwheel__line"></div>
+                                      <div className="pinwheel__line"></div>
+                                      <div className="pinwheel__line"></div>
+                                      <div className="pinwheel__line"></div>
+                                    </div>
+                                    <div className="text-xs font-black uppercase tracking-widest">Querying Global Matrix...</div>
+                                  </div>
+                                )}
                                 {recipeSearchResults.map(recipe => (
                                     <div key={recipe.id} onClick={() => handleImportRecipe(recipe.id)} className={`flex items-center gap-4 p-3 rounded-xl border cursor-pointer transition-all hover:border-gold/40 ${isDarkMode ? 'bg-black/20 border-white/5' : 'bg-white border-slate-100'}`}>
                                         <img src={recipe.thumb} className="w-12 h-12 rounded-lg object-cover" alt={recipe.name} />
@@ -2622,13 +3474,28 @@ const Dashboard: React.FC = () => {
                             <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">Base Unit</label>
                             <select value={newMaterial.unit} onChange={(e)=>setNewMaterial({...newMaterial, unit: e.target.value})} className={`w-full bg-transparent border-b py-2 outline-none font-bold ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`}>
                                 <option value="g">Grams (g)</option>
+                                <option value="kg">Kilograms (kg)</option>
                                 <option value="ml">Milliliters (ml)</option>
+                                <option value="L">Liters (L)</option>
                                 <option value="unit">Unit</option>
                             </select>
                         </div>
                         <div>
-                            <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">Unit Price</label>
-                            <input type="number" step="0.001" value={newMaterial.price} onChange={(e)=>setNewMaterial({...newMaterial, price: parseFloat(e.target.value)})} className={`w-full bg-transparent border-b py-2 outline-none font-bold ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`} />
+                            <div className="flex justify-between items-center mb-2">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-gold block">Unit Price</label>
+                                {['g', 'ml'].includes(newMaterial.unit) && (
+                                    <button 
+                                        onClick={() => {
+                                            const val = prompt(`Enter price per ${newMaterial.unit === 'g' ? 'kg' : 'L'}:`);
+                                            if (val) setNewMaterial({...newMaterial, price: parseFloat(val) / 1000});
+                                        }}
+                                        className="text-[8px] font-black uppercase tracking-widest text-gold/40 hover:text-gold"
+                                    >
+                                        Set per {newMaterial.unit === 'g' ? 'kg' : 'L'}
+                                    </button>
+                                )}
+                            </div>
+                            <input type="number" step="0.00001" value={newMaterial.price} onChange={(e)=>setNewMaterial({...newMaterial, price: parseFloat(e.target.value)})} className={`w-full bg-transparent border-b py-2 outline-none font-bold ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`} />
                         </div>
                     </div>
                     <div>
@@ -2662,7 +3529,7 @@ const Dashboard: React.FC = () => {
 
                 <div className="bg-white p-8 rounded-[2.5rem] shadow-inner mb-8 flex justify-center">
                     <QRCodeSVG 
-                        value={`${window.location.origin}${API_BASE}/transactions/${lastTransaction.transaction_id}/receipt`}
+                        value={`${window.location.origin}${API_BASE}/transactions/${lastTransaction.transaction_id}/receipt?format=pdf&paper=80mm`}
                         size={200}
                         level="H"
                         includeMargin={true}
@@ -2670,14 +3537,17 @@ const Dashboard: React.FC = () => {
                 </div>
 
                 <div className="space-y-4">
-                    <p className="text-center text-[10px] font-bold uppercase tracking-[0.2em] opacity-40 mb-8">Scan to download PDF ledger</p>
+                    <p className="text-center text-[10px] font-bold uppercase tracking-[0.2em] opacity-40 mb-8">Scan to open thermal ticket</p>
                     
                     <div className="grid grid-cols-2 gap-4">
                         <button 
-                            onClick={() => window.open(`${API_BASE}/transactions/${lastTransaction.transaction_id}/receipt`, '_blank')}
+                            onClick={() => {
+                             const token = localStorage.getItem('bakery_token');
+                             window.open(`${API_BASE}/transactions/${lastTransaction.transaction_id}/receipt?format=pdf&paper=80mm&token=${token}`, '_blank');
+                           }}
                             className={`py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest border transition-all ${isDarkMode ? 'border-white/10 text-white hover:bg-white/5' : 'border-slate-200 text-slate-900'}`}
                         >
-                            Print PDF
+                            Print Ticket
                         </button>
                         <button 
                             onClick={() => {
@@ -2771,6 +3641,235 @@ const Dashboard: React.FC = () => {
                           >
                               Confirm
                           </button>
+                      </div>
+                  </div>
+              </motion.div>
+          </div>
+      )}
+      </AnimatePresence>
+
+      {/* Supplier Modal */}
+      <AnimatePresence>
+      {showAddSupplier && (
+          <div className="fixed inset-0 z-[450] flex items-center justify-center p-6 bg-black/80 backdrop-blur-xl animate-in fade-in duration-300">
+              <motion.div 
+                  initial={{ y: 20, opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  exit={{ y: 20, opacity: 0 }}
+                  className={`w-full max-w-md p-10 rounded-[3.5rem] border shadow-2xl ${isDarkMode ? 'bg-[#0a0a0b] border-white/10' : 'bg-white border-slate-200'}`}
+              >
+                  <h3 className="text-2xl font-bold luxury-font uppercase tracking-tighter mb-8">{editingSupplier ? 'Edit Supplier' : 'Add Supplier'}</h3>
+                  
+                  <div className="space-y-6">
+                      <div>
+                          <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">Supplier Name</label>
+                          <input 
+                              placeholder="Atlas Flour Co."
+                              value={newSupplier.name}
+                              onChange={e => setNewSupplier({...newSupplier, name: e.target.value})}
+                              className={`w-full bg-transparent border-b py-3 outline-none font-bold ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`}
+                              autoFocus
+                          />
+                      </div>
+
+                      <div>
+                          <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">Contact Info</label>
+                          <input 
+                              placeholder="+212... or vendor@email.com"
+                              value={newSupplier.contact_info}
+                              onChange={e => setNewSupplier({...newSupplier, contact_info: e.target.value})}
+                              className={`w-full bg-transparent border-b py-3 outline-none font-bold ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`}
+                          />
+                      </div>
+
+                      <div className="pt-6 flex gap-4">
+                          <button
+                              onClick={() => {
+                                  setShowAddSupplier(false);
+                                  setEditingSupplier(null);
+                                  setNewSupplier({ name: '', contact_info: '' });
+                              }}
+                              className="flex-1 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest border border-white/5 opacity-40 hover:opacity-100 transition-all"
+                          >
+                              Cancel
+                          </button>
+                          <button onClick={handleAddSupplier} className="flex-[2] py-4 rounded-2xl bg-gold text-charcoal font-black text-[10px] uppercase tracking-widest shadow-gold-glow">
+                              {editingSupplier ? 'Save Supplier' : 'Create Supplier'}
+                          </button>
+                      </div>
+                  </div>
+              </motion.div>
+          </div>
+      )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+      {showPOModal && selectedPO && (
+          <div className="fixed inset-0 z-[460] flex items-center justify-center p-4 bg-black/80 backdrop-blur-xl animate-in fade-in duration-300">
+              <motion.div
+                  initial={{ y: 20, opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  exit={{ y: 20, opacity: 0 }}
+                  className={`w-full max-w-4xl max-h-[90vh] overflow-hidden rounded-[2.5rem] border shadow-2xl ${isDarkMode ? 'bg-[#0a0a0b] border-white/10' : 'bg-white border-slate-200'}`}
+              >
+                  <div className={`p-8 border-b flex items-start justify-between gap-4 ${isDarkMode ? 'border-white/10' : 'border-slate-200'}`}>
+                      <div>
+                          <p className="text-[10px] font-black uppercase tracking-widest text-gold">Purchase Order</p>
+                          <h3 className="text-2xl font-bold luxury-font uppercase tracking-tighter mt-2">{selectedPO.id}</h3>
+                          <p className={`text-sm mt-2 ${isDarkMode ? 'text-cream/40' : 'text-slate-500'}`}>
+                              Review supplier details, set delivery timing, and receive stock without overposting.
+                          </p>
+                      </div>
+                      <button
+                          onClick={() => setShowPOModal(false)}
+                          className={`p-3 rounded-2xl transition-all ${isDarkMode ? 'bg-white/5 hover:bg-white/10 text-cream' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'}`}
+                      >
+                          <X size={18} />
+                      </button>
+                  </div>
+
+                  <div className="p-8 overflow-y-auto max-h-[calc(90vh-112px)] space-y-8 custom-scrollbar">
+                      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                          <div className={`rounded-3xl border p-5 space-y-3 ${isDarkMode ? 'border-white/5 bg-white/5' : 'border-slate-200 bg-slate-50'}`}>
+                              <label className="text-[10px] font-black uppercase tracking-widest text-gold block">Supplier</label>
+                              <select
+                                  value={selectedPO.supplier_id}
+                                  onChange={(e) => setSelectedPO((prev: any) => ({ ...prev, supplier_id: Number(e.target.value) }))}
+                                  className={`w-full border-b py-3 px-2 outline-none text-[10px] font-black uppercase tracking-widest rounded-xl ${isDarkMode ? 'bg-black text-gold border-white/10' : 'bg-white text-slate-700 border-slate-200'}`}
+                              >
+                                  {suppliers.map((supp: any) => (
+                                      <option key={supp.id} value={supp.id}>{supp.name}</option>
+                                  ))}
+                              </select>
+                              <p className={`text-xs ${isDarkMode ? 'text-cream/40' : 'text-slate-500'}`}>
+                                  {suppliers.find((supp: any) => supp.id === selectedPO.supplier_id)?.contact_info || 'No contact info'}
+                              </p>
+                          </div>
+
+                          <div className={`rounded-3xl border p-5 space-y-3 ${isDarkMode ? 'border-white/5 bg-white/5' : 'border-slate-200 bg-slate-50'}`}>
+                              <label className="text-[10px] font-black uppercase tracking-widest text-gold block">Expected Delivery</label>
+                              <input
+                                  type="date"
+                                  value={selectedPO.expected_delivery_date || ''}
+                                  onChange={(e) => setSelectedPO((prev: any) => ({ ...prev, expected_delivery_date: e.target.value }))}
+                                  className={`w-full bg-transparent border-b py-3 outline-none font-bold ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`}
+                              />
+                              <p className={`text-xs ${isDarkMode ? 'text-cream/40' : 'text-slate-500'}`}>Use this for delivery planning and receiving follow-up.</p>
+                          </div>
+
+                          <div className={`rounded-3xl border p-5 space-y-3 ${isDarkMode ? 'border-white/5 bg-white/5' : 'border-slate-200 bg-slate-50'}`}>
+                              <label className="text-[10px] font-black uppercase tracking-widest text-gold block">Status</label>
+                              <div className="flex items-center justify-between gap-3">
+                                  <span className={`px-3 py-2 rounded-full text-[10px] font-black uppercase tracking-widest ${selectedPO.status === 'received' ? 'bg-emerald-500/10 text-emerald-500' : selectedPO.status === 'partial' ? 'bg-amber-500/10 text-amber-500' : 'bg-gold/10 text-gold'}`}>
+                                      {selectedPO.status}
+                                  </span>
+                                  <p className={`text-xs text-right ${isDarkMode ? 'text-cream/40' : 'text-slate-500'}`}>
+                                      {new Date(selectedPO.date).toLocaleDateString()}
+                                  </p>
+                              </div>
+                              <p className={`text-xs ${isDarkMode ? 'text-cream/40' : 'text-slate-500'}`}>Ordered lines: {selectedPO.items.length}</p>
+                          </div>
+                      </div>
+
+                      <div className={`rounded-3xl border p-5 space-y-3 ${isDarkMode ? 'border-white/5 bg-white/5' : 'border-slate-200 bg-slate-50'}`}>
+                          <label className="text-[10px] font-black uppercase tracking-widest text-gold block">Order Notes</label>
+                          <textarea
+                              rows={4}
+                              value={selectedPO.notes || ''}
+                              onChange={(e) => setSelectedPO((prev: any) => ({ ...prev, notes: e.target.value }))}
+                              placeholder="Delivery window, substitutions, vendor instructions..."
+                              className={`w-full resize-none rounded-2xl border px-4 py-4 outline-none text-sm ${isDarkMode ? 'bg-black/40 border-white/10 text-cream placeholder:text-cream/20' : 'bg-white border-slate-200 text-slate-900 placeholder:text-slate-400'}`}
+                          />
+                      </div>
+
+                      <div className={`rounded-3xl border overflow-hidden ${isDarkMode ? 'border-white/5 bg-white/5' : 'border-slate-200 bg-slate-50'}`}>
+                          <div className={`grid grid-cols-[minmax(0,1.6fr)_110px_110px_120px_120px] gap-4 px-5 py-4 text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-cream/40 border-b border-white/10' : 'text-slate-400 border-b border-slate-200'}`}>
+                              <span>Item</span>
+                              <span>Ordered</span>
+                              <span>Received</span>
+                              <span>Receive Now</span>
+                              <span>Unit Price</span>
+                          </div>
+                          <div className="divide-y divide-white/5">
+                              {selectedPO.items.map((item: any, idx: number) => {
+                                  const remaining = Math.max(0, (Number(item.qty) || 0) - (Number(item.received_qty) || 0));
+                                  const draft = poReceiveDraft[item.name] || { qty: 0, price: Number(item.price) || 0 };
+                                  return (
+                                      <div key={`${item.name}-${idx}`} className="grid grid-cols-[minmax(0,1.6fr)_110px_110px_120px_120px] gap-4 px-5 py-4 items-center">
+                                          <div className="min-w-0">
+                                              <p className={`font-bold text-sm truncate ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{item.name}</p>
+                                              <p className={`text-[10px] font-black uppercase tracking-widest mt-1 ${remaining > 0 ? 'text-amber-500' : 'text-emerald-500'}`}>
+                                                  {remaining > 0 ? `${remaining} pending` : 'Fully received'}
+                                              </p>
+                                          </div>
+                                          <span className="font-bold text-sm">{item.qty}</span>
+                                          <span className="font-bold text-sm">{Number(item.received_qty) || 0}</span>
+                                          <input
+                                              type="number"
+                                              min="0"
+                                              max={remaining}
+                                              step="0.01"
+                                              value={draft.qty}
+                                              onChange={(e) => {
+                                                  const nextQty = Number(e.target.value);
+                                                  setPoReceiveDraft((prev) => ({
+                                                      ...prev,
+                                                      [item.name]: {
+                                                          ...prev[item.name],
+                                                          qty: Number.isFinite(nextQty) ? nextQty : 0
+                                                      }
+                                                  }));
+                                              }}
+                                              className={`w-full rounded-xl border px-3 py-2 outline-none text-sm font-bold ${isDarkMode ? 'bg-black/40 border-white/10 text-cream' : 'bg-white border-slate-200 text-slate-900'}`}
+                                          />
+                                          <input
+                                              type="number"
+                                              min="0"
+                                              step="0.01"
+                                              value={draft.price}
+                                              onChange={(e) => {
+                                                  const nextPrice = Number(e.target.value);
+                                                  setPoReceiveDraft((prev) => ({
+                                                      ...prev,
+                                                      [item.name]: {
+                                                          ...prev[item.name],
+                                                          price: Number.isFinite(nextPrice) ? nextPrice : 0
+                                                      }
+                                                  }));
+                                              }}
+                                              className={`w-full rounded-xl border px-3 py-2 outline-none text-sm font-bold ${isDarkMode ? 'bg-black/40 border-white/10 text-cream' : 'bg-white border-slate-200 text-slate-900'}`}
+                                          />
+                                      </div>
+                                  );
+                              })}
+                          </div>
+                      </div>
+
+                      <div className="flex flex-wrap gap-3">
+                          <button
+                              onClick={handleSavePO}
+                              className={`px-6 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 transition-all ${isDarkMode ? 'bg-white/10 text-white hover:bg-white/15' : 'bg-slate-200 text-slate-900 hover:bg-slate-300'}`}
+                          >
+                              <Save size={14} />
+                              Save Order
+                          </button>
+                          <button
+                              onClick={handlePartialReceivePO}
+                              className="px-6 py-4 rounded-2xl bg-gold text-charcoal font-black text-[10px] uppercase tracking-widest shadow-gold-glow"
+                          >
+                              Receive Selected Items
+                          </button>
+                          {selectedPO.status !== 'received' && (
+                              <button
+                                  onClick={() => {
+                                      handleReceivePO(selectedPO.id);
+                                      setShowPOModal(false);
+                                  }}
+                                  className={`px-6 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${isDarkMode ? 'bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'}`}
+                              >
+                                  Receive Remaining
+                              </button>
+                          )}
                       </div>
                   </div>
               </motion.div>

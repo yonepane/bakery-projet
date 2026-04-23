@@ -15,8 +15,7 @@ frontend/node_modules/
 dist/
 frontend/dist/
 .DS_Store
-.env
-.env.local
+.env        
 
 # Gemini / IDE
 .claude/

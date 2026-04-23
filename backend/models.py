@@ -121,6 +121,8 @@ class PurchaseOrder(Base):
     date = Column(DateTime, default=datetime.datetime.utcnow)
     supplier_id = Column(Integer, ForeignKey("suppliers.id"))
     items = Column(JSON) # List of {name, qty, price}
+    notes = Column(String, nullable=True)
+    expected_delivery_date = Column(DateTime, nullable=True)
     status = Column(String, default="draft") # draft, ordered, received
 
 class Planner(Base):

@@ -2,35 +2,45 @@ import json
 import os
 import sys
 import uuid
+import csv
 from datetime import datetime, timedelta
-from typing import List, Dict, Optional
+from io import BytesIO
+from io import StringIO
+from typing import Dict, List, Optional
 
-from fastapi import FastAPI, HTTPException, Request, Depends
+import jwt
+import sqlalchemy.orm
+from sqlalchemy import text
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, HTMLResponse, Response
 from fastapi.security import OAuth2PasswordBearer
 from fastapi.staticfiles import StaticFiles
 from passlib.context import CryptContext
 from pydantic import BaseModel
-from sqlalchemy.orm import Session
-import jwt
+from reportlab.lib import colors
+from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+from reportlab.lib.units import mm
+from reportlab.platypus import HRFlowable, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 if CURRENT_DIR not in sys.path:
     sys.path.append(CURRENT_DIR)
 
 try:
-    from .database import engine, SessionLocal, Base, get_db
     from . import models
+    from .database import Base, SessionLocal, engine, get_db
 except ImportError:
-    from database import engine, SessionLocal, Base, get_db
     import models
+    from database import Base, SessionLocal, engine, get_db
 
 VERCEL_ENV = os.getenv("VERCEL_ENV", "").lower()
 ENVIRONMENT = os.getenv("ENVIRONMENT", "development").lower()
 IS_LOCAL_DEV = VERCEL_ENV in ("", "development") and ENVIRONMENT == "development"
 
-# Security
+#security 
 SECRET_KEY = os.getenv("SECRET_KEY")
 if not SECRET_KEY:
     if not IS_LOCAL_DEV:
@@ -44,11 +54,22 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 def init_db():
     try:
         models.Base.metadata.create_all(bind=engine)
+        ensure_runtime_schema()
         print("SaaS Database: Tables confirmed.")
     except Exception as e:
         print(f"DATABASE FATAL ERROR: {e}")
         if not IS_LOCAL_DEV:
             raise e
+
+def ensure_runtime_schema():
+    if engine.dialect.name != "sqlite":
+        return
+    with engine.begin() as conn:
+        po_columns = {row[1] for row in conn.execute(text("PRAGMA table_info(purchase_orders)"))}
+        if "notes" not in po_columns:
+            conn.execute(text("ALTER TABLE purchase_orders ADD COLUMN notes VARCHAR"))
+        if "expected_delivery_date" not in po_columns:
+            conn.execute(text("ALTER TABLE purchase_orders ADD COLUMN expected_delivery_date DATETIME"))
 
 def verify_password(plain_password, hashed_password):
     return pwd_context.verify(plain_password, hashed_password)
@@ -62,13 +83,27 @@ def create_access_token(data: dict):
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
-async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+async def get_current_user(
+    request: Request, 
+    db: sqlalchemy.orm.Session = Depends(get_db)
+):
+    token = request.query_params.get("token")
+    
+    # 2. Try Authorization header
+    if not token:
+        auth_header = request.headers.get("Authorization")
+        if auth_header and auth_header.startswith("Bearer "):
+            token = auth_header.split(" ")[1]
+
+    if not token:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         username: str = payload.get("sub")
         if username is None:
             raise HTTPException(status_code=401, detail="Invalid token")
-    except:
+    except jwt.PyJWTError:
         raise HTTPException(status_code=401, detail="Invalid token")
         
     user = db.query(models.User).filter(models.User.username == username).first()
@@ -90,6 +125,397 @@ def requires_roles(roles: List[str]):
             )
         return current_user
     return role_checker
+
+
+def _pdf_response(buffer: BytesIO, filename: str) -> Response:
+    return Response(
+        content=buffer.getvalue(),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="{filename}"'},
+    )
+
+
+def _format_money(value: float, currency: str) -> str:
+    return f"{value:,.2f} {currency}"
+
+
+def _report_styles():
+    styles = getSampleStyleSheet()
+    return {
+        "eyebrow": ParagraphStyle(
+            "BakeryEyebrow",
+            parent=styles["BodyText"],
+            fontName="Helvetica-Bold",
+            fontSize=9,
+            leading=11,
+            textColor=colors.HexColor("#8f8f93"),
+            alignment=TA_LEFT,
+        ),
+        "logo": ParagraphStyle(
+            "BakeryLogo",
+            parent=styles["Heading1"],
+            fontName="Helvetica-Bold",
+            fontSize=24,
+            leading=28,
+            textColor=colors.HexColor("#111111"),
+        ),
+        "title": ParagraphStyle(
+            "BakeryTitle",
+            parent=styles["Heading1"],
+            fontName="Helvetica-Bold",
+            fontSize=28,
+            leading=32,
+            textColor=colors.HexColor("#111111"),
+        ),
+        "subtitle": ParagraphStyle(
+            "BakerySubtitle",
+            parent=styles["BodyText"],
+            fontName="Helvetica",
+            fontSize=11,
+            leading=16,
+            textColor=colors.HexColor("#6b7280"),
+        ),
+        "card_label": ParagraphStyle(
+            "BakeryCardLabel",
+            parent=styles["BodyText"],
+            fontName="Helvetica-Bold",
+            fontSize=8,
+            leading=10,
+            textColor=colors.HexColor("#8f8f93"),
+        ),
+        "card_value": ParagraphStyle(
+            "BakeryCardValue",
+            parent=styles["BodyText"],
+            fontName="Helvetica-Bold",
+            fontSize=20,
+            leading=24,
+            textColor=colors.HexColor("#111111"),
+        ),
+        "card_value_inverse": ParagraphStyle(
+            "BakeryCardValueInverse",
+            parent=styles["BodyText"],
+            fontName="Helvetica-Bold",
+            fontSize=22,
+            leading=26,
+            textColor=colors.white,
+        ),
+        "body": ParagraphStyle(
+            "BakeryBody",
+            parent=styles["BodyText"],
+            fontName="Helvetica",
+            fontSize=10,
+            leading=14,
+            textColor=colors.HexColor("#3f3f46"),
+        ),
+        "body_right": ParagraphStyle(
+            "BakeryBodyRight",
+            parent=styles["BodyText"],
+            fontName="Helvetica",
+            fontSize=10,
+            leading=14,
+            alignment=TA_RIGHT,
+            textColor=colors.HexColor("#3f3f46"),
+        ),
+        "footer": ParagraphStyle(
+            "BakeryFooter",
+            parent=styles["BodyText"],
+            fontName="Helvetica-Bold",
+            fontSize=8,
+            leading=10,
+            alignment=TA_CENTER,
+            textColor=colors.HexColor("#a1a1aa"),
+        ),
+        "receipt_header": ParagraphStyle(
+            "BakeryReceiptHeader",
+            parent=styles["Heading1"],
+            fontName="Helvetica-Bold",
+            fontSize=18,
+            leading=20,
+            alignment=TA_CENTER,
+            textColor=colors.HexColor("#111111"),
+        ),
+        "receipt_meta": ParagraphStyle(
+            "BakeryReceiptMeta",
+            parent=styles["BodyText"],
+            fontName="Helvetica",
+            fontSize=8.5,
+            leading=11,
+            alignment=TA_CENTER,
+            textColor=colors.HexColor("#52525b"),
+        ),
+        "receipt_body": ParagraphStyle(
+            "BakeryReceiptBody",
+            parent=styles["BodyText"],
+            fontName="Helvetica",
+            fontSize=9,
+            leading=12,
+            textColor=colors.HexColor("#18181b"),
+        ),
+        "receipt_body_right": ParagraphStyle(
+            "BakeryReceiptBodyRight",
+            parent=styles["BodyText"],
+            fontName="Helvetica-Bold",
+            fontSize=9,
+            leading=12,
+            alignment=TA_RIGHT,
+            textColor=colors.HexColor("#18181b"),
+        ),
+    }
+
+
+def _receipt_page_size_mm(tx, paper: str) -> tuple[float, float]:
+    paper_width = 58 if paper == "58mm" else 80
+    item_count = len(tx.items or [])
+    # Thermal printers need enough vertical room for the full ticket. Undersizing
+    # here causes ReportLab to spill the receipt onto a second page.
+    paper_height = max(125, 96 + (item_count * 18))
+    return paper_width, paper_height
+
+
+def _build_receipt_pdf(tx, currency: str, paper: str = "80mm") -> BytesIO:
+    styles = _report_styles()
+    buffer = BytesIO()
+    page_width_mm, page_height_mm = _receipt_page_size_mm(tx, paper)
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=(page_width_mm * mm, page_height_mm * mm),
+        leftMargin=6 * mm,
+        rightMargin=6 * mm,
+        topMargin=7 * mm,
+        bottomMargin=6 * mm,
+        title=f"Receipt {tx.id}",
+    )
+
+    story = [
+        Paragraph("BAKERY OS", styles["receipt_header"]),
+        Spacer(1, 2 * mm),
+        Paragraph("Luxe Boulangerie Patisserie", styles["receipt_meta"]),
+        Spacer(1, 3 * mm),
+        HRFlowable(width="100%", thickness=1, color=colors.black, dash=[3, 2]),
+        Spacer(1, 3 * mm),
+        Paragraph(f"ID: {tx.id}", styles["receipt_meta"]),
+        Paragraph(tx.timestamp.strftime("%Y-%m-%d %H:%M:%S"), styles["receipt_meta"]),
+        Spacer(1, 3 * mm),
+        HRFlowable(width="100%", thickness=1, color=colors.black, dash=[3, 2]),
+        Spacer(1, 4 * mm),
+    ]
+
+    line_rows = [["Item", "Total"]]
+    if tx.items:
+        for item in tx.items:
+            qty = item.get("qty", 1)
+            name = item.get("name", "Product")
+            price = float(item.get("price", 0))
+            line_rows.append([
+                Paragraph(f"{name}<br/><font size='8' color='#71717a'>x{qty} @ {price:.2f} {currency}</font>", styles["receipt_body"]),
+                Paragraph(_format_money(round(price * qty, 2), currency), styles["receipt_body_right"]),
+            ])
+    else:
+        line_rows.append([
+            Paragraph("No line items recorded", styles["receipt_body"]),
+            Paragraph("-", styles["receipt_body_right"]),
+        ])
+
+    content_width = page_width_mm - 12
+    items_table = Table(line_rows, colWidths=[content_width * 0.64 * mm, content_width * 0.36 * mm], hAlign="LEFT")
+    items_table.setStyle(TableStyle([
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTSIZE", (0, 0), (-1, 0), 8),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#71717a")),
+        ("BOTTOMPADDING", (0, 0), (-1, 0), 5),
+        ("LINEBELOW", (0, 0), (-1, 0), 0.75, colors.HexColor("#d4d4d8")),
+        ("TOPPADDING", (0, 1), (-1, -1), 5),
+        ("BOTTOMPADDING", (0, 1), (-1, -1), 5),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+    ]))
+    story.extend([items_table, Spacer(1, 4 * mm)])
+
+    total_table = Table(
+        [[
+            Paragraph("TOTAL", styles["receipt_body"]),
+            Paragraph(_format_money(round(tx.total_revenue, 2), currency), styles["receipt_body_right"]),
+        ]],
+        colWidths=[content_width * 0.4 * mm, content_width * 0.6 * mm],
+        hAlign="LEFT",
+    )
+    total_table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#111111")),
+        ("TEXTCOLOR", (0, 0), (-1, -1), colors.white),
+        ("FONTNAME", (0, 0), (-1, -1), "Helvetica-Bold"),
+        ("TOPPADDING", (0, 0), (-1, -1), 8),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+        ("LEFTPADDING", (0, 0), (-1, -1), 10),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 10),
+    ]))
+    story.extend([
+        total_table,
+        Spacer(1, 4 * mm),
+        Paragraph("THANK YOU FOR YOUR VISIT!", styles["receipt_meta"]),
+        Paragraph("Merci de votre visite!", styles["receipt_meta"]),
+        Spacer(1, 2 * mm),
+        Paragraph("www.bakeryos.app", styles["footer"]),
+    ])
+
+    doc.build(story)
+    buffer.seek(0)
+    return buffer
+
+
+def _build_monthly_report_pdf(
+    *,
+    start_date: datetime,
+    transactions,
+    expenses,
+    waste_records,
+    total_revenue: float,
+    total_cogs: float,
+    total_waste: float,
+    total_overhead: float,
+    net_profit: float,
+    margin: float,
+    currency: str,
+) -> BytesIO:
+    styles = _report_styles()
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        leftMargin=18 * mm,
+        rightMargin=18 * mm,
+        topMargin=18 * mm,
+        bottomMargin=16 * mm,
+        title=f"Monthly Report {start_date.strftime('%B %Y')}",
+    )
+
+    sales_count = len([t for t in transactions if t.type == "sale"])
+    summary_cards = [
+        ("Total Revenue", _format_money(total_revenue, currency), colors.HexColor("#111111"), colors.white),
+        ("Net Profit", _format_money(net_profit, currency), colors.HexColor("#f8f9fa"), colors.HexColor("#10b981") if net_profit >= 0 else colors.HexColor("#f43f5e")),
+        ("Cost of Goods", _format_money(total_cogs, currency), colors.HexColor("#f8f9fa"), colors.HexColor("#111111")),
+        ("Waste Loss", _format_money(total_waste, currency), colors.HexColor("#f8f9fa"), colors.HexColor("#f43f5e")),
+        ("Fixed Overhead", _format_money(total_overhead, currency), colors.HexColor("#f8f9fa"), colors.HexColor("#f43f5e")),
+        ("Operating Margin", f"{margin:.1f}%", colors.HexColor("#111111"), colors.HexColor("#d4af37")),
+    ]
+
+    story = [
+        Table(
+            [[
+                Paragraph("Bakery<font color='#d4af37'>OS</font>", styles["logo"]),
+                Paragraph(
+                    f"<para align='right'><b>Executive Financial Summary</b><br/><font color='#6b7280'>Period: {start_date.strftime('%B %Y')}</font></para>",
+                    styles["body"],
+                ),
+            ]],
+            colWidths=[90 * mm, 72 * mm],
+        ),
+        Spacer(1, 8 * mm),
+        Paragraph("Financial Performance", styles["title"]),
+        Spacer(1, 2 * mm),
+        Paragraph(
+            "This report summarizes the operational efficiency and net profitability for the selected period.",
+            styles["subtitle"],
+        ),
+        Spacer(1, 8 * mm),
+    ]
+
+    card_rows = []
+    for index in range(0, len(summary_cards), 2):
+        row = []
+        for label, value, bg, value_color in summary_cards[index:index + 2]:
+            label_style = styles["card_label"]
+            value_style = styles["card_value"] if bg != colors.HexColor("#111111") else styles["card_value_inverse"]
+            if bg != colors.HexColor("#111111"):
+                value_style = ParagraphStyle(
+                    f"{value_style.name}-{label}",
+                    parent=value_style,
+                    textColor=value_color,
+                )
+            row.append(
+                Table(
+                    [[Paragraph(label.upper(), label_style)], [Paragraph(value, value_style)]],
+                    colWidths=[78 * mm],
+                )
+            )
+        if len(row) < 2:
+            row.append("")
+        card_rows.append(row)
+
+    cards_table = Table(card_rows, colWidths=[82 * mm, 82 * mm], rowHeights=[26 * mm] * len(card_rows), hAlign="LEFT")
+    cards_style = TableStyle([
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 0),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+        ("TOPPADDING", (0, 0), (-1, -1), 0),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+    ])
+    card_index = 0
+    for row_index, row in enumerate(card_rows):
+        for col_index, _ in enumerate(row):
+            if card_index >= len(summary_cards):
+                continue
+            _, _, bg, _ = summary_cards[card_index]
+            cards_style.add("BACKGROUND", (col_index, row_index), (col_index, row_index), bg)
+            cards_style.add("BOX", (col_index, row_index), (col_index, row_index), 0.75, colors.HexColor("#ececec") if bg != colors.HexColor("#111111") else bg)
+            cards_style.add("ROUNDEDCORNERS", (col_index, row_index), (col_index, row_index), 10)
+            cards_style.add("LEFTPADDING", (col_index, row_index), (col_index, row_index), 10)
+            cards_style.add("RIGHTPADDING", (col_index, row_index), (col_index, row_index), 10)
+            cards_style.add("TOPPADDING", (col_index, row_index), (col_index, row_index), 10)
+            cards_style.add("BOTTOMPADDING", (col_index, row_index), (col_index, row_index), 8)
+            card_index += 1
+    cards_table.setStyle(cards_style)
+    story.extend([cards_table, Spacer(1, 10 * mm)])
+
+    story.extend([
+        Paragraph("Revenue Breakdown", ParagraphStyle("SectionHeading", parent=styles["body"], fontName="Helvetica-Bold", fontSize=14, leading=18, textColor=colors.HexColor("#111111"))),
+        Spacer(1, 3 * mm),
+    ])
+
+    breakdown_rows = [
+        [
+            Paragraph("<b>Category</b>", styles["body"]),
+            Paragraph("<b>Transactions</b>", styles["body"]),
+            Paragraph("<b>Amount</b>", styles["body_right"]),
+        ],
+        [
+            Paragraph("Direct Sales", styles["body"]),
+            Paragraph(str(sales_count), styles["body"]),
+            Paragraph(_format_money(total_revenue, currency), styles["body_right"]),
+        ],
+        [
+            Paragraph("Fixed Expenses", styles["body"]),
+            Paragraph(str(len(expenses)), styles["body"]),
+            Paragraph(f"-{_format_money(total_overhead, currency)}", styles["body_right"]),
+        ],
+        [
+            Paragraph("Waste Deductions", styles["body"]),
+            Paragraph(str(len(waste_records)), styles["body"]),
+            Paragraph(f"-{_format_money(total_waste, currency)}", styles["body_right"]),
+        ],
+    ]
+    breakdown_table = Table(breakdown_rows, colWidths=[82 * mm, 35 * mm, 45 * mm], hAlign="LEFT")
+    breakdown_table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#f8f9fa")),
+        ("LINEBELOW", (0, 0), (-1, 0), 0.75, colors.HexColor("#e5e7eb")),
+        ("LINEBELOW", (0, 1), (-1, -1), 0.5, colors.HexColor("#f1f5f9")),
+        ("TOPPADDING", (0, 0), (-1, -1), 9),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 9),
+        ("LEFTPADDING", (0, 0), (-1, -1), 10),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 10),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("BOX", (0, 0), (-1, -1), 0.75, colors.HexColor("#eeeeee")),
+    ]))
+    story.extend([
+        breakdown_table,
+        Spacer(1, 18 * mm),
+        Paragraph(
+            f"Generated by BakeryOS Intel-Engine | {datetime.now().strftime('%Y-%m-%d %H:%M')}",
+            styles["footer"],
+        ),
+    ])
+
+    doc.build(story)
+    buffer.seek(0)
+    return buffer
 
 app = FastAPI(title="BakeryOS API")
 handler = app
@@ -154,9 +580,22 @@ class SupplierCreate(BaseModel):
     name: str
     contact_info: Optional[str] = None
 
+class POReceiveItem(BaseModel):
+    name: str
+    qty: float
+    price: Optional[float] = None
+
+class POReceive(BaseModel):
+    items: List[POReceiveItem]
+
+class SettingsUpdate(BaseModel):
+    updates: Dict[str, str]
+
 class POCreate(BaseModel):
     supplier_id: int
     items: List[Dict]
+    notes: Optional[str] = None
+    expected_delivery_date: Optional[str] = None
 
 class ExpenseCreate(BaseModel):
     category: str
@@ -230,7 +669,7 @@ def get_settings():
 
 @app.get("/api/seed", dependencies=[Depends(requires_roles(["owner"]))])
 async def seed_users(
-    db: Session = Depends(get_db),
+    db: sqlalchemy.orm.Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
     try:
@@ -252,8 +691,8 @@ async def seed_users(
     except Exception as e:
         return {"status": "Error", "message": str(e)}
 
-from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
+from google.oauth2 import id_token
 
 GOOGLE_CLIENT_ID = os.getenv(
     "GOOGLE_CLIENT_ID",
@@ -266,7 +705,7 @@ class GoogleLoginRequest(BaseModel):
     credential: str
 
 @app.post("/api/auth/google")
-async def google_login(req: GoogleLoginRequest, db: Session = Depends(get_db)):
+async def google_login(req: GoogleLoginRequest, db: sqlalchemy.orm.Session = Depends(get_db)):
     try:
         # 1. Real Verification with Google
         idinfo = id_token.verify_oauth2_token(req.credential, google_requests.Request(), GOOGLE_CLIENT_ID)
@@ -306,7 +745,7 @@ async def google_login(req: GoogleLoginRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="Google authentication failed")
 
 @app.post("/api/auth/signup")
-async def signup(req: LoginRequest, db: Session = Depends(get_db)):
+async def signup(req: LoginRequest, db: sqlalchemy.orm.Session = Depends(get_db)):
     # Check if user exists
     existing = db.query(models.User).filter(models.User.username == req.username).first()
     if existing:
@@ -325,7 +764,7 @@ async def signup(req: LoginRequest, db: Session = Depends(get_db)):
     return {"message": "Bakery registered successfully. You can now log in."}
 
 @app.post("/api/auth/login", response_model=Token)
-async def login(req: LoginRequest, db: Session = Depends(get_db)):
+async def login(req: LoginRequest, db: sqlalchemy.orm.Session = Depends(get_db)):
     user = db.query(models.User).filter(models.User.username == req.username).first()
     if not user or not verify_password(req.password, user.password):
         raise HTTPException(status_code=401, detail="Invalid username or password")
@@ -340,7 +779,7 @@ async def login(req: LoginRequest, db: Session = Depends(get_db)):
 
 # Staff Management
 @app.get("/api/staff", dependencies=[Depends(requires_roles(["owner"]))])
-async def get_staff(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+async def get_staff(db: sqlalchemy.orm.Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     return db.query(models.User).filter(models.User.parent_owner_id == current_user.id).all()
 
 class StaffCreate(BaseModel):
@@ -348,7 +787,7 @@ class StaffCreate(BaseModel):
     password: str
 
 @app.post("/api/staff", dependencies=[Depends(requires_roles(["owner"]))])
-async def create_staff(req: StaffCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+async def create_staff(req: StaffCreate, db: sqlalchemy.orm.Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     existing = db.query(models.User).filter(models.User.username == req.username).first()
     if existing:
         raise HTTPException(status_code=400, detail="Username already taken")
@@ -364,7 +803,7 @@ async def create_staff(req: StaffCreate, db: Session = Depends(get_db), current_
     return {"success": True}
 
 @app.delete("/api/staff/{username}", dependencies=[Depends(requires_roles(["owner"]))])
-async def delete_staff(username: str, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+async def delete_staff(username: str, db: sqlalchemy.orm.Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     user = db.query(models.User).filter(
         models.User.username == username,
         models.User.parent_owner_id == current_user.id
@@ -376,11 +815,11 @@ async def delete_staff(username: str, db: Session = Depends(get_db), current_use
     raise HTTPException(status_code=404, detail="Staff member not found")
 # Orders
 @app.get("/api/orders")
-async def get_orders(db: Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
+async def get_orders(db: sqlalchemy.orm.Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
     return db.query(models.Order).filter(models.Order.owner_id == owner_id).order_by(models.Order.pickup_date.asc()).all()
 
 @app.post("/api/orders")
-async def create_order(order_data: OrderCreate, db: Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
+async def create_order(order_data: OrderCreate, db: sqlalchemy.orm.Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
     total_price = 0
     items_snapshot = []
     
@@ -414,7 +853,7 @@ async def create_order(order_data: OrderCreate, db: Session = Depends(get_db), o
     return new_order
 
 @app.patch("/api/orders/{id}/status")
-async def update_order_status(id: str, status: str, db: Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
+async def update_order_status(id: str, status: str, db: sqlalchemy.orm.Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
     order = db.query(models.Order).filter(
         models.Order.id == id,
         models.Order.owner_id == owner_id
@@ -427,7 +866,7 @@ async def update_order_status(id: str, status: str, db: Session = Depends(get_db
 
 # Waste
 @app.post("/api/waste")
-async def record_waste(waste: WasteCreate, db: Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
+async def record_waste(waste: WasteCreate, db: sqlalchemy.orm.Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
     product = db.query(models.Product).filter(
         models.Product.id == waste.product_id,
         models.Product.owner_id == owner_id
@@ -451,8 +890,25 @@ async def record_waste(waste: WasteCreate, db: Session = Depends(get_db), owner_
     db.commit()
     return {"success": True}
 
+@app.get("/api/waste", dependencies=[Depends(requires_roles(["owner"]))])
+async def get_waste(db: sqlalchemy.orm.Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
+    records = db.query(models.WasteRecord).filter(
+        models.WasteRecord.owner_id == owner_id
+    ).order_by(models.WasteRecord.date.desc()).all()
+    return [
+        {
+            "id": record.id,
+            "date": record.date.isoformat(),
+            "product_id": record.product_id,
+            "product_name": record.product.name if record.product else "Unknown",
+            "quantity": record.quantity,
+            "loss_cost": record.loss_cost,
+        }
+        for record in records
+    ]
+
 @app.get("/api/inventory")
-async def inventory(db: Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
+async def inventory(db: sqlalchemy.orm.Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
     ingredients = db.query(models.Ingredient).filter(models.Ingredient.owner_id == owner_id).all()
     products = db.query(models.Product).filter(models.Product.owner_id == owner_id).all()
     
@@ -489,7 +945,7 @@ async def inventory(db: Session = Depends(get_db), owner_id: int = Depends(get_e
     }
 
 @app.get("/api/planner/prep-sheet")
-async def get_prep_sheet(db: Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
+async def get_prep_sheet(db: sqlalchemy.orm.Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
     pending = db.query(models.Planner).filter(
         models.Planner.owner_id == owner_id,
         models.Planner.status == 'pending'
@@ -596,7 +1052,7 @@ async def get_prep_sheet(db: Session = Depends(get_db), owner_id: int = Depends(
     return HTMLResponse(content=html_content)
 
 @app.get("/api/history")
-async def get_history(db: Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
+async def get_history(db: sqlalchemy.orm.Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
     transactions = db.query(models.Transaction).filter(models.Transaction.owner_id == owner_id).order_by(models.Transaction.timestamp.desc()).all()
     return [
         {
@@ -611,11 +1067,11 @@ async def get_history(db: Session = Depends(get_db), owner_id: int = Depends(get
     ]
 
 @app.get("/api/planner")
-async def get_planner(db: Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
+async def get_planner(db: sqlalchemy.orm.Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
     return db.query(models.Planner).filter(models.Planner.owner_id == owner_id).all()
 
 @app.post("/api/planner")
-async def update_planner(plan: List[Dict], db: Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
+async def update_planner(plan: List[Dict], db: sqlalchemy.orm.Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
     # Clear old plan for this owner
     db.query(models.Planner).filter(models.Planner.owner_id == owner_id).delete()
     # Add new plan
@@ -633,12 +1089,30 @@ async def update_planner(plan: List[Dict], db: Session = Depends(get_db), owner_
     return {"success": True}
 
 @app.get("/api/settings")
-async def get_settings_api(db: Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
+async def get_settings_api(db: sqlalchemy.orm.Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
     settings = db.query(models.SystemSetting).filter(models.SystemSetting.owner_id == owner_id).all()
     return {s.key: s.value for s in settings}
 
+@app.patch("/api/settings", dependencies=[Depends(requires_roles(["owner"]))])
+async def update_settings(
+    payload: SettingsUpdate,
+    db: sqlalchemy.orm.Session = Depends(get_db),
+    owner_id: int = Depends(get_effective_owner_id)
+):
+    for key, value in payload.updates.items():
+        setting = db.query(models.SystemSetting).filter(
+            models.SystemSetting.key == key,
+            models.SystemSetting.owner_id == owner_id
+        ).first()
+        if setting:
+            setting.value = value
+        else:
+            db.add(models.SystemSetting(key=key, owner_id=owner_id, value=value))
+    db.commit()
+    return {"success": True}
+
 @app.post("/api/produce")
-async def produce(batch: ProductionBatch, db: Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
+async def produce(batch: ProductionBatch, db: sqlalchemy.orm.Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
     product = db.query(models.Product).filter(
         models.Product.id == batch.product_id,
         models.Product.owner_id == owner_id
@@ -677,7 +1151,7 @@ async def produce(batch: ProductionBatch, db: Session = Depends(get_db), owner_i
 
     return {"success": True, "new_stock": product.stock}
 @app.post("/api/complete")
-async def complete_sale(req: SaleRequest, db: Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
+async def complete_sale(req: SaleRequest, db: sqlalchemy.orm.Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
     total_revenue = 0
     total_cost = 0
     items_snapshot = []
@@ -730,7 +1204,9 @@ async def complete_sale(req: SaleRequest, db: Session = Depends(get_db), owner_i
 @app.get("/api/transactions/{id}/receipt")
 async def get_receipt(
     id: str,
-    db: Session = Depends(get_db),
+    format: str = "pdf",
+    paper: str = "80mm",
+    db: sqlalchemy.orm.Session = Depends(get_db),
     owner_id: int = Depends(get_effective_owner_id),
 ):
     tx = db.query(models.Transaction).filter(
@@ -742,13 +1218,17 @@ async def get_receipt(
     
     settings = get_settings()
     currency = settings.get("currency", "MAD")
+    normalized_paper = "58mm" if paper.lower() == "58mm" else "80mm"
+
+    if format.lower() == "pdf":
+        return _pdf_response(_build_receipt_pdf(tx, currency, normalized_paper), f"receipt-{tx.id}.pdf")
     
     html_content = f"""
     <html>
     <head>
         <title>Receipt - {tx.id}</title>
         <style>
-            body {{ font-family: 'Courier New', Courier, monospace; width: 300px; margin: 0 auto; padding: 20px; border: 1px solid #eee; background: white; color: black; }}
+            body {{ font-family: 'Courier New', Courier, monospace; width: 80mm; margin: 0 auto; padding: 4mm; border: 1px solid #eee; background: white; color: black; }}
             .center {{ text-align: center; }}
             .header {{ font-weight: bold; font-size: 20px; margin-bottom: 5px; }}
             .separator {{ border-bottom: 1px dashed #000; margin: 10px 0; }}
@@ -756,7 +1236,8 @@ async def get_receipt(
             .total {{ font-weight: bold; display: flex; justify-content: space-between; margin-top: 10px; font-size: 16px; }}
             .footer {{ font-size: 12px; margin-top: 20px; color: #666; }}
             @media print {{
-                body {{ border: none; padding: 0; width: 100%; }}
+                @page {{ size: {normalized_paper} auto; margin: 0; }}
+                body {{ border: none; padding: 0; width: {normalized_paper}; }}
                 .no-print {{ display: none; }}
             }}
             .print-btn {{ background: #000; color: #fff; border: none; padding: 10px 20px; cursor: pointer; border-radius: 5px; margin-bottom: 20px; width: 100%; }}
@@ -804,11 +1285,10 @@ async def get_receipt(
     </html>
     """
     
-    from fastapi.responses import HTMLResponse
     return HTMLResponse(content=html_content)
 
 @app.get("/api/analytics", dependencies=[Depends(requires_roles(["owner"]))])
-async def analytics(db: Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
+async def analytics(db: sqlalchemy.orm.Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
     transactions = db.query(models.Transaction).filter(models.Transaction.owner_id == owner_id).all()
     waste_records = db.query(models.WasteRecord).filter(models.WasteRecord.owner_id == owner_id).all()
     settings_data = get_settings() # We could also make this per-owner later
@@ -873,6 +1353,17 @@ async def analytics(db: Session = Depends(get_db), owner_id: int = Depends(get_e
         for name, qty in sorted(product_stats.items(), key=lambda x: x[1], reverse=True)[:5]
     ]
 
+    # Global Intelligence Metrics
+    total_portfolio_cost = sum(calculate_product_cost(p) for p in db.query(models.Product).filter(models.Product.owner_id == owner_id).all())
+    avg_margin = 0
+    if top_products:
+        margins = []
+        for p in db.query(models.Product).filter(models.Product.owner_id == owner_id).all():
+            cost = calculate_product_cost(p)
+            if p.price > 0:
+                margins.append((p.price - cost) / p.price * 100)
+        avg_margin = sum(margins) / len(margins) if margins else 0
+
     return {
         "revenue": round(total_revenue, 2),
         "cost": round(total_cost, 2),
@@ -881,11 +1372,16 @@ async def analytics(db: Session = Depends(get_db), owner_id: int = Depends(get_e
         "currency": settings_data.get("currency", "MAD"),
         "chartData": daily_data,
         "hourlySales": hourly_sales,
-        "topProducts": top_products
+        "topProducts": top_products,
+        "intelligence": {
+            "total_portfolio_cost": round(total_portfolio_cost, 2),
+            "average_margin": f"{round(avg_margin, 2)}%",
+            "products_count": len(product_stats)
+        }
     }
 
 @app.get("/api/alerts")
-async def get_alerts(db: Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
+async def get_alerts(db: sqlalchemy.orm.Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
     ingredients = db.query(models.Ingredient).filter(models.Ingredient.owner_id == owner_id).all()
     products = db.query(models.Product).filter(models.Product.owner_id == owner_id).all()
     
@@ -915,8 +1411,27 @@ async def get_alerts(db: Session = Depends(get_db), owner_id: int = Depends(get_
             
     return alerts
 
+@app.get("/api/intelligence/profit-report", dependencies=[Depends(requires_roles(["owner"]))])
+async def profit_report(db: sqlalchemy.orm.Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
+    products = db.query(models.Product).filter(models.Product.owner_id == owner_id).all()
+    report = []
+    for p in products:
+        cost = calculate_product_cost(p)
+        profit = p.price - cost
+        roi = (profit / cost * 100) if cost > 0 else 0
+        report.append({
+            "product_id": p.id,
+            "product_name": p.name,
+            "cost_price": round(cost, 2),
+            "selling_price": round(p.price, 2),
+            "net_profit": round(profit, 2),
+            "roi_percentage": f"{round(roi, 2)}%",
+            "margin_percentage": f"{round((profit / p.price * 100), 2) if p.price > 0 else 0}%"
+        })
+    return report
+
 @app.post("/api/simulate_price", dependencies=[Depends(requires_roles(["owner"]))])
-async def simulate_price(materials_update: Dict[str, float], db: Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
+async def simulate_price(materials_update: Dict[str, float], db: sqlalchemy.orm.Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
     # Calculate impact on product costs without saving
     impact = []
     products = db.query(models.Product).filter(models.Product.owner_id == owner_id).all()
@@ -937,14 +1452,17 @@ async def simulate_price(materials_update: Dict[str, float], db: Session = Depen
             
         impact.append({
             "name": p.name,
-            "old_cost": old_cost,
-            "new_cost": new_cost,
-            "margin_impact": ((p.price - new_cost) / p.price * 100) if p.price > 0 else 0
+            "old_cost": round(old_cost, 2),
+            "new_cost": round(new_cost, 2),
+            "old_profit": round(p.price - old_cost, 2),
+            "new_profit": round(p.price - new_cost, 2),
+            "margin_impact": round(((p.price - new_cost) / p.price * 100) if p.price > 0 else 0, 2),
+            "profit_delta": round((p.price - new_cost) - (p.price - old_cost), 2)
         })
     return impact
 
 @app.post("/api/update_material_prices", dependencies=[Depends(requires_roles(["owner"]))])
-async def update_material_prices(materials_update: Dict[str, float], db: Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
+async def update_material_prices(materials_update: Dict[str, float], db: sqlalchemy.orm.Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
     for name, new_price in materials_update.items():
         ing = db.query(models.Ingredient).filter(
             models.Ingredient.name == name,
@@ -956,7 +1474,7 @@ async def update_material_prices(materials_update: Dict[str, float], db: Session
     return {"success": True}
 
 @app.post("/api/materials", dependencies=[Depends(requires_roles(["owner"]))])
-async def add_material(mat: MaterialCreate, db: Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
+async def add_material(mat: MaterialCreate, db: sqlalchemy.orm.Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
     existing = db.query(models.Ingredient).filter(
         models.Ingredient.name == mat.name,
         models.Ingredient.owner_id == owner_id
@@ -976,10 +1494,26 @@ async def add_material(mat: MaterialCreate, db: Session = Depends(get_db), owner
     db.commit()
     return {"success": True}
 
+@app.put("/api/materials/{name}", dependencies=[Depends(requires_roles(["owner"]))])
+async def update_material(name: str, mat: MaterialCreate, db: sqlalchemy.orm.Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
+    ing = db.query(models.Ingredient).filter(
+        models.Ingredient.name == name,
+        models.Ingredient.owner_id == owner_id
+    ).first()
+    if not ing:
+        raise HTTPException(status_code=404, detail="Material not found")
+    
+    ing.name = mat.name
+    ing.price = mat.price
+    ing.unit = mat.unit
+    ing.min_threshold = mat.min_threshold
+    db.commit()
+    return {"success": True}
+
 @app.delete("/api/materials/{name}", dependencies=[Depends(requires_roles(["owner"]))])
 async def delete_material(
     name: str,
-    db: Session = Depends(get_db),
+    db: sqlalchemy.orm.Session = Depends(get_db),
     owner_id: int = Depends(get_effective_owner_id),
 ):
     ing = db.query(models.Ingredient).filter(
@@ -993,7 +1527,7 @@ async def delete_material(
     raise HTTPException(status_code=404, detail="Material not found")
 
 @app.post("/api/products", dependencies=[Depends(requires_roles(["owner"]))])
-async def add_product(prod: ProductCreate, db: Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
+async def add_product(prod: ProductCreate, db: sqlalchemy.orm.Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
     if not prod.id.strip():
         raise HTTPException(status_code=400, detail="Product ID cannot be empty")
     
@@ -1053,7 +1587,7 @@ async def add_product(prod: ProductCreate, db: Session = Depends(get_db), owner_
     }
 
 @app.put("/api/products/{id}", dependencies=[Depends(requires_roles(["owner"]))])
-async def update_product(id: str, update: ProductUpdate, db: Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
+async def update_product(id: str, update: ProductUpdate, db: sqlalchemy.orm.Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
     product = db.query(models.Product).filter(
         models.Product.id == id,
         models.Product.owner_id == owner_id
@@ -1092,7 +1626,7 @@ async def update_product(id: str, update: ProductUpdate, db: Session = Depends(g
 @app.delete("/api/products/{id}", dependencies=[Depends(requires_roles(["owner"]))])
 async def delete_product(
     id: str,
-    db: Session = Depends(get_db),
+    db: sqlalchemy.orm.Session = Depends(get_db),
     owner_id: int = Depends(get_effective_owner_id),
 ):
     product = db.query(models.Product).filter(
@@ -1107,7 +1641,7 @@ async def delete_product(
 
 @app.post("/api/maintenance/delete-empty-products", dependencies=[Depends(requires_roles(["owner"]))])
 async def delete_empty_product(
-    db: Session = Depends(get_db),
+    db: sqlalchemy.orm.Session = Depends(get_db),
     owner_id: int = Depends(get_effective_owner_id),
 ):
     # Use direct SQL as a last resort if ORM is being tricky
@@ -1121,7 +1655,7 @@ async def delete_empty_product(
 
 @app.post("/api/maintenance/cleanup-products", dependencies=[Depends(requires_roles(["owner"]))])
 async def cleanup_invalid_products(
-    db: Session = Depends(get_db),
+    db: sqlalchemy.orm.Session = Depends(get_db),
     owner_id: int = Depends(get_effective_owner_id),
 ):
     # Delete anything with empty id or empty name
@@ -1268,17 +1802,15 @@ async def get_external_recipe_details(recipe_id: str, current_user: models.User 
     except Exception as e:
         raise HTTPException(status_code=503, detail=f"Service unavailable: {str(e)}")
 
-# Mount static files
-if os.path.exists(FRONTEND_DIR):
-    # Assets are usually in dist/assets
-    assets_path = os.path.join(FRONTEND_DIR, "assets")
-    if os.path.exists(assets_path):
-        app.mount("/assets", StaticFiles(directory=assets_path), name="assets")
+# Mount static files (Handled by serve_frontend catch-all at the end)
+# if os.path.exists(FRONTEND_DIR):
+#    ...
+
 
 @app.post("/api/inventory/adjust", dependencies=[Depends(requires_roles(["owner"]))])
 async def adjust_stock(
     adj: StockAdjust,
-    db: Session = Depends(get_db),
+    db: sqlalchemy.orm.Session = Depends(get_db),
     owner_id: int = Depends(get_effective_owner_id),
 ):
     if adj.item_type == 'product':
@@ -1300,7 +1832,7 @@ async def adjust_stock(
     return {"success": True, "new_stock": item.stock}
 
 @app.get("/api/purchasing/suggest", dependencies=[Depends(requires_roles(["owner"]))])
-async def suggest_purchase(db: Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
+async def suggest_purchase(db: sqlalchemy.orm.Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
     ingredients = db.query(models.Ingredient).filter(models.Ingredient.owner_id == owner_id).all()
     suggestions = []
     for ing in ingredients:
@@ -1316,22 +1848,62 @@ async def suggest_purchase(db: Session = Depends(get_db), owner_id: int = Depend
     return suggestions
 
 @app.get("/api/suppliers", dependencies=[Depends(requires_roles(["owner"]))])
-async def get_suppliers(db: Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
+async def get_suppliers(db: sqlalchemy.orm.Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
     return db.query(models.Supplier).filter(models.Supplier.owner_id == owner_id).all()
 
 @app.post("/api/suppliers", dependencies=[Depends(requires_roles(["owner"]))])
-async def add_supplier(supp: SupplierCreate, db: Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
+async def add_supplier(supp: SupplierCreate, db: sqlalchemy.orm.Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
     new_supp = models.Supplier(**supp.dict(), owner_id=owner_id)
     db.add(new_supp)
     db.commit()
     return {"success": True}
 
+@app.put("/api/suppliers/{supplier_id}", dependencies=[Depends(requires_roles(["owner"]))])
+async def update_supplier(
+    supplier_id: int,
+    supp: SupplierCreate,
+    db: sqlalchemy.orm.Session = Depends(get_db),
+    owner_id: int = Depends(get_effective_owner_id)
+):
+    supplier = db.query(models.Supplier).filter(
+        models.Supplier.id == supplier_id,
+        models.Supplier.owner_id == owner_id
+    ).first()
+    if not supplier:
+        raise HTTPException(status_code=404, detail="Supplier not found")
+    supplier.name = supp.name
+    supplier.contact_info = supp.contact_info
+    db.commit()
+    return {"success": True}
+
+@app.delete("/api/suppliers/{supplier_id}", dependencies=[Depends(requires_roles(["owner"]))])
+async def delete_supplier(
+    supplier_id: int,
+    db: sqlalchemy.orm.Session = Depends(get_db),
+    owner_id: int = Depends(get_effective_owner_id)
+):
+    supplier = db.query(models.Supplier).filter(
+        models.Supplier.id == supplier_id,
+        models.Supplier.owner_id == owner_id
+    ).first()
+    if not supplier:
+        raise HTTPException(status_code=404, detail="Supplier not found")
+    linked_orders = db.query(models.PurchaseOrder).filter(
+        models.PurchaseOrder.supplier_id == supplier_id,
+        models.PurchaseOrder.owner_id == owner_id
+    ).count()
+    if linked_orders:
+        raise HTTPException(status_code=400, detail="Supplier has purchase order history")
+    db.delete(supplier)
+    db.commit()
+    return {"success": True}
+
 @app.get("/api/purchase-orders", dependencies=[Depends(requires_roles(["owner"]))])
-async def get_pos(db: Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
+async def get_pos(db: sqlalchemy.orm.Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
     return db.query(models.PurchaseOrder).filter(models.PurchaseOrder.owner_id == owner_id).all()
 
 @app.post("/api/purchase-orders", dependencies=[Depends(requires_roles(["owner"]))])
-async def create_po(po: POCreate, db: Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
+async def create_po(po: POCreate, db: sqlalchemy.orm.Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
     supplier = db.query(models.Supplier).filter(
         models.Supplier.id == po.supplier_id,
         models.Supplier.owner_id == owner_id
@@ -1339,19 +1911,108 @@ async def create_po(po: POCreate, db: Session = Depends(get_db), owner_id: int =
     if not supplier:
         raise HTTPException(status_code=404, detail="Supplier not found")
 
+    normalized_items = []
+    for item in po.items:
+        ordered_qty = float(item.get("qty", 0))
+        normalized_items.append({
+            "name": item.get("name"),
+            "qty": ordered_qty,
+            "price": float(item.get("price", 0)),
+            "received_qty": float(item.get("received_qty", 0)),
+        })
+
     new_po = models.PurchaseOrder(
         id=str(uuid.uuid4())[:8].upper(),
         owner_id=owner_id,
         supplier_id=po.supplier_id,
-        items=po.items,
+        items=normalized_items,
+        notes=po.notes,
+        expected_delivery_date=datetime.fromisoformat(po.expected_delivery_date) if po.expected_delivery_date else None,
         status="draft"
     )
     db.add(new_po)
     db.commit()
     return {"success": True}
 
+@app.patch("/api/purchase-orders/{id}", dependencies=[Depends(requires_roles(["owner"]))])
+async def update_po(
+    id: str,
+    po: POCreate,
+    db: sqlalchemy.orm.Session = Depends(get_db),
+    owner_id: int = Depends(get_effective_owner_id)
+):
+    existing = db.query(models.PurchaseOrder).filter(
+        models.PurchaseOrder.id == id,
+        models.PurchaseOrder.owner_id == owner_id
+    ).first()
+    if not existing:
+        raise HTTPException(status_code=404, detail="Order not found")
+    supplier = db.query(models.Supplier).filter(
+        models.Supplier.id == po.supplier_id,
+        models.Supplier.owner_id == owner_id
+    ).first()
+    if not supplier:
+        raise HTTPException(status_code=404, detail="Supplier not found")
+    existing.supplier_id = po.supplier_id
+    existing.notes = po.notes
+    existing.expected_delivery_date = datetime.fromisoformat(po.expected_delivery_date) if po.expected_delivery_date else None
+    existing.items = [
+        {
+            "name": item.get("name"),
+            "qty": float(item.get("qty", 0)),
+            "price": float(item.get("price", 0)),
+            "received_qty": float(item.get("received_qty", 0)),
+        }
+        for item in po.items
+    ]
+    db.commit()
+    return {"success": True}
+
+@app.post("/api/purchase-orders/{id}/receive", dependencies=[Depends(requires_roles(["owner"]))])
+async def receive_po(
+    id: str,
+    payload: POReceive,
+    db: sqlalchemy.orm.Session = Depends(get_db),
+    owner_id: int = Depends(get_effective_owner_id)
+):
+    po = db.query(models.PurchaseOrder).filter(
+        models.PurchaseOrder.id == id,
+        models.PurchaseOrder.owner_id == owner_id
+    ).first()
+    if not po:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    items_by_name = {item["name"]: item for item in po.items}
+    for received in payload.items:
+        item = items_by_name.get(received.name)
+        if not item:
+            continue
+        ordered_qty = float(item.get("qty", 0))
+        current_received = float(item.get("received_qty", 0))
+        next_received = min(ordered_qty, current_received + max(0, received.qty))
+        delta_received = next_received - current_received
+        item["received_qty"] = next_received
+        if received.price is not None:
+            item["price"] = float(received.price)
+        if delta_received > 0:
+            ing = db.query(models.Ingredient).filter(
+                models.Ingredient.name == received.name,
+                models.Ingredient.owner_id == owner_id
+            ).first()
+            if ing:
+                ing.stock += delta_received
+                ing.price = float(item.get("price", ing.price))
+                ing.last_purchase_price = float(item.get("price", ing.price))
+
+    po.items = list(items_by_name.values())
+    received_complete = all(float(item.get("received_qty", 0)) >= float(item.get("qty", 0)) for item in po.items)
+    received_any = any(float(item.get("received_qty", 0)) > 0 for item in po.items)
+    po.status = "received" if received_complete else ("partial" if received_any else po.status)
+    db.commit()
+    return {"success": True, "status": po.status}
+
 @app.patch("/api/purchase-orders/{id}/status", dependencies=[Depends(requires_roles(["owner"]))])
-async def update_po_status(id: str, status: str, db: Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
+async def update_po_status(id: str, status: str, db: sqlalchemy.orm.Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
     po = db.query(models.PurchaseOrder).filter(
         models.PurchaseOrder.id == id,
         models.PurchaseOrder.owner_id == owner_id
@@ -1369,27 +2030,74 @@ async def update_po_status(id: str, status: str, db: Session = Depends(get_db), 
                 models.Ingredient.owner_id == owner_id
             ).first()
             if ing:
-                ing.stock += float(item['qty'])
+                delta = max(0, float(item['qty']) - float(item.get('received_qty', 0)))
+                ing.stock += delta
                 ing.price = float(item['price']) # Update price to current purchase price
-        
+                ing.last_purchase_price = float(item['price'])
+                item['received_qty'] = float(item['qty'])
+
     po.status = status
     db.commit()
     return {"success": True}
 
 @app.get("/api/expenses", dependencies=[Depends(requires_roles(["owner"]))])
-async def get_expenses(db: Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
+async def get_expenses(db: sqlalchemy.orm.Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
     return db.query(models.Expense).filter(models.Expense.owner_id == owner_id).order_by(models.Expense.date.desc()).all()
 
 @app.post("/api/expenses", dependencies=[Depends(requires_roles(["owner"]))])
-async def add_expense(exp: ExpenseCreate, db: Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
+async def add_expense(exp: ExpenseCreate, db: sqlalchemy.orm.Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
     new_exp = models.Expense(**exp.dict(), owner_id=owner_id)
     db.add(new_exp)
     db.commit()
     return {"success": True}
 
+@app.get("/api/accounting/export", dependencies=[Depends(requires_roles(["owner"]))])
+async def export_accounting(
+    start: str,
+    end: str,
+    db: sqlalchemy.orm.Session = Depends(get_db),
+    owner_id: int = Depends(get_effective_owner_id)
+):
+    start_date = datetime.fromisoformat(start)
+    end_date = datetime.fromisoformat(end) + timedelta(days=1)
+
+    expenses = db.query(models.Expense).filter(
+        models.Expense.owner_id == owner_id,
+        models.Expense.date >= start_date,
+        models.Expense.date < end_date
+    ).all()
+    purchase_orders = db.query(models.PurchaseOrder).filter(
+        models.PurchaseOrder.owner_id == owner_id,
+        models.PurchaseOrder.date >= start_date,
+        models.PurchaseOrder.date < end_date
+    ).all()
+    transactions = db.query(models.Transaction).filter(
+        models.Transaction.owner_id == owner_id,
+        models.Transaction.timestamp >= start_date,
+        models.Transaction.timestamp < end_date,
+        models.Transaction.type == "sale"
+    ).all()
+
+    output = StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["date", "entry_type", "reference", "label", "status", "amount"])
+    for tx in transactions:
+        writer.writerow([tx.timestamp.date().isoformat(), "sale", tx.id, "POS revenue", "posted", tx.total_revenue])
+    for exp in expenses:
+        writer.writerow([exp.date.date().isoformat(), "expense", exp.id, exp.description or exp.category, exp.category, -exp.amount])
+    for po in purchase_orders:
+        total = sum((float(item.get("qty", 0)) * float(item.get("price", 0))) for item in po.items)
+        writer.writerow([po.date.date().isoformat(), "purchase_order", po.id, f"Supplier #{po.supplier_id}", po.status, -total])
+
+    return Response(
+        content=output.getvalue(),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="accounting-{start}-to-{end}.csv"'},
+    )
+
 @app.post("/api/maintenance/reset-session", dependencies=[Depends(requires_roles(["owner"]))])
 async def reset_session(
-    db: Session = Depends(get_db),
+    db: sqlalchemy.orm.Session = Depends(get_db),
     owner_id: int = Depends(get_effective_owner_id),
 ):
     # Update shift start time to now
@@ -1407,20 +2115,13 @@ async def reset_session(
     return {"success": True, "message": "Shift has been closed. Session profit reset to 0. Historical data preserved."}
 
 @app.get("/api/reports/monthly")
-async def get_monthly_report(month: int, year: int, token: Optional[str] = None, db: Session = Depends(get_db)):
-    # Manual token verification for new tab opening
-    auth_user = None
-    if token:
-        try:
-            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-            username = payload.get("sub")
-            auth_user = db.query(models.User).filter(models.User.username == username).first()
-        except: pass
-        
-    if not auth_user or auth_user.role != "owner":
-        raise HTTPException(status_code=401, detail="Unauthorized")
-
-    owner_id = auth_user.id
+async def get_monthly_report(
+    month: int,
+    year: int,
+    format: str = "pdf",
+    db: sqlalchemy.orm.Session = Depends(get_db),
+    owner_id: int = Depends(get_effective_owner_id),
+):
     start_date = datetime(year, month, 1)
     if month == 12: end_date = datetime(year + 1, 1, 1)
     else: end_date = datetime(year, month + 1, 1)
@@ -1452,6 +2153,24 @@ async def get_monthly_report(month: int, year: int, token: Optional[str] = None,
     
     settings = get_settings()
     currency = settings.get("currency", "MAD")
+
+    if format.lower() == "pdf":
+        return _pdf_response(
+            _build_monthly_report_pdf(
+                start_date=start_date,
+                transactions=transactions,
+                expenses=expenses,
+                waste_records=waste_records,
+                total_revenue=total_revenue,
+                total_cogs=total_cogs,
+                total_waste=total_waste,
+                total_overhead=total_overhead,
+                net_profit=net_profit,
+                margin=margin,
+                currency=currency,
+            ),
+            f"monthly-report-{year:04d}-{month:02d}.pdf",
+        )
     
     # Generate printable HTML
     html_content = f"""
@@ -1464,8 +2183,8 @@ async def get_monthly_report(month: int, year: int, token: Optional[str] = None,
             .logo {{ font-size: 24px; font-weight: 800; letter-spacing: -1px; }}
             .logo span {{ color: #d4af37; }}
             .report-title {{ font-size: 32px; font-weight: 800; margin: 0; }}
-            .summary-grid {{ display: grid; grid-cols: 2; gap: 20px; margin-bottom: 40px; }}
-            .card {{ background: #f8f9fa; padding: 25px; rounded: 15px; border: 1px solid #eee; }}
+            .summary-grid {{ display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; margin-bottom: 40px; }}
+            .card { background: #f8f9fa; padding: 25px; border-radius: 15px; border: 1px solid #eee; }
             .card-label {{ font-size: 10px; font-weight: 900; text-transform: uppercase; letter-spacing: 2px; color: #888; margin-bottom: 5px; }}
             .card-value {{ font-size: 24px; font-weight: 800; margin: 0; }}
             .positive {{ color: #10b981; }}
@@ -1539,11 +2258,10 @@ async def get_monthly_report(month: int, year: int, token: Optional[str] = None,
     </body>
     </html>
     """
-    from fastapi.responses import HTMLResponse
     return HTMLResponse(content=html_content)
 
 @app.get("/api/forecast")
-async def get_forecast(target_date: str, db: Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
+async def get_forecast(target_date: str, db: sqlalchemy.orm.Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
     # target_date format: YYYY-MM-DD
     try:
         target_dt = datetime.strptime(target_date, '%Y-%m-%d')
@@ -1597,7 +2315,12 @@ async def serve_frontend(full_path: str):
     if full_path.startswith("api"):
         raise HTTPException(status_code=404)
         
-    # Serve from dist folder for production build
+    # 1. Try to serve specific file from dist (icons, manifest, js, css, etc.)
+    file_path = os.path.join(FRONTEND_DIR, full_path)
+    if os.path.isfile(file_path):
+        return FileResponse(file_path)
+
+    # 2. Fallback to index.html for SPA routing
     index_path = os.path.join(FRONTEND_DIR, "index.html")
     if os.path.exists(index_path):
         return FileResponse(index_path, headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"})
@@ -1605,7 +2328,8 @@ async def serve_frontend(full_path: str):
     return {"message": "Frontend not built. Please run 'npm run build' in frontend directory."}
 
 if __name__ == "__main__":
-    import uvicorn
     import os
+
+    import uvicorn
     port = int(os.getenv("PORT", 8000))
     uvicorn.run(app, host="0.0.0.0", port=port)

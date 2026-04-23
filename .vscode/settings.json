@@ -17,5 +17,6 @@
   },
   "emmet.includeLanguages": {
     "typescriptreact": "javascriptreact"
-  }
+  },
+  "cSpell.words": ["VERCEL"]
 }

@@ -2,7 +2,7 @@ export type Language = 'en' | 'fr' | 'ar';
 
 export const translations = {
   en: {
-    dashboard: "Operational Matrix",
+    dashboard: "Dashboard",
     pos: "Luxe Terminal",
     kitchen: "Kitchen Terminal",
     inventory: "Full Inventory",
@@ -13,6 +13,7 @@ export const translations = {
     planner: "Batch Planner",
     orders: "Pre-Orders",
     expenses: "Overhead & Bills",
+    comptabilite: "Comptabilite",
     operations: "Operations",
     profit: "Session Profit",
     online: "Online",
@@ -40,7 +41,7 @@ export const translations = {
     actions: "Actions"
   },
   fr: {
-    dashboard: "Matrice Opérationnelle",
+    dashboard: "Tableau de Bord",
     pos: "Terminal Luxe",
     kitchen: "Terminal Cuisine",
     inventory: "Inventaire Complet",
@@ -51,6 +52,7 @@ export const translations = {
     planner: "Planificateur",
     orders: "Pré-commandes",
     expenses: "Frais & Factures",
+    comptabilite: "Comptabilite",
     operations: "Opérations",
     profit: "Profit de Session",
     online: "En Ligne",
@@ -89,6 +91,7 @@ export const translations = {
     planner: "مخطط الدفعات",
     orders: "الطلبات المسبقة",
     expenses: "المصاريف والفواتير",
+    comptabilite: "المحاسبة",
     operations: "العمليات",
     profit: "ربح الحصة",
     online: "متصل",
