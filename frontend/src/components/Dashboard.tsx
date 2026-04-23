@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, 
   Package, 
@@ -1042,17 +1042,10 @@ const Dashboard: React.FC = () => {
       return acc;
     }, {})
   ).sort((a: any, b: any) => b.loss - a.loss).slice(0, 6);
-  const sortedMaterialEntries = useMemo(
-    () =>
-      Object.entries(inventory.materials).sort(([nameA], [nameB]) =>
-        nameA.localeCompare(nameB)
-      ),
-    [inventory.materials]
+  const sortedMaterialEntries = Object.entries(inventory.materials).sort(([nameA], [nameB]) =>
+    nameA.localeCompare(nameB)
   );
-  const sortedMaterialNames = useMemo(
-    () => sortedMaterialEntries.map(([name]) => name),
-    [sortedMaterialEntries]
-  );
+  const sortedMaterialNames = sortedMaterialEntries.map(([name]) => name);
 
   if (loading) return (
     <div className="h-screen w-screen flex flex-col items-center justify-center bg-charcoal text-gold">
