@@ -62,14 +62,32 @@ def init_db():
             raise e
 
 def ensure_runtime_schema():
-    if engine.dialect.name != "sqlite":
-        return
     with engine.begin() as conn:
-        po_columns = {row[1] for row in conn.execute(text("PRAGMA table_info(purchase_orders)"))}
-        if "notes" not in po_columns:
-            conn.execute(text("ALTER TABLE purchase_orders ADD COLUMN notes VARCHAR"))
-        if "expected_delivery_date" not in po_columns:
-            conn.execute(text("ALTER TABLE purchase_orders ADD COLUMN expected_delivery_date DATETIME"))
+        if engine.dialect.name == "sqlite":
+            po_columns = {row[1] for row in conn.execute(text("PRAGMA table_info(purchase_orders)"))}
+            if "notes" not in po_columns:
+                conn.execute(text("ALTER TABLE purchase_orders ADD COLUMN notes VARCHAR"))
+            if "expected_delivery_date" not in po_columns:
+                conn.execute(text("ALTER TABLE purchase_orders ADD COLUMN expected_delivery_date DATETIME"))
+            return
+
+        if engine.dialect.name == "postgresql":
+            po_columns = {
+                row[0]
+                for row in conn.execute(
+                    text(
+                        """
+                        SELECT column_name
+                        FROM information_schema.columns
+                        WHERE table_name = 'purchase_orders'
+                        """
+                    )
+                )
+            }
+            if "notes" not in po_columns:
+                conn.execute(text("ALTER TABLE purchase_orders ADD COLUMN notes VARCHAR"))
+            if "expected_delivery_date" not in po_columns:
+                conn.execute(text("ALTER TABLE purchase_orders ADD COLUMN expected_delivery_date TIMESTAMP"))
 
 def verify_password(plain_password, hashed_password):
     return pwd_context.verify(plain_password, hashed_password)
