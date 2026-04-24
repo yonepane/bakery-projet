@@ -53,7 +53,7 @@ BakeryOS helps a bakery run daily operations from one place:
 Create a local env file and set at least:
 
 ```bash
-SECRET_KEY=change-me
+SECRET_KEY=change-me-to-a-secure-32-character-string-or-longer
 DATABASE_URL=sqlite:///./bakeryos.db
 GOOGLE_CLIENT_ID=your-google-oauth-client-id
 VITE_API_URL=http://localhost:8000/api

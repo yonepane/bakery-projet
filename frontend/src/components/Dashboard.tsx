@@ -644,6 +644,7 @@ const Dashboard: React.FC = () => {
                   onError={() => addToast("Login Interrupted", "error")}
                   theme={isDarkMode ? 'filled_black' : 'outline'}
                   shape="pill"
+                  use_fedcm={false}
                 />
               </div>
             </div>
