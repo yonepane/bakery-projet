@@ -1,6 +1,8 @@
 import http from './http';
 import { db } from './db';
 
+// Turn an API path such as `/inventory` into the name of the local offline
+// cache table that should store the response.
 const getTableName = (endpoint: string) => {
     const cleanPath = endpoint.split('?')[0];
     const parts = cleanPath.split('/');
@@ -15,7 +17,8 @@ export const api = {
       const res = await http.get(endpoint);
       const data = res.data;
       
-      // Attempt to cache, but don't let it block the UI if it fails
+      // Save successful GET responses in IndexedDB so the app can still show
+      // useful information when the network is unavailable.
       try {
         if ((db as any)[table]) {
             await (db as any)[table].clear();
@@ -24,7 +27,8 @@ export const api = {
             } else if (Array.isArray(data)) {
               const preparedData = data.map((item, index) => {
                   if (item && typeof item === 'object') {
-                      // Use a unique combination for the key if id is missing
+                      // Some API results do not include a stable `id`.
+                      // Create one so Dexie can still save the row.
                       const uniqueId = item.id || item.transaction_id || `gen-${table}-${index}-${Date.now()}`;
                       return { ...item, id: uniqueId };
                   }
@@ -44,6 +48,7 @@ export const api = {
     } catch (err) {
       console.error(`API GET failed for ${endpoint}:`, err);
       if ((db as any)[table]) {
+          // Only use cached data if the live request fails.
           const cached = await (db as any)[table].toArray();
           if (cached.length > 0) {
               if (['inventory', 'analytics', 'settings'].includes(table)) {
@@ -59,6 +64,8 @@ export const api = {
 
   async request(method: string, endpoint: string, body: any = null) {
     if (!navigator.onLine) {
+      // If the device is offline, save the change in a queue instead of
+      // rejecting it right away.
       await db.syncQueue.add({
         endpoint,
         method: method as any,
@@ -96,7 +103,8 @@ export const processSyncQueue = async () => {
       await db.syncQueue.delete(op.id!);
     } catch (err) {
       console.error("Sync failed for", op.endpoint, err);
-      // Stop on first error to maintain sequence integrity
+      // Stop here if one queued change fails. Later changes may depend on the
+      // earlier one, so replaying them out of order could break data.
       break; 
     }
   }

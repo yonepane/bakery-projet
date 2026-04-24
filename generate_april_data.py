@@ -3,15 +3,17 @@ import uuid
 import random
 from datetime import datetime, timedelta
 
+# Seed script that creates a bit of realistic April 2026 activity so analytics,
+# accounting, and charts have something non-empty to work with in demos.
 db_path = 'bakery-os/bakeryos.db'
 conn = sqlite3.connect(db_path)
 cursor = conn.cursor()
 
-# Get owner id (should be 1)
+# Attach the generated rows to the first owner account in the database.
 cursor.execute("SELECT id FROM users WHERE role = 'owner' LIMIT 1")
 owner_id = cursor.fetchone()[0]
 
-# Generate transactions for April 2026
+# Generate a spread of sale transactions across the month.
 start_date = datetime(2026, 4, 1)
 for i in range(30): # 30 transactions
     tx_date = start_date + timedelta(days=random.randint(0, 21), hours=random.randint(8, 18))
@@ -24,7 +26,7 @@ for i in range(30): # 30 transactions
         VALUES (?, ?, ?, ?, ?, ?, ?)
     """, (tx_id, owner_id, tx_date.isoformat(), 'sale', revenue, cost, '[]'))
 
-# Generate some expenses
+# Add a few fixed expenses so profit reporting has deductions to display.
 for i in range(5):
     ex_date = start_date + timedelta(days=random.randint(0, 21))
     cursor.execute("""

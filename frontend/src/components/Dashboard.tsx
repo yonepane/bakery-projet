@@ -55,9 +55,11 @@ import http from '../lib/http';
 import { Language, translations } from '../lib/translations';
 import { GoogleOAuthProvider, GoogleLogin } from '@react-oauth/google';
 
+// Google uses this client ID when the user signs in with Google.
 const GOOGLE_CLIENT_ID = "183197193874-qhf5nd87o77oo86jhksat53ncq3ahjp8.apps.googleusercontent.com";
 
-// Types
+// These TypeScript interfaces describe the data shape used by the dashboard.
+// They mostly match what the backend sends us.
 interface Ingredient {
   stock: number;
   min_threshold: number;
@@ -125,11 +127,19 @@ interface ConfirmConfig {
   confirmText: string;
 }
 
+const PRODUCT_ICON_CHOICES = [
+  '🥐', '🍞', '🥖', '🧁', '🍰', '🎂',
+  '🍪', '🥨', '🥯', '🧇', '🍩', '🥞',
+  '🍫', '🍮', '🥧', '🍯'
+];
+
 const Dashboard: React.FC = () => {
   const API_BASE = '/api';
+  // Login state and current user information.
   const [user, setUser] = useState<{username: string, role: string} | null>(null);
   const [loginForm, setLoginForm] = useState({ username: '', password: '' });
   
+  // UI state for navigation and language.
   const [activeTab, setActiveTab] = useState('dashboard');
   const [lang, setLang] = useState<Language>(() => {
     const saved = localStorage.getItem('bakery_lang');
@@ -141,6 +151,7 @@ const Dashboard: React.FC = () => {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isOperationsOpen, setIsOperationsOpen] = useState(false);
 
+  // State used by the booking modal.
   const [showBookingModal, setShowBookingModal] = useState(false);
   const [bookingForm, setBookingForm] = useState({
       name: '',
@@ -170,6 +181,7 @@ const Dashboard: React.FC = () => {
   };
 
   const handleSaveBooking = async () => {
+    // A booking can reuse the current cart or create a future pickup order.
     if (!bookingForm.name || !bookingForm.date) {
         addToast("Name and Date are required", "error");
         return;
@@ -193,6 +205,7 @@ const Dashboard: React.FC = () => {
     }
   };
 
+  // Main business data loaded from the backend.
   const [inventory, setInventory] = useState<{ materials: Record<string, Ingredient>, products: Product[] }>({ materials: {}, products: [] });
   const [analytics, setAnalytics] = useState({ 
     revenue: 0, 
@@ -228,6 +241,7 @@ const Dashboard: React.FC = () => {
   });
   
   const addToast = (message: string, type: Toast['type'] = 'info') => {
+    // Toast messages disappear automatically after a few seconds.
     const id = Math.random().toString(36).substr(2, 9);
     setToasts(prev => [...prev, { id, message, type }]);
     setTimeout(() => {
@@ -239,17 +253,18 @@ const Dashboard: React.FC = () => {
     setConfirmConfig({ ...config, isOpen: true });
   };
   
-  // Theme & Currency States
+  // Display preferences.
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [activeCurrency, setActiveCurrency] = useState('MAD');
   
-  // Simulation & Edit States
+  // State used by the price simulation tool.
   const [editMode, setEditMode] = useState(false);
   const [simPrices, setSimPrices] = useState<Record<string, number>>({});
   const [simulationResult, setSimulationResult] = useState<any[]>([]);
 
-  // Management States
+  // State used by create, edit, delete, and operations panels.
   const [showAddProduct, setShowAddProduct] = useState(false);
+  const [showProductIconPicker, setShowProductIconPicker] = useState(false);
   const [showAddMaterial, setShowAddMaterial] = useState(false);
   const [editingMaterialName, setEditingMaterialName] = useState<string | null>(null);
   const [showWasteModal, setShowWasteModal] = useState(false);
@@ -284,7 +299,7 @@ const Dashboard: React.FC = () => {
   const [wasteForm, setWasteForm] = useState({ product_id: '', quantity: 1 });
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
-  // Recipe Search States
+  // State used by recipe search and online/offline handling.
   const [recipeSearchQuery, setRecipeSearchQuery] = useState('');
   const [recipeSearchResults, setRecipeSearchResults] = useState<any[]>([]);
   const [isSearchingRecipes, setIsSearchingRecipes] = useState(false);
@@ -336,6 +351,8 @@ const Dashboard: React.FC = () => {
   };
 
   const handleDeleteSupplier = async (supplier: any) => {
+    // Use the shared confirmation modal before deleting a supplier because
+    // older purchase records may still refer to it.
     showConfirm({
       title: "Delete Supplier",
       message: `Delete supplier ${supplier.name}?`,
@@ -354,6 +371,7 @@ const Dashboard: React.FC = () => {
   };
 
   const handleSaveGeneralNote = async () => {
+    // Save the owner's operations note inside the settings store.
     setIsSavingGeneralNote(true);
     try {
       await http.patch('/settings', {
@@ -387,6 +405,8 @@ const Dashboard: React.FC = () => {
   };
 
   const handleSmartForecast = async (date: string) => {
+    // Ask the backend for forecasted quantities, then convert the response
+    // into planner rows for the UI.
     setIsForecasting(true);
     try {
         const data = await api.get(`/forecast?target_date=${date}`);
@@ -410,6 +430,7 @@ const Dashboard: React.FC = () => {
   useEffect(() => {
     const handleOnline = () => {
       setIsOnline(true);
+      // When the internet comes back, replay queued offline changes first.
       processSyncQueue().then(() => fetchData());
     };
     const handleOffline = () => setIsOnline(false);
@@ -417,7 +438,7 @@ const Dashboard: React.FC = () => {
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
 
-    // Initial sync check
+    // If the page loads while already online, try to replay queued work.
     if (navigator.onLine) {
         processSyncQueue().then(() => fetchData());
     }
@@ -429,11 +450,13 @@ const Dashboard: React.FC = () => {
   }, []);
 
   const formatPrice = (amount: number) => {
+    // Prices are stored in the base currency. Conversion here is only for display.
     const rate = settings?.conversions?.[activeCurrency] || 1;
     return (amount * rate).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ' + activeCurrency;
   };
 
   const displayUnit = (value: number, unit: string) => {
+    // Show large gram or milliliter values as kilograms or liters when that is easier to read.
     if (unit === 'g' && value >= 1000) return (value / 1000).toFixed(2) + ' kg';
     if (unit === 'ml' && value >= 1000) return (value / 1000).toFixed(2) + ' L';
     return value.toFixed(0) + ' ' + unit;
@@ -446,10 +469,12 @@ const Dashboard: React.FC = () => {
       const isOwner = user.role === 'owner';
       
       const safeGet = async (url: string, fallback: any = null) => {
+        // If one request fails, still keep the rest of the dashboard working.
         try { return await api.get(url); }
         catch (e) { console.warn(`Failed to fetch ${url}:`, e); return fallback; }
       };
 
+      // Load the main dashboard data in parallel for better speed.
       const [invData, anaData, aleData, histData, planData, settData, ordData, purData, suppData, posData, expData, staffData, profData, wasteData] = await Promise.all([
         safeGet('/inventory'),
         isOwner ? safeGet('/analytics') : Promise.resolve({ ...analytics }),
@@ -494,6 +519,7 @@ const Dashboard: React.FC = () => {
       if (wasteData) setWasteRecords(wasteData);
       
       if (invData && invData.materials) {
+        // Fill the simulator with the latest saved ingredient prices.
         const initialPrices: Record<string, number> = {};
         Object.entries(invData.materials as Record<string, Ingredient>).forEach(([name, data]) => {
             initialPrices[name] = data.price;
@@ -521,6 +547,7 @@ const Dashboard: React.FC = () => {
   };
 
   const handleGoogleSuccess = async (response: any) => {
+    // After Google login succeeds, save the same local token and user data as a normal login.
     try {
       const res = await http.post('/auth/google', { credential: response.credential });
       const { access_token, username, role } = res.data;
@@ -537,6 +564,7 @@ const Dashboard: React.FC = () => {
     try {
       const savedUser = localStorage.getItem('bakery_user');
       if (savedUser) {
+        // Restore the saved browser session so a refresh does not log the user out.
         setUser(JSON.parse(savedUser));
       } else {
         setLoading(false); // No user, stop loading to show login screen
@@ -550,6 +578,7 @@ const Dashboard: React.FC = () => {
 
   useEffect(() => {
     if (user) {
+        // Refresh the data regularly so the dashboard stays up to date.
         fetchData();
         const interval = setInterval(fetchData, 30000);
         return () => clearInterval(interval);
@@ -559,21 +588,26 @@ const Dashboard: React.FC = () => {
   if (!user) {
     return (
       <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
-        <div className={`min-h-screen flex items-center justify-center ${isDarkMode ? 'bg-[#0a0a0b] text-white' : 'bg-slate-50 text-slate-900'}`}>
+        <div className={`login-shell min-h-screen flex items-center justify-center px-6 ${isDarkMode ? 'text-white' : 'bg-slate-50 text-slate-900'}`}>
           <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
-              className={`p-12 rounded-[3rem] border w-full max-w-md ${isDarkMode ? 'bg-black/40 border-gold/20 shadow-gold-glow' : 'bg-white border-slate-200 shadow-2xl'}`}
+              className={`login-card p-12 rounded-[3rem] w-full max-w-md ${isDarkMode ? 'shadow-gold-glow' : 'bg-white border-slate-200 shadow-2xl'}`}
           >
-            <div className="text-center mb-10">
-              <div className="text-6xl mb-6">🥐</div>
-              <h1 className="text-4xl font-bold luxury-font tracking-tighter uppercase mb-2">BakeryOS</h1>
-              <p className="text-[10px] font-black uppercase tracking-[0.3em] opacity-40">Luxe Enterprise Terminal v4.2-STABLE-POS</p>
+            <div className="relative text-center mb-10">
+              <div className="login-badge mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-[2rem] border border-gold/25 bg-gold/10 text-4xl text-gold">🥐</div>
+              <div className="login-title-wrap">
+                <h1 className="text-4xl font-bold luxury-font tracking-tighter uppercase mb-3">
+                  <span className="text-white">Bakery</span>
+                  <span className="text-gold">OS</span>
+                </h1>
+                <p className="text-[10px] font-black uppercase tracking-[0.3em] text-cream/40">BETA 0.1</p>
+              </div>
             </div>
 
             <form onSubmit={handleLogin} className="space-y-6">
               <div>
-                <label className="text-[10px] font-black uppercase tracking-widest opacity-40 mb-2 block">Identifiant</label>
+                <label className="text-[10px] font-black uppercase tracking-widest text-gold/65 mb-2 block">Operator ID</label>
                 <input
                   type="text"
                   value={loginForm.username}
@@ -583,7 +617,7 @@ const Dashboard: React.FC = () => {
                 />
               </div>
               <div>
-                <label className="text-[10px] font-black uppercase tracking-widest opacity-40 mb-2 block">Mot de Passe</label>
+                <label className="text-[10px] font-black uppercase tracking-widest text-gold/65 mb-2 block">Secure Key</label>
                 <input
                   type="password"
                   value={loginForm.password}
@@ -592,27 +626,26 @@ const Dashboard: React.FC = () => {
                   placeholder="••••••••"
                 />
               </div>
-              <button className={`w-full py-5 rounded-2xl font-black text-xs uppercase tracking-widest transition-all ${isDarkMode ? 'bg-gold text-charcoal shadow-gold-glow' : 'bg-slate-900 text-white shadow-xl'}`}>
+              <button className={`login-gold-button w-full py-5 rounded-2xl font-black text-xs uppercase tracking-[0.24em] ${isDarkMode ? '' : 'bg-slate-900 text-white shadow-xl'}`}>
                 Access Terminal
               </button>
             </form>
 
             <div className="mt-8 flex flex-col items-center gap-6">
-              <div className="flex items-center w-full gap-4 opacity-20">
-                <div className="h-px bg-white flex-1" />
+              <div className="flex items-center w-full gap-4 text-gold/30">
+                <div className="h-px bg-gold/20 flex-1" />
                 <span className="text-[8px] font-bold uppercase tracking-widest">Or Secure Login</span>
-                <div className="h-px bg-white flex-1" />
+                <div className="h-px bg-gold/20 flex-1" />
               </div>
 
-              <GoogleLogin 
-                onSuccess={handleGoogleSuccess}
-                onError={() => addToast("Login Interrupted", "error")}
-                theme={isDarkMode ? 'filled_black' : 'outline'}
-                shape="pill"
-                width="100%"
-              />
-
-              <button onClick={async () => { await http.get('/seed'); addToast("Users Seeded: admin/password", "info"); }} className="text-[10px] font-bold uppercase tracking-widest opacity-20 hover:opacity-100 transition-opacity underline">Seed Default Users</button>
+              <div className="w-full flex justify-center">
+                <GoogleLogin 
+                  onSuccess={handleGoogleSuccess}
+                  onError={() => addToast("Login Interrupted", "error")}
+                  theme={isDarkMode ? 'filled_black' : 'outline'}
+                  shape="pill"
+                />
+              </div>
             </div>
           </motion.div>
         </div>
@@ -621,6 +654,7 @@ const Dashboard: React.FC = () => {
   }
 
   const handleProduce = async (productId: string, qty: number) => {
+    // Producing a batch consumes ingredients and increases product stock.
     try {
       await api.post('/produce', { product_id: productId, quantity: qty });
       fetchData();
@@ -631,6 +665,7 @@ const Dashboard: React.FC = () => {
   };
 
   const addToCart = (product: Product) => {
+    // In edit mode, clicking a product should not add it to the cart.
     if (editMode) return;
     setCart(prev => {
       const existing = prev.find(item => item.id === product.id);
@@ -642,6 +677,7 @@ const Dashboard: React.FC = () => {
   };
 
   const finalizeSale = async () => {
+    // Completing a sale creates a transaction in the backend and empties the cart.
     if (cart.length === 0) return;
     try {
       const data = await api.post('/complete', { cart: cart.map(item => ({ id: item.id, qty: item.qty })) });
@@ -655,6 +691,7 @@ const Dashboard: React.FC = () => {
   };
 
   const runSimulation = async () => {
+      // Ask the backend to preview how ingredient price changes would affect profits.
       try {
           const res = await http.post('/simulate_price', simPrices);
           setSimulationResult(res.data);
@@ -662,6 +699,7 @@ const Dashboard: React.FC = () => {
   };
 
   const saveSimulation = async () => {
+      // Only save simulated prices when edit mode is enabled.
       if (!editMode) return;
       try {
           await http.post('/update_material_prices', simPrices);
@@ -671,6 +709,7 @@ const Dashboard: React.FC = () => {
   };
 
   const handleResetSession = async () => {
+    // This starts a new session without deleting the old history.
     showConfirm({
         title: "Close Current Shift",
         message: "This will reset the Session Profit counter to 0 for a new shift. Your global history is safe.",
@@ -704,6 +743,7 @@ const Dashboard: React.FC = () => {
   };
 
   const startEditingMaterial = (name: string, data: any) => {
+    // The same modal is used for both adding and editing a material.
     setEditingMaterialName(name);
     setNewMaterial({
         name: name,
@@ -724,6 +764,7 @@ const Dashboard: React.FC = () => {
   };
 
   const handleAdjustStock = async (item_type: 'product' | 'material', id: string, amount: number) => {
+    // This lets the owner adjust stock manually when needed.
     try {
         await api.post('/inventory/adjust', { item_type, id, amount });
         fetchData();
@@ -758,13 +799,15 @@ const Dashboard: React.FC = () => {
       const data = await api.post('/products', newProduct);
       addToast(data.message || "Product Created", 'success');
       setShowAddProduct(false);
+      setShowProductIconPicker(false);
       fetchData();
-      // Reset form
+      // Clear the form after a successful save.
       setNewProduct({ id: '', name: '', price: 0, icon: '🥐', ingredients: [] });
     } catch (e: any) { addToast("Action Failed", "error"); }
   };
 
   const handleDeleteProduct = async (id: string) => {
+    // Deleting a product also removes its recipe rows in the backend.
     showConfirm({
         title: "Delete Entity",
         message: "Are you sure you want to remove this product and its recipe? This cannot be undone.",
@@ -781,6 +824,7 @@ const Dashboard: React.FC = () => {
   };
 
   const handleCleanupProducts = async () => {
+    // Small maintenance helper for cleaning older broken product rows.
     showConfirm({
         title: "Database Cleanup",
         message: "Remove all broken product entries (empty IDs)?",
@@ -822,6 +866,7 @@ const Dashboard: React.FC = () => {
   };
 
   const handleCreatePO = async (data: { supplier_id: number, items: any[] }) => {
+    // A purchase order records what you plan to buy. Stock changes later, when goods are received.
     if (!suppliers.length) {
         addToast("Add a supplier before generating a bulk purchase order", "error");
         return;
@@ -834,6 +879,7 @@ const Dashboard: React.FC = () => {
   };
 
   const handleReceivePO = async (id: string, payload?: { items: any[] }) => {
+    // Receiving goods can be complete or partial depending on the payload.
     try {
         if (payload) {
             await http.post(`/purchase-orders/${id}/receive`, payload);
@@ -846,6 +892,8 @@ const Dashboard: React.FC = () => {
   };
 
   const openPOModal = (po: any) => {
+    // Make a local editable copy so the owner can change notes, ETA, and
+    // received quantities before saving.
     setSelectedPO({
       ...po,
       expected_delivery_date: po.expected_delivery_date ? po.expected_delivery_date.slice(0, 10) : '',
@@ -897,6 +945,7 @@ const Dashboard: React.FC = () => {
   };
 
   const handleSearchRecipes = async () => {
+    // The backend recipe search combines built-in starter recipes with external results.
     if (!recipeSearchQuery.trim()) return;
     setIsSearchingRecipes(true);
     try {
@@ -907,6 +956,7 @@ const Dashboard: React.FC = () => {
   };
 
   const openExternal = (url: string) => {
+    // Open external links safely without leaving a live reference back to this page.
     const opened = window.open(url, '_blank', 'noopener,noreferrer');
     if (opened) {
       opened.opener = null;
@@ -916,6 +966,7 @@ const Dashboard: React.FC = () => {
   };
 
   const openDocument = async (url: string, fallbackFilename: string) => {
+    // Open reports and receipts in a new tab so printing feels natural.
     const popup = window.open('', '_blank');
     const absoluteUrl = new URL(url, window.location.origin).toString();
     if (popup) {
@@ -931,11 +982,11 @@ const Dashboard: React.FC = () => {
       const res = await http.get(`/external-recipes/${recipeId}/details`);
       const details = res.data;
 
-      // Generate a slug from the name
+      // Build a short draft product ID from the imported recipe name.
       const slug = details.name.toLowerCase().replace(/[^a-z0-9]/g, '-').slice(0, 10);
       const randomSuffix = Math.floor(Math.random() * 1000);
 
-      // Auto-fill the new product form
+      // Fill the product form automatically so the owner can review it before saving.
       setNewProduct({
         ...newProduct,
         name: details.name,
@@ -943,12 +994,13 @@ const Dashboard: React.FC = () => {
         id: `${slug}-${randomSuffix}`
       });
 
-      // Clear search
+      // Clear the recipe search after a successful import.
       setRecipeSearchResults([]);
       setRecipeSearchQuery('');
     } catch (e) { console.error(e); }
   };
   const handlePlanBatch = async (productId: string, qty: number, date: string) => {
+    // The planner is saved as one full schedule snapshot.
     const newPlan = [...planner, {
         id: Math.random().toString(36).substr(2, 9),
         date,
@@ -967,10 +1019,10 @@ const Dashboard: React.FC = () => {
     if (!item) return;
     
     try {
-        // 1. Produce the batch
+        // First, produce the batch so stock and cost history are updated.
         await api.post('/produce', { product_id: item.product_id, quantity: item.quantity });
         
-        // 2. Mark as completed in planner
+        // Then save the planner again with this item marked as completed.
         const newPlan = planner.map(p => p.id === planId ? { ...p, status: 'completed' as const } : p);
         await api.post('/planner', newPlan);
         
@@ -983,6 +1035,7 @@ const Dashboard: React.FC = () => {
 
   const now = new Date();
   const isWithinAccountingRange = (value?: string) => {
+    // Used by the accounting screen to filter rows by date range.
     if (!value) return false;
     const date = new Date(value);
     const start = new Date(`${accountingRange.start}T00:00:00`);
@@ -3416,9 +3469,56 @@ const Dashboard: React.FC = () => {
                                 </div>
                                 <div>
                                     <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-1">Icon</label>
-                                    <input type="text" value={newProduct.icon} onChange={(e)=>setNewProduct({...newProduct, icon: e.target.value})} className={`w-full bg-transparent border-b py-2 outline-none font-bold ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`} />
+                                    <div className="relative">
+                                        <input
+                                            type="text"
+                                            value={newProduct.icon}
+                                            onChange={(e)=>setNewProduct({...newProduct, icon: e.target.value})}
+                                            className={`w-full bg-transparent border-b py-2 pr-10 outline-none font-bold ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`}
+                                            placeholder="🥐"
+                                            autoComplete="off"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowProductIconPicker((value) => !value)}
+                                            className={`absolute right-0 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md transition-all ${
+                                                isDarkMode ? 'text-gold/80 hover:bg-gold/10 hover:text-gold' : 'text-slate-700 hover:bg-slate-100'
+                                            }`}
+                                            aria-label={showProductIconPicker ? 'Hide icon picker' : 'Show icon picker'}
+                                        >
+                                            <ChevronDown
+                                                size={16}
+                                                className={`transition-transform ${showProductIconPicker ? 'rotate-180' : ''}`}
+                                            />
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
+
+                            {showProductIconPicker && (
+                            <div>
+                                <div className="grid grid-cols-4 gap-3">
+                                    {PRODUCT_ICON_CHOICES.map((icon) => (
+                                        <button
+                                            key={icon}
+                                            type="button"
+                                            onClick={() => {
+                                                setNewProduct({ ...newProduct, icon });
+                                                setShowProductIconPicker(false);
+                                            }}
+                                            className={`h-14 rounded-2xl border text-2xl transition-all active:scale-95 ${
+                                                newProduct.icon === icon
+                                                    ? (isDarkMode ? 'border-gold bg-gold/10 shadow-gold-glow' : 'border-slate-900 bg-slate-100')
+                                                    : (isDarkMode ? 'border-white/10 bg-black/20 hover:border-gold/40 hover:bg-white/5' : 'border-slate-200 bg-slate-50 hover:border-slate-400')
+                                            }`}
+                                            aria-label={`Choose ${icon} icon`}
+                                        >
+                                            {icon}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                            )}
                             
                             <div className="grid grid-cols-3 gap-4">
                                 <div>

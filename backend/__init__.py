@@ -1,1 +1,1 @@
-# BakeryOS backend package.
+# This folder contains the Python backend for BakeryOS.

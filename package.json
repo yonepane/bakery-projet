@@ -1,6 +1,7 @@
 {
   "name": "bakery-os-enterprise",
   "version": "BETA 0.1",
+  "author": "Dane",
   "private": true,
   "scripts": {
     "dev": "npm --prefix frontend run dev",

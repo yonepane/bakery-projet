@@ -2,13 +2,15 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
-// https://vitejs.dev/config/
 export default defineConfig({
   plugins: [
     react(),
     VitePWA({
+      // Keep the app installable and let the service worker refresh itself when
+      // a new build is deployed.
       registerType: 'autoUpdate',
       workbox: {
+        // Never let the PWA offline shell swallow real API requests.
         navigateFallbackDenylist: [/^\/api\//],
       },
       manifest: {
@@ -23,6 +25,7 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
+        // During local development, Vite forwards API traffic to FastAPI.
         target: 'http://localhost:8000',
         changeOrigin: true,
         secure: false,

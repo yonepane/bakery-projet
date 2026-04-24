@@ -6,6 +6,7 @@ export default {
   ],
   theme: {
     extend: {
+      // Brand palette for the luxury/gold presentation used throughout the UI.
       colors: {
         gold: {
           DEFAULT: '#D4AF37',
@@ -24,6 +25,7 @@ export default {
         }
       },
       backgroundImage: {
+        // Used on cards to give a subtle glassmorphism layer.
         'glass-gradient': 'linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05))',
       },
       boxShadow: {

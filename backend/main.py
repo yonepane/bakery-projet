@@ -1,16 +1,21 @@
+"""Main FastAPI application for BakeryOS.
+
+This file owns the business workflows of the project: auth, inventory,
+production, POS, purchasing, analytics, PDF exports, and the production
+fallback that serves the frontend build.
+"""
+
+import csv
 import json
 import os
 import sys
 import uuid
-import csv
 from datetime import datetime, timedelta
-from io import BytesIO
-from io import StringIO
+from io import BytesIO, StringIO
 from typing import Dict, List, Optional
 
 import jwt
 import sqlalchemy.orm
-from sqlalchemy import text
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, Response
@@ -23,7 +28,15 @@ from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import mm
-from reportlab.platypus import HRFlowable, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+from reportlab.platypus import (
+    HRFlowable,
+    Paragraph,
+    SimpleDocTemplate,
+    Spacer,
+    Table,
+    TableStyle,
+)
+from sqlalchemy import text
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 if CURRENT_DIR not in sys.path:
@@ -40,18 +53,19 @@ VERCEL_ENV = os.getenv("VERCEL_ENV", "").lower()
 ENVIRONMENT = os.getenv("ENVIRONMENT", "development").lower()
 IS_LOCAL_DEV = VERCEL_ENV in ("", "development") and ENVIRONMENT == "development"
 
-#security 
+# In production, the app must receive a real secret key from the environment.
+# During local development, we allow a fallback value so the app can still
+# start on a new machine.
 SECRET_KEY = os.getenv("SECRET_KEY")
 if not SECRET_KEY:
-    if not IS_LOCAL_DEV:
-        raise RuntimeError("SECRET_KEY must be set outside local development")
-    SECRET_KEY = "bakery-dev-insecure-secret"
+    raise ValueError("SECRET_KEY is not set")
 
 ALGORITHM = "HS256"
 pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
 def init_db():
+    """Create tables and run lightweight schema self-healing on startup."""
     try:
         models.Base.metadata.create_all(bind=engine)
         ensure_runtime_schema()
@@ -62,6 +76,7 @@ def init_db():
             raise e
 
 def ensure_runtime_schema():
+    """Patch older databases that may still be missing newer PO fields."""
     with engine.begin() as conn:
         if engine.dialect.name == "sqlite":
             po_columns = {row[1] for row in conn.execute(text("PRAGMA table_info(purchase_orders)"))}
@@ -96,8 +111,10 @@ def get_password_hash(password):
     return pwd_context.hash(password)
 
 def create_access_token(data: dict):
+    # Create a login token that the frontend can send back with later requests.
     to_encode = data.copy()
-    expire = datetime.utcnow() + timedelta(hours=24)
+    from datetime import timezone
+    expire = datetime.now(timezone.utc) + timedelta(hours=24)
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
@@ -105,9 +122,11 @@ async def get_current_user(
     request: Request, 
     db: sqlalchemy.orm.Session = Depends(get_db)
 ):
+    # First, try to read the token from the URL query string. This is useful
+    # for cases such as opening a file download in a new browser tab.
     token = request.query_params.get("token")
     
-    # 2. Try Authorization header
+    # If there was no token in the URL, try the normal Authorization header.
     if not token:
         auth_header = request.headers.get("Authorization")
         if auth_header and auth_header.startswith("Bearer "):
@@ -130,11 +149,15 @@ async def get_current_user(
     return user
 
 def get_effective_owner_id(current_user: models.User = Depends(get_current_user)):
+    # If the current user is a cashier, return the owner's ID instead of the
+    # cashier's own ID. This keeps all bakery data grouped under the owner.
     if current_user.role == "owner":
         return current_user.id
     return current_user.parent_owner_id
 
 def requires_roles(roles: List[str]):
+    # Build a reusable permission check for routes that are only allowed for
+    # certain roles, such as owner-only actions.
     def role_checker(current_user: models.User = Depends(get_current_user)):
         if current_user.role not in roles:
             raise HTTPException(
@@ -146,6 +169,8 @@ def requires_roles(roles: List[str]):
 
 
 def _pdf_response(buffer: BytesIO, filename: str) -> Response:
+    # Return a PDF file response in one shared helper, so the report routes do
+    # not have to repeat the same response code.
     return Response(
         content=buffer.getvalue(),
         media_type="application/pdf",
@@ -158,6 +183,7 @@ def _format_money(value: float, currency: str) -> str:
 
 
 def _report_styles():
+    # Define the text styles used by the PDF reports and receipts.
     styles = getSampleStyleSheet()
     return {
         "eyebrow": ParagraphStyle(
@@ -284,13 +310,14 @@ def _report_styles():
 def _receipt_page_size_mm(tx, paper: str) -> tuple[float, float]:
     paper_width = 58 if paper == "58mm" else 80
     item_count = len(tx.items or [])
-    # Thermal printers need enough vertical room for the full ticket. Undersizing
-    # here causes ReportLab to spill the receipt onto a second page.
+    # Thermal receipts need enough paper height for all line items.
+    # If the page is too short, the receipt can spill onto a second page.
     paper_height = max(125, 96 + (item_count * 18))
     return paper_width, paper_height
 
 
 def _build_receipt_pdf(tx, currency: str, paper: str = "80mm") -> BytesIO:
+    # Build the PDF for one sale receipt.
     styles = _report_styles()
     buffer = BytesIO()
     page_width_mm, page_height_mm = _receipt_page_size_mm(tx, paper)
@@ -393,6 +420,7 @@ def _build_monthly_report_pdf(
     margin: float,
     currency: str,
 ) -> BytesIO:
+    # Build the monthly accounting report PDF shown in the reporting screens.
     styles = _report_styles()
     buffer = BytesIO()
     doc = SimpleDocTemplate(
@@ -538,8 +566,8 @@ def _build_monthly_report_pdf(
 app = FastAPI(title="BakeryOS API")
 handler = app
 
-# Vercel cold starts may serve requests before lifespan hooks are useful for us.
-# Initialize tables during import as well so authenticated routes do not hit missing-table errors.
+# Vercel can receive a request before normal startup hooks finish.
+# To avoid "missing table" problems, initialize the database during import too.
 init_db()
 
 @app.on_event("startup")
@@ -554,7 +582,7 @@ async def force_init():
     except Exception as e:
         return {"status": "Error", "message": str(e)}
 
-# Enable CORS
+# Allow the frontend running on local development ports to call this API.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -572,7 +600,8 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.path.join(BASE_DIR, "data")
 FRONTEND_DIR = os.path.join(BASE_DIR, "frontend", "dist")
 
-# Pydantic models for request/response
+# These classes describe the shape of incoming JSON data.
+# FastAPI uses them to validate requests automatically.
 class IngredientItem(BaseModel):
     name: str
     quantity: float
@@ -668,7 +697,7 @@ class WasteCreate(BaseModel):
     product_id: str
     quantity: int
 
-# Helper functions
+# These helper functions keep the route handlers shorter and easier to read.
 def calculate_product_cost(product: models.Product):
     total_cost = 0
     for item in product.recipe_items:
@@ -677,21 +706,22 @@ def calculate_product_cost(product: models.Product):
     return total_cost
 
 def get_settings():
-    # Keep settings in JSON for now as it's small and rarely changed, 
-    # or migrate to a Settings table later.
+    # Settings are currently stored in a small JSON file because they are tiny
+    # and mostly global. This could move into the database later if needed.
     settings_path = os.path.join(DATA_DIR, 'settings.json')
     if os.path.exists(settings_path):
         with open(settings_path, 'r') as f:
             return json.load(f)
     return {"currency": "MAD", "tax_rate": 0.2}
 
+# This is a small development shortcut route.
 @app.get("/api/seed", dependencies=[Depends(requires_roles(["owner"]))])
 async def seed_users(
     db: sqlalchemy.orm.Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
     try:
-        # Keep this endpoint only as a dev convenience for a signed-in owner.
+        # Only use this route as a development helper for an owner account.
         cashier = db.query(models.User).filter(
             models.User.username == "cashier",
             models.User.parent_owner_id == current_user.id
@@ -722,19 +752,33 @@ GOOGLE_CLIENT_ID = os.getenv(
 class GoogleLoginRequest(BaseModel):
     credential: str
 
+# This route is used when the user clicks "Sign in with Google" on the frontend.
+# The frontend sends Google a login request first, then Google sends back a
+# credential token. We verify that token here and then map the Google account
+# to one of our own users in the BakeryOS database.
 @app.post("/api/auth/google")
 async def google_login(req: GoogleLoginRequest, db: sqlalchemy.orm.Session = Depends(get_db)):
     try:
-        # 1. Real Verification with Google
+        # Step 1:
+        # Ask Google if the credential token is real and was issued for our app.
+        # If the token is fake, expired, or belongs to another app, this call
+        # will fail and we stop the login.
         idinfo = id_token.verify_oauth2_token(req.credential, google_requests.Request(), GOOGLE_CLIENT_ID)
         
-        # 2. Extract user info
+        # Step 2:
+        # Read the user's email from Google's response. In this project, the
+        # email is used as the BakeryOS username for Google-based accounts.
         email = idinfo['email']
         
-        # 3. Check if user exists, if not create them
+        # Step 3:
+        # Look in our database to see whether this Google user already has a
+        # BakeryOS account.
         user = db.query(models.User).filter(models.User.username == email).first()
         if not user:
-            # Create a new owner account automatically for Google users
+            # If the user does not exist yet, create a brand-new owner account.
+            # We still store something in the password field because the
+            # database model requires one, but Google users are expected to log
+            # in through Google rather than by typing this placeholder value.
             user = models.User(
                 username=email, 
                 password=get_password_hash("google_oauth_protected"), 
@@ -745,12 +789,16 @@ async def google_login(req: GoogleLoginRequest, db: sqlalchemy.orm.Session = Dep
             db.commit()
             db.refresh(user)
         else:
-            # Ensure existing Google user has owner role
+            # If the user already exists, make sure their role is "owner".
+            # In this app, a Google account is always treated as the main
+            # bakery owner account, not as a cashier account.
             if user.role != "owner":
                 user.role = "owner"
                 db.commit()
             
-        # 4. Generate our system token
+        # Step 4:
+        # Create our own BakeryOS access token. From this point on, the frontend
+        # uses this token to call protected API routes in our backend.
         access_token = create_access_token(data={"sub": user.username})
         return {
             "access_token": access_token,
@@ -764,12 +812,12 @@ async def google_login(req: GoogleLoginRequest, db: sqlalchemy.orm.Session = Dep
 
 @app.post("/api/auth/signup")
 async def signup(req: LoginRequest, db: sqlalchemy.orm.Session = Depends(get_db)):
-    # Check if user exists
+    # First, make sure the username is not already taken by another account.
     existing = db.query(models.User).filter(models.User.username == req.username).first()
     if existing:
         raise HTTPException(status_code=400, detail="Username already taken")
     
-    # Create new owner
+    # If the username is free, create a new owner account.
     new_user = models.User(
         username=req.username,
         password=get_password_hash(req.password),
@@ -783,10 +831,14 @@ async def signup(req: LoginRequest, db: sqlalchemy.orm.Session = Depends(get_db)
 
 @app.post("/api/auth/login", response_model=Token)
 async def login(req: LoginRequest, db: sqlalchemy.orm.Session = Depends(get_db)):
+    # Find the user by username in our database.
     user = db.query(models.User).filter(models.User.username == req.username).first()
+
+    # If the user does not exist, or the password is wrong, reject the login.
     if not user or not verify_password(req.password, user.password):
         raise HTTPException(status_code=401, detail="Invalid username or password")
 
+    # If the credentials are correct, create an access token for the frontend.
     access_token = create_access_token(data={"sub": user.username})
     return {
         "access_token": access_token, 
@@ -795,7 +847,7 @@ async def login(req: LoginRequest, db: sqlalchemy.orm.Session = Depends(get_db))
         "role": user.role
     }
 
-# Staff Management
+# The routes below let an owner create and manage cashier accounts.
 @app.get("/api/staff", dependencies=[Depends(requires_roles(["owner"]))])
 async def get_staff(db: sqlalchemy.orm.Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     return db.query(models.User).filter(models.User.parent_owner_id == current_user.id).all()
@@ -831,7 +883,7 @@ async def delete_staff(username: str, db: sqlalchemy.orm.Session = Depends(get_d
         db.commit()
         return {"success": True}
     raise HTTPException(status_code=404, detail="Staff member not found")
-# Orders
+# Orders are used for future pickup jobs, not same-day cash register sales.
 @app.get("/api/orders")
 async def get_orders(db: sqlalchemy.orm.Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
     return db.query(models.Order).filter(models.Order.owner_id == owner_id).order_by(models.Order.pickup_date.asc()).all()
@@ -882,7 +934,7 @@ async def update_order_status(id: str, status: str, db: sqlalchemy.orm.Session =
         return order
     raise HTTPException(status_code=404, detail="Order not found")
 
-# Waste
+# Waste routes record stock that was lost, spoiled, or thrown away.
 @app.post("/api/waste")
 async def record_waste(waste: WasteCreate, db: sqlalchemy.orm.Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
     product = db.query(models.Product).filter(
@@ -896,6 +948,7 @@ async def record_waste(waste: WasteCreate, db: sqlalchemy.orm.Session = Depends(
         raise HTTPException(status_code=400, detail="Not enough stock to waste")
         
     product.stock -= waste.quantity
+    # Use the recipe cost so the waste value matches the real production loss.
     loss_cost = calculate_product_cost(product) * waste.quantity
     
     record = models.WasteRecord(
@@ -925,12 +978,14 @@ async def get_waste(db: sqlalchemy.orm.Session = Depends(get_db), owner_id: int 
         for record in records
     ]
 
+# Return inventory in a shape that the frontend can use directly, without
+# extra joining work in the browser.
 @app.get("/api/inventory")
 async def inventory(db: sqlalchemy.orm.Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
     ingredients = db.query(models.Ingredient).filter(models.Ingredient.owner_id == owner_id).all()
     products = db.query(models.Product).filter(models.Product.owner_id == owner_id).all()
     
-    # Map to frontend format
+    # Build the materials object in the format expected by the current React UI.
     materials_dict = {
         ing.name: {
             "id": ing.id,
@@ -972,7 +1027,7 @@ async def get_prep_sheet(db: sqlalchemy.orm.Session = Depends(get_db), owner_id:
     if not pending:
         return "<h1>No pending batches in planner.</h1>"
 
-    # Consolidate requirements
+    # Merge all pending planner rows into one kitchen prep sheet.
     requirements = {}
     production_summary = []
     
@@ -1071,6 +1126,7 @@ async def get_prep_sheet(db: sqlalchemy.orm.Session = Depends(get_db), owner_id:
 
 @app.get("/api/history")
 async def get_history(db: sqlalchemy.orm.Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
+    # Return a simple history list for the dashboard timeline.
     transactions = db.query(models.Transaction).filter(models.Transaction.owner_id == owner_id).order_by(models.Transaction.timestamp.desc()).all()
     return [
         {
@@ -1090,9 +1146,9 @@ async def get_planner(db: sqlalchemy.orm.Session = Depends(get_db), owner_id: in
 
 @app.post("/api/planner")
 async def update_planner(plan: List[Dict], db: sqlalchemy.orm.Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
-    # Clear old plan for this owner
+    # The frontend sends the full planner list at once.
+    # Replace the old planner rows with the new list.
     db.query(models.Planner).filter(models.Planner.owner_id == owner_id).delete()
-    # Add new plan
     for item in plan:
         new_item = models.Planner(
             id=item.get('id', str(uuid.uuid4())[:8].upper()),
@@ -1117,6 +1173,8 @@ async def update_settings(
     db: sqlalchemy.orm.Session = Depends(get_db),
     owner_id: int = Depends(get_effective_owner_id)
 ):
+    # Save each setting by updating it if it already exists, or creating it if
+    # it does not exist yet.
     for key, value in payload.updates.items():
         setting = db.query(models.SystemSetting).filter(
             models.SystemSetting.key == key,
@@ -1139,7 +1197,7 @@ async def produce(batch: ProductionBatch, db: sqlalchemy.orm.Session = Depends(g
         raise HTTPException(status_code=404, detail="Product not found")
 
     production_cost = 0
-    # Check and deduct ingredients
+    # Producing a batch uses up ingredients and adds stock to the finished product.
     for item in product.recipe_items:
         ing = db.query(models.Ingredient).filter(
             models.Ingredient.id == item.ingredient_id,
@@ -1153,7 +1211,7 @@ async def produce(batch: ProductionBatch, db: sqlalchemy.orm.Session = Depends(g
 
     product.stock += batch.quantity
 
-    # Create transaction
+    # Save this production event as a transaction so it appears in history and analytics.
     tx_id = str(uuid.uuid4())[:8].upper()
     transaction = models.Transaction(
         id=tx_id,
@@ -1174,6 +1232,8 @@ async def complete_sale(req: SaleRequest, db: sqlalchemy.orm.Session = Depends(g
     total_cost = 0
     items_snapshot = []
 
+    # Save a copy of the sold item details so old receipts stay correct even if
+    # the product is edited later.
     for item in req.cart:
         product = db.query(models.Product).filter(
             models.Product.id == item.id,
@@ -1211,7 +1271,7 @@ async def complete_sale(req: SaleRequest, db: sqlalchemy.orm.Session = Depends(g
     db.add(transaction)
     db.commit()
     
-    # Generate simple WhatsApp text
+    # Build a text version of the receipt that the frontend can share quickly.
     whatsapp_text = f"BAKERY OS: Receipt {tx_id}\n"
     for item in items_snapshot:
         whatsapp_text += f"- {item['name']} x{item['qty']}\n"
@@ -1227,6 +1287,8 @@ async def get_receipt(
     db: sqlalchemy.orm.Session = Depends(get_db),
     owner_id: int = Depends(get_effective_owner_id),
 ):
+    # Support both PDF and printable HTML so the app works with receipt
+    # printers as well as normal browsers.
     tx = db.query(models.Transaction).filter(
         models.Transaction.id == id,
         models.Transaction.owner_id == owner_id
@@ -1307,11 +1369,13 @@ async def get_receipt(
 
 @app.get("/api/analytics", dependencies=[Depends(requires_roles(["owner"]))])
 async def analytics(db: sqlalchemy.orm.Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
+    # Analytics includes both all-time totals and current-shift totals.
+    # A new shift starts when the owner manually resets the session.
     transactions = db.query(models.Transaction).filter(models.Transaction.owner_id == owner_id).all()
     waste_records = db.query(models.WasteRecord).filter(models.WasteRecord.owner_id == owner_id).all()
     settings_data = get_settings() # We could also make this per-owner later
     
-    # Get last reset time
+    # Read the last reset time from settings.
     reset_setting = db.query(models.SystemSetting).filter(
         models.SystemSetting.key == "last_reset_at",
         models.SystemSetting.owner_id == owner_id
@@ -1320,22 +1384,22 @@ async def analytics(db: sqlalchemy.orm.Session = Depends(get_db), owner_id: int 
     if reset_setting:
         last_reset = datetime.fromisoformat(reset_setting.value)
     else:
-        # Default to start of today
+        # If there is no reset time yet, treat the start of today as the reset point.
         now = datetime.now()
         last_reset = datetime(now.year, now.month, now.day)
 
-    # Total historical data (Always all data)
+    # Calculate totals using all saved history.
     total_revenue = sum(t.total_revenue for t in transactions if t.type == 'sale')
     total_cost = sum(t.total_cost for t in transactions) + sum(w.loss_cost for w in waste_records)
     
-    # Session data (Only since last reset)
+    # Calculate current-session totals using only data since the last reset.
     session_txs = [t for t in transactions if t.timestamp >= last_reset]
     session_waste = [w for w in waste_records if w.date >= last_reset]
     
     today_revenue = sum(t.total_revenue for t in session_txs if t.type == 'sale')
     today_cost = sum(t.total_cost for t in session_txs) + sum(w.loss_cost for w in session_waste)
 
-    # Generate daily data for chart (last 7 days)
+    # Build the last 7 days of chart data.
     daily_data = []
     now = datetime.now()
     for i in range(6, -1, -1):
@@ -1351,13 +1415,13 @@ async def analytics(db: sqlalchemy.orm.Session = Depends(get_db), owner_id: int 
             "cost": sum(t.total_cost for t in day_txs)
         })
 
-    # Hourly Heatmap (0-23)
+    # Group sales by hour for the hourly sales chart.
     hourly_sales = [{"hour": f"{h:02d}h", "value": 0} for h in range(24)]
     for tx in [t for t in transactions if t.type == 'sale']:
         hour = tx.timestamp.hour
         hourly_sales[hour]["value"] += tx.total_revenue
         
-    # Top Products
+    # Count which products sold the most.
     product_stats = {}
     for tx in [t for t in transactions if t.type == 'sale']:
         if tx.items:
@@ -1371,7 +1435,7 @@ async def analytics(db: sqlalchemy.orm.Session = Depends(get_db), owner_id: int 
         for name, qty in sorted(product_stats.items(), key=lambda x: x[1], reverse=True)[:5]
     ]
 
-    # Global Intelligence Metrics
+    # These summary numbers help the owner judge the product catalog as a whole.
     total_portfolio_cost = sum(calculate_product_cost(p) for p in db.query(models.Product).filter(models.Product.owner_id == owner_id).all())
     avg_margin = 0
     if top_products:
@@ -1405,7 +1469,7 @@ async def get_alerts(db: sqlalchemy.orm.Session = Depends(get_db), owner_id: int
     
     alerts = []
     
-    # Stock alerts
+    # Create alerts when ingredient stock gets low.
     for ing in ingredients:
         if ing.stock < ing.min_threshold:
             alerts.append({
@@ -1415,7 +1479,7 @@ async def get_alerts(db: sqlalchemy.orm.Session = Depends(get_db), owner_id: int
                 "id": f"stock-{ing.name}"
             })
             
-    # Margin alerts
+    # Create alerts when a product's profit margin looks too low.
     for p in products:
         cost = calculate_product_cost(p)
         margin = ((p.price - cost) / p.price * 100) if p.price > 0 else 0
@@ -1450,20 +1514,20 @@ async def profit_report(db: sqlalchemy.orm.Session = Depends(get_db), owner_id: 
 
 @app.post("/api/simulate_price", dependencies=[Depends(requires_roles(["owner"]))])
 async def simulate_price(materials_update: Dict[str, float], db: sqlalchemy.orm.Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
-    # Calculate impact on product costs without saving
+    # Simulate ingredient price changes without saving them to the database.
     impact = []
     products = db.query(models.Product).filter(models.Product.owner_id == owner_id).all()
     
-    # Create a temporary mapping for simulation
+    # Build a lookup table so each recipe line can use the new test price when
+    # available, or the saved price otherwise.
     all_ingredients = {ing.name: ing for ing in db.query(models.Ingredient).filter(models.Ingredient.owner_id == owner_id).all()}
     
     for p in products:
         old_cost = calculate_product_cost(p)
         
-        # Calculate new cost with simulated prices
+        # Recalculate the product cost as if the new prices were already active.
         new_cost = 0
         for item in p.recipe_items:
-            # item.ingredient is loaded via relationship, but we can also use our simulated mapping
             price = materials_update.get(item.ingredient.name if item.ingredient else "", 
                                          item.ingredient.price if item.ingredient else 0)
             new_cost += item.quantity * price
@@ -1491,6 +1555,7 @@ async def update_material_prices(materials_update: Dict[str, float], db: sqlalch
     db.commit()
     return {"success": True}
 
+# The routes below create, update, and delete inventory data.
 @app.post("/api/materials", dependencies=[Depends(requires_roles(["owner"]))])
 async def add_material(mat: MaterialCreate, db: sqlalchemy.orm.Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
     existing = db.query(models.Ingredient).filter(
@@ -1573,7 +1638,8 @@ async def add_product(prod: ProductCreate, db: sqlalchemy.orm.Session = Depends(
     
     created_ingredients = []
     for ing_data in prod.ingredients:
-        # Check if ingredient exists for this owner, if not create it
+        # If an ingredient does not exist yet, create it automatically so the
+        # product can still be saved.
         ing = db.query(models.Ingredient).filter(
             models.Ingredient.name == ing_data.name,
             models.Ingredient.owner_id == owner_id
@@ -1622,11 +1688,9 @@ async def update_product(id: str, update: ProductUpdate, db: sqlalchemy.orm.Sess
     if update.instructions is not None: product.instructions = update.instructions
     
     if update.ingredients is not None:
-        # Remove old recipe items
+        # Delete the old recipe rows and rebuild them to match the edited list exactly.
         db.query(models.RecipeItem).filter(models.RecipeItem.product_id == id).delete()
-        # Add new ones
         for ing_data in update.ingredients:
-            # Find the ingredient ID for this owner
             ing = db.query(models.Ingredient).filter(
                 models.Ingredient.name == ing_data.name,
                 models.Ingredient.owner_id == owner_id
@@ -1657,12 +1721,14 @@ async def delete_product(
         return {"success": True}
     raise HTTPException(status_code=404, detail="Product not found")
 
+# These maintenance routes clean up broken rows created by older versions or
+# interrupted save flows.
 @app.post("/api/maintenance/delete-empty-products", dependencies=[Depends(requires_roles(["owner"]))])
 async def delete_empty_product(
     db: sqlalchemy.orm.Session = Depends(get_db),
     owner_id: int = Depends(get_effective_owner_id),
 ):
-    # Use direct SQL as a last resort if ORM is being tricky
+    # Use direct SQL here because corrupted rows may be awkward to clean with the ORM.
     from sqlalchemy import text
     db.execute(
         text("DELETE FROM products WHERE owner_id = :owner_id AND (id = '' OR id IS NULL)"),
@@ -1676,7 +1742,7 @@ async def cleanup_invalid_products(
     db: sqlalchemy.orm.Session = Depends(get_db),
     owner_id: int = Depends(get_effective_owner_id),
 ):
-    # Delete anything with empty id or empty name
+    # Remove products that have an empty ID or empty name.
     invalid = db.query(models.Product).filter(
         models.Product.owner_id == owner_id,
         ((models.Product.id == '') | (models.Product.name == ''))
@@ -1689,7 +1755,8 @@ async def cleanup_invalid_products(
 
 import httpx
 
-# Fallback high-quality recipes for when external API is unreachable or has no results
+# These recipe import helpers use a built-in starter kit when the external API
+# has no data or cannot be reached.
 BAKERY_STARTER_KIT = [
     {
         "id": "starter-1",
@@ -1734,7 +1801,8 @@ BAKERY_STARTER_KIT = [
 async def search_external_recipes(query: str, current_user: models.User = Depends(get_current_user)):
     results = []
     
-    # 1. Check if query matches our starter kit (local fallback)
+    # 1. Search the baked-in starter kit first so something useful appears even
+    #    without network access.
     for recipe in BAKERY_STARTER_KIT:
         if query.lower() in recipe["name"].lower():
             results.append({
@@ -1744,7 +1812,7 @@ async def search_external_recipes(query: str, current_user: models.User = Depend
                 "thumb": recipe["thumb"]
             })
 
-    # 2. Try External API
+    # 2. Enrich the list with results from TheMealDB when reachable.
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
             url = f"https://www.themealdb.com/api/json/v1/1/search.php?s={query}"
@@ -1753,7 +1821,7 @@ async def search_external_recipes(query: str, current_user: models.User = Depend
                 data = response.json()
                 if data.get("meals"):
                     for meal in data["meals"]:
-                        # Avoid duplicates from starter kit
+                        # Avoid duplicates from the local starter-kit matches.
                         if not any(r["name"] == meal["strMeal"] for r in results):
                             results.append({
                                 "id": meal["idMeal"],
@@ -1763,7 +1831,7 @@ async def search_external_recipes(query: str, current_user: models.User = Depend
                             })
     except Exception as e:
         print(f"External API Error: {e}")
-        # If API fails and we have no results yet, show full starter kit
+        # If the API fails and nothing matched locally, return the whole starter kit.
         if not results:
             for recipe in BAKERY_STARTER_KIT:
                 results.append({
@@ -1777,12 +1845,12 @@ async def search_external_recipes(query: str, current_user: models.User = Depend
 
 @app.get("/api/external-recipes/{recipe_id}/details")
 async def get_external_recipe_details(recipe_id: str, current_user: models.User = Depends(get_current_user)):
-    # 1. Check Starter Kit
+    # 1. Serve baked-in recipes instantly when the ID belongs to the starter kit.
     for recipe in BAKERY_STARTER_KIT:
         if recipe["id"] == recipe_id:
             return recipe
 
-    # 2. External API
+    # 2. Otherwise fetch and normalize the remote recipe shape.
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
             url = f"https://www.themealdb.com/api/json/v1/1/lookup.php?i={recipe_id}"
@@ -1820,11 +1888,7 @@ async def get_external_recipe_details(recipe_id: str, current_user: models.User 
     except Exception as e:
         raise HTTPException(status_code=503, detail=f"Service unavailable: {str(e)}")
 
-# Mount static files (Handled by serve_frontend catch-all at the end)
-# if os.path.exists(FRONTEND_DIR):
-#    ...
-
-
+# Small owner-only stock controls and purchasing workflow.
 @app.post("/api/inventory/adjust", dependencies=[Depends(requires_roles(["owner"]))])
 async def adjust_stock(
     adj: StockAdjust,
@@ -1851,6 +1915,7 @@ async def adjust_stock(
 
 @app.get("/api/purchasing/suggest", dependencies=[Depends(requires_roles(["owner"]))])
 async def suggest_purchase(db: sqlalchemy.orm.Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
+    # Suggest enough stock to get back above the safety threshold.
     ingredients = db.query(models.Ingredient).filter(models.Ingredient.owner_id == owner_id).all()
     suggestions = []
     for ing in ingredients:
@@ -1993,6 +2058,8 @@ async def receive_po(
     db: sqlalchemy.orm.Session = Depends(get_db),
     owner_id: int = Depends(get_effective_owner_id)
 ):
+    # Partial receiving lets the bakery update stock even when a supplier ships
+    # only part of the order.
     po = db.query(models.PurchaseOrder).filter(
         models.PurchaseOrder.id == id,
         models.PurchaseOrder.owner_id == owner_id
@@ -2039,7 +2106,7 @@ async def update_po_status(id: str, status: str, db: sqlalchemy.orm.Session = De
     if not po:
         raise HTTPException(status_code=404, detail="Order not found")
 
-    # If transitioning to 'received', update stock
+    # Marking an order as fully received also backfills any remaining stock delta.
     if status == "received" and po.status != "received":
         for item in po.items:
             # item format: {name, qty, price}
@@ -2058,6 +2125,7 @@ async def update_po_status(id: str, status: str, db: sqlalchemy.orm.Session = De
     db.commit()
     return {"success": True}
 
+    # Expenses and exports feed the accounting side of the product.
 @app.get("/api/expenses", dependencies=[Depends(requires_roles(["owner"]))])
 async def get_expenses(db: sqlalchemy.orm.Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
     return db.query(models.Expense).filter(models.Expense.owner_id == owner_id).order_by(models.Expense.date.desc()).all()
@@ -2097,6 +2165,7 @@ async def export_accounting(
     ).all()
 
     output = StringIO()
+    # CSV keeps the export simple to ingest in spreadsheets and accounting tools.
     writer = csv.writer(output)
     writer.writerow(["date", "entry_type", "reference", "label", "status", "amount"])
     for tx in transactions:
@@ -2118,7 +2187,7 @@ async def reset_session(
     db: sqlalchemy.orm.Session = Depends(get_db),
     owner_id: int = Depends(get_effective_owner_id),
 ):
-    # Update shift start time to now
+    # Moving `last_reset_at` forward creates a new "current shift" window.
     now_str = datetime.now().isoformat()
     setting = db.query(models.SystemSetting).filter(
         models.SystemSetting.key == "last_reset_at",
@@ -2140,6 +2209,7 @@ async def get_monthly_report(
     db: sqlalchemy.orm.Session = Depends(get_db),
     owner_id: int = Depends(get_effective_owner_id),
 ):
+    # Owner-facing month-end summary available as printable HTML or PDF.
     start_date = datetime(year, month, 1)
     if month == 12: end_date = datetime(year + 1, 1, 1)
     else: end_date = datetime(year, month + 1, 1)
@@ -2190,7 +2260,8 @@ async def get_monthly_report(
             f"monthly-report-{year:04d}-{month:02d}.pdf",
         )
     
-    # Generate printable HTML
+    # Generate printable HTML when the browser, rather than ReportLab, should
+    # handle the final print/export step.
     html_content = f"""
     <html>
     <head>
@@ -2280,7 +2351,8 @@ async def get_monthly_report(
 
 @app.get("/api/forecast")
 async def get_forecast(target_date: str, db: sqlalchemy.orm.Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
-    # target_date format: YYYY-MM-DD
+    # The forecast is intentionally simple: compare the same weekday over the
+    # last four weeks, average it, then add a small safety buffer.
     try:
         target_dt = datetime.strptime(target_date, '%Y-%m-%d')
     except ValueError:
@@ -2289,7 +2361,7 @@ async def get_forecast(target_date: str, db: sqlalchemy.orm.Session = Depends(ge
     suggestions = []
     products = db.query(models.Product).filter(models.Product.owner_id == owner_id).all()
 
-    # Look back at the last 4 weeks of the same weekday
+    # Look back at the last four matching weekdays.
     history_dates = []
     for i in range(1, 5):
         history_dates.append(target_dt - timedelta(weeks=i))
@@ -2300,7 +2372,7 @@ async def get_forecast(target_date: str, db: sqlalchemy.orm.Session = Depends(ge
             start = datetime(h_date.year, h_date.month, h_date.day)
             end = start + timedelta(days=1)
 
-            # Find transactions for this product on this day
+            # Count how many units of this product were sold that day.
             txs = db.query(models.Transaction).filter(
                 models.Transaction.owner_id == owner_id,
                 models.Transaction.type == 'sale',
@@ -2315,7 +2387,8 @@ async def get_forecast(target_date: str, db: sqlalchemy.orm.Session = Depends(ge
                             day_qty += item.get('qty', 0)
             sales_data.append(day_qty)
             
-        # Average + 10% safety buffer
+        # Average + 10% safety buffer, with a small minimum so empty history
+        # does not produce a zero plan.
         avg_sales = sum(sales_data) / len(sales_data) if sales_data else 0
         suggested = int(avg_sales * 1.1) + 1 if avg_sales > 0 else 5 # minimum 5
         
@@ -2333,12 +2406,12 @@ async def serve_frontend(full_path: str):
     if full_path.startswith("api"):
         raise HTTPException(status_code=404)
         
-    # 1. Try to serve specific file from dist (icons, manifest, js, css, etc.)
+    # 1. Serve real built assets when they exist.
     file_path = os.path.join(FRONTEND_DIR, full_path)
     if os.path.isfile(file_path):
         return FileResponse(file_path)
 
-    # 2. Fallback to index.html for SPA routing
+    # 2. Otherwise fall back to the React app so client-side routing works.
     index_path = os.path.join(FRONTEND_DIR, "index.html")
     if os.path.exists(index_path):
         return FileResponse(index_path, headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"})

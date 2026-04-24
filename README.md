@@ -2,6 +2,18 @@
 
 BakeryOS is a modern bakery management system.
 
+Maintainer: Dane
+
+## Mission
+
+BakeryOS helps a bakery run daily operations from one place:
+
+- manage raw materials and finished products
+- produce batches from recipes
+- complete POS sales and customer pre-orders
+- track waste, expenses, suppliers, and purchase orders
+- generate analytics, forecasts, and printable financial reports
+
 ## Project Structure
 
 - `frontend/`: React + Vite client app.

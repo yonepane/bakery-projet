@@ -1,3 +1,5 @@
+// This file stores the words shown in the interface for each supported
+// language. The keys describe ideas used across the app, not one single page.
 export type Language = 'en' | 'fr' | 'ar';
 
 export const translations = {

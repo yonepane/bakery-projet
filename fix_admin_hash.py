@@ -1,13 +1,15 @@
 import sys
 import os
 
-# Add bakery-os to path so we can import backend.main
+# This helper script is meant to be run from the workspace root. It loads the
+# backend password hasher so the updated hash matches what the live app expects.
 sys.path.append('bakery-os')
 
 from backend.main import pwd_context, SessionLocal, models
 
 db = SessionLocal()
 try:
+    # Reset the legacy `admin` account to the known development password.
     user = db.query(models.User).filter(models.User.username == 'admin').first()
     if user:
         new_hash = pwd_context.hash('password')

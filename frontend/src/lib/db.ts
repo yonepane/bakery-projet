@@ -9,6 +9,7 @@ export interface SyncOperation {
 }
 
 export class BakeryDatabase extends Dexie {
+  // Each table below stores one part of the app's data for offline use.
   inventory!: Table<any>;
   orders!: Table<any>;
   analytics!: Table<any>;
@@ -20,6 +21,8 @@ export class BakeryDatabase extends Dexie {
 
   constructor() {
     super('BakeryOS_v2');
+    // This defines version 1 of the local browser database.
+    // The keys are simple because this cache can always be rebuilt from the API.
     this.version(1).stores({
       inventory: 'id',
       orders: 'id',
@@ -33,4 +36,5 @@ export class BakeryDatabase extends Dexie {
   }
 }
 
+// Export one shared database instance for the whole frontend.
 export const db = new BakeryDatabase();

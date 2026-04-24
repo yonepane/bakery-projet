@@ -1,5 +1,7 @@
 services:
   postgres:
+    # Lightweight local PostgreSQL service for testing the hosted-database path
+    # without needing a real cloud instance.
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
@@ -12,4 +14,5 @@ services:
       - postgres_data:/var/lib/postgresql/data
 
 volumes:
+  # Persist database data across container restarts.
   postgres_data:
