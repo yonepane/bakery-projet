@@ -137,7 +137,10 @@ const Dashboard: React.FC = () => {
   const API_BASE = '/api';
   // Login state and current user information.
   const [user, setUser] = useState<{username: string, role: string} | null>(null);
+  const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
   const [loginForm, setLoginForm] = useState({ username: '', password: '' });
+  const [signupForm, setSignupForm] = useState({ username: '', password: '', confirmPassword: '' });
+  const [isAuthSubmitting, setIsAuthSubmitting] = useState(false);
   
   // UI state for navigation and language.
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -535,6 +538,7 @@ const Dashboard: React.FC = () => {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsAuthSubmitting(true);
     try {
       const res = await http.post('/auth/login', loginForm);
       const { access_token, username, role } = res.data;
@@ -543,6 +547,41 @@ const Dashboard: React.FC = () => {
       setUser({ username, role });
     } catch (err) {
       addToast("Invalid credentials", 'error');
+    } finally {
+      setIsAuthSubmitting(false);
+    }
+  };
+
+  const handleSignup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (signupForm.password !== signupForm.confirmPassword) {
+      addToast("Passwords do not match", "error");
+      return;
+    }
+    
+    setIsAuthSubmitting(true);
+    try {
+      // 1. Create the account
+      await http.post('/auth/signup', {
+        username: signupForm.username,
+        password: signupForm.password
+      });
+      
+      // 2. Automatically log them in
+      const res = await http.post('/auth/login', {
+        username: signupForm.username,
+        password: signupForm.password
+      });
+      
+      const { access_token, username, role } = res.data;
+      localStorage.setItem('bakery_token', access_token);
+      localStorage.setItem('bakery_user', JSON.stringify({ username, role }));
+      setUser({ username, role });
+      addToast("Bakery Ready!", "success");
+    } catch (err: any) {
+      addToast(err.response?.data?.detail || "Signup failed", "error");
+    } finally {
+      setIsAuthSubmitting(false);
     }
   };
 
@@ -595,7 +634,9 @@ const Dashboard: React.FC = () => {
               className={`login-card p-12 rounded-[3rem] w-full max-w-md ${isDarkMode ? 'shadow-gold-glow' : 'bg-white border-slate-200 shadow-2xl'}`}
           >
             <div className="relative text-center mb-10">
-              <div className="login-badge mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-[2rem] border border-gold/25 bg-gold/10 text-4xl text-gold">🥐</div>
+              <div className="login-badge mx-auto mb-6 flex h-24 w-24 items-center justify-center overflow-hidden rounded-[2rem] border border-gold/25 bg-gold/10">
+                <img src="/columbina-login.jpg" alt="BakeryOS icon" className="h-full w-full object-cover" />
+              </div>
               <div className="login-title-wrap">
                 <h1 className="text-4xl font-bold luxury-font tracking-tighter uppercase mb-3">
                   <span className="text-white">Bakery</span>
@@ -605,36 +646,74 @@ const Dashboard: React.FC = () => {
               </div>
             </div>
 
-            <form onSubmit={handleLogin} className="space-y-6">
+            <div className="mb-6 grid grid-cols-2 gap-2 rounded-2xl border border-gold/10 bg-white/[0.03] p-1">
+              <button
+                type="button"
+                onClick={() => setAuthMode('login')}
+                className={`rounded-xl px-4 py-3 text-[11px] font-black uppercase tracking-[0.2em] transition-all ${authMode === 'login' ? 'bg-gold text-charcoal shadow-gold-glow' : 'text-cream/55 hover:text-cream'}`}
+              >
+                Log In
+              </button>
+              <button
+                type="button"
+                onClick={() => setAuthMode('signup')}
+                className={`rounded-xl px-4 py-3 text-[11px] font-black uppercase tracking-[0.2em] transition-all ${authMode === 'signup' ? 'bg-gold text-charcoal shadow-gold-glow' : 'text-cream/55 hover:text-cream'}`}
+              >
+                Sign Up
+              </button>
+            </div>
+
+            <form onSubmit={authMode === 'login' ? handleLogin : handleSignup} className="space-y-6">
               <div>
-                <label className="text-[10px] font-black uppercase tracking-widest text-gold/65 mb-2 block">Operator ID</label>
+                <label className="text-[10px] font-black uppercase tracking-widest text-gold/65 mb-2 block">
+                  {authMode === 'login' ? 'Operator ID' : 'Owner Username'}
+                </label>
                 <input
                   type="text"
-                  value={loginForm.username}
-                  onChange={(e) => setLoginForm({...loginForm, username: e.target.value})}
+                  value={authMode === 'login' ? loginForm.username : signupForm.username}
+                  onChange={(e) => authMode === 'login'
+                    ? setLoginForm({...loginForm, username: e.target.value})
+                    : setSignupForm({...signupForm, username: e.target.value})}
                   className={`login-input w-full font-bold ${isDarkMode ? 'login-input--dark' : ''}`}
                   placeholder="Username"
+                  autoComplete={authMode === 'login' ? 'username' : 'new-username'}
                 />
               </div>
               <div>
                 <label className="text-[10px] font-black uppercase tracking-widest text-gold/65 mb-2 block">Secure Key</label>
                 <input
                   type="password"
-                  value={loginForm.password}
-                  onChange={(e) => setLoginForm({...loginForm, password: e.target.value})}
+                  value={authMode === 'login' ? loginForm.password : signupForm.password}
+                  onChange={(e) => authMode === 'login'
+                    ? setLoginForm({...loginForm, password: e.target.value})
+                    : setSignupForm({...signupForm, password: e.target.value})}
                   className={`login-input w-full font-bold ${isDarkMode ? 'login-input--dark' : ''}`}
                   placeholder="••••••••"
+                  autoComplete={authMode === 'login' ? 'current-password' : 'new-password'}
                 />
               </div>
-              <button className={`login-gold-button w-full py-5 rounded-2xl font-black text-xs uppercase tracking-[0.24em] ${isDarkMode ? '' : 'bg-slate-900 text-white shadow-xl'}`}>
-                Access Terminal
+              {authMode === 'signup' && (
+                <div>
+                  <label className="text-[10px] font-black uppercase tracking-widest text-gold/65 mb-2 block">Confirm Key</label>
+                  <input
+                    type="password"
+                    value={signupForm.confirmPassword}
+                    onChange={(e) => setSignupForm({...signupForm, confirmPassword: e.target.value})}
+                    className={`login-input w-full font-bold ${isDarkMode ? 'login-input--dark' : ''}`}
+                    placeholder="••••••••"
+                    autoComplete="new-password"
+                  />
+                </div>
+              )}
+              <button disabled={isAuthSubmitting} className={`login-gold-button w-full py-5 rounded-2xl font-black text-xs uppercase tracking-[0.24em] disabled:opacity-60 ${isDarkMode ? '' : 'bg-slate-900 text-white shadow-xl'}`}>
+                {isAuthSubmitting ? 'Please Wait' : authMode === 'login' ? 'Access Terminal' : 'Create Bakery'}
               </button>
             </form>
 
             <div className="mt-8 flex flex-col items-center gap-6">
               <div className="flex items-center w-full gap-4 text-gold/30">
                 <div className="h-px bg-gold/20 flex-1" />
-                <span className="text-[8px] font-bold uppercase tracking-widest">Or Secure Login</span>
+                <span className="text-[8px] font-bold uppercase tracking-widest">{authMode === 'login' ? 'Or Secure Login' : 'Or Create With Google'}</span>
                 <div className="h-px bg-gold/20 flex-1" />
               </div>
 
