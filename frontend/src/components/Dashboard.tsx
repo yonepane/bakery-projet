@@ -631,7 +631,7 @@ const Dashboard: React.FC = () => {
           <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
-              className={`login-card p-12 rounded-[3rem] w-full max-w-md ${isDarkMode ? 'shadow-gold-glow' : 'bg-white border-slate-200 shadow-2xl'}`}
+              className={`login-card p-8 rounded-[2rem] w-full max-w-md ${isDarkMode ? 'shadow-gold-glow' : 'bg-white border-slate-200 shadow-2xl'}`}
           >
             <div className="relative text-center mb-10">
               <div className="login-badge mx-auto mb-6 flex h-24 w-24 items-center justify-center overflow-hidden rounded-[2rem] border border-gold/25 bg-gold/10">
@@ -1452,7 +1452,7 @@ const Dashboard: React.FC = () => {
             </div>
           </div>
           <div className="flex gap-4">
-            <div className={`px-6 py-3 flex items-center gap-4 border rounded-2xl ${isDarkMode ? 'border-white/10 bg-black/20' : 'border-slate-200 bg-white shadow-sm'}`}>
+            <div className={`px-3 py-1.5 flex items-center gap-3 border rounded-xl ${isDarkMode ? 'border-white/10 bg-black/20' : 'border-slate-200 bg-white shadow-sm'}`}>
               <div className="text-right">
                 <p className={`text-[10px] uppercase tracking-widest font-black ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>{isOnline ? t.online : t.offline}</p>
                 <p className={`text-xs font-bold ${isOnline ? 'text-emerald-500' : 'text-rose-500'}`}>
@@ -1463,7 +1463,7 @@ const Dashboard: React.FC = () => {
             </div>
 
             {user?.role === 'owner' && (
-              <div className={`px-5 py-3 flex items-start gap-3 border rounded-2xl ${isDarkMode ? 'border-gold/10 bg-black/20' : 'border-slate-200 bg-white shadow-sm'}`}>
+              <div className={`px-3 py-1.5 flex items-start gap-3 border rounded-xl ${isDarkMode ? 'border-gold/10 bg-black/20' : 'border-slate-200 bg-white shadow-sm'}`}>
                 <div className="text-right">
                   <p className={`text-[10px] uppercase tracking-widest font-black ${isDarkMode ? 'text-gold' : 'text-slate-500'}`}>Master Control</p>
                   <p className={`text-xs font-bold ${editMode ? 'text-gold' : isDarkMode ? 'text-cream/40' : 'text-slate-500'}`}>
@@ -1520,7 +1520,7 @@ const Dashboard: React.FC = () => {
               </div>
             )}
 
-            <div className={`px-6 py-3 flex items-center gap-4 border rounded-2xl ${isDarkMode ? 'border-gold/10 bg-black/20' : 'border-slate-200 bg-white shadow-sm'}`}>
+            <div className={`px-3 py-1.5 flex items-center gap-3 border rounded-xl ${isDarkMode ? 'border-gold/10 bg-black/20' : 'border-slate-200 bg-white shadow-sm'}`}>
               <div className="text-right">
                 <p className={`text-[10px] uppercase tracking-widest font-black ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>{t.profit}</p>
                 <p className={`text-xl font-bold ${isDarkMode ? 'text-gold' : 'text-slate-900'}`}>{formatPrice(analytics.today_revenue - analytics.today_cost)}</p>
