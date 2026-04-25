@@ -1466,9 +1466,6 @@ const Dashboard: React.FC = () => {
               <div className={`px-3 py-1.5 flex items-start gap-3 border rounded-xl ${isDarkMode ? 'border-gold/10 bg-black/20' : 'border-slate-200 bg-white shadow-sm'}`}>
                 <div className="text-right">
                   <p className={`text-[10px] uppercase tracking-widest font-black ${isDarkMode ? 'text-gold' : 'text-slate-500'}`}>Master Control</p>
-                  <p className={`text-xs font-bold ${editMode ? 'text-gold' : isDarkMode ? 'text-cream/40' : 'text-slate-500'}`}>
-                    {editMode ? 'Active' : 'Standby'}
-                  </p>
                 </div>
                 <div className="neo-toggle-container shrink-0">
                   <input
