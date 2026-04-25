@@ -634,7 +634,7 @@ const Dashboard: React.FC = () => {
               className={`login-card p-8 rounded-[2rem] w-full max-w-md ${isDarkMode ? 'shadow-gold-glow' : 'bg-white border-slate-200 shadow-2xl'}`}
           >
             <div className="relative text-center mb-10">
-              <div className="login-badge mx-auto mb-6 flex h-24 w-24 items-center justify-center overflow-hidden rounded-[2rem] border border-gold/25 bg-gold/10">
+              <div className="login-badge mx-auto mb-6 flex h-20 w-20 items-center justify-center overflow-hidden rounded-[2rem] border border-gold/25 bg-gold/10">
                 <img src="/columbina-login.jpg" alt="BakeryOS icon" className="h-full w-full object-cover" />
               </div>
               <div className="login-title-wrap">
