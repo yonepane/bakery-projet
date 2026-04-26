@@ -84,6 +84,8 @@ def ensure_runtime_schema():
                 conn.execute(text("ALTER TABLE purchase_orders ADD COLUMN notes VARCHAR"))
             if "expected_delivery_date" not in po_columns:
                 conn.execute(text("ALTER TABLE purchase_orders ADD COLUMN expected_delivery_date DATETIME"))
+            if "archived" not in po_columns:
+                conn.execute(text("ALTER TABLE purchase_orders ADD COLUMN archived BOOLEAN DEFAULT 0"))
             return
 
         if engine.dialect.name == "postgresql":
@@ -103,6 +105,8 @@ def ensure_runtime_schema():
                 conn.execute(text("ALTER TABLE purchase_orders ADD COLUMN notes VARCHAR"))
             if "expected_delivery_date" not in po_columns:
                 conn.execute(text("ALTER TABLE purchase_orders ADD COLUMN expected_delivery_date TIMESTAMP"))
+            if "archived" not in po_columns:
+                conn.execute(text("ALTER TABLE purchase_orders ADD COLUMN archived BOOLEAN DEFAULT FALSE"))
 
 def verify_password(plain_password, hashed_password):
     return pwd_context.verify(plain_password, hashed_password)
