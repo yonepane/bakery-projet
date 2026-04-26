@@ -5,7 +5,7 @@ Each class below becomes one table in the database.
 
 import datetime
 
-from sqlalchemy import Column, Integer, String, Float, ForeignKey, DateTime, JSON
+from sqlalchemy import Column, Integer, String, Float, ForeignKey, DateTime, JSON, Boolean
 from sqlalchemy.orm import relationship
 
 try:
@@ -147,6 +147,7 @@ class PurchaseOrder(Base):
     notes = Column(String, nullable=True)
     expected_delivery_date = Column(DateTime, nullable=True)
     status = Column(String, default="draft") # Current purchase order state.
+    archived = Column(Boolean, default=False)
 
 class Planner(Base):
     __tablename__ = "planner"

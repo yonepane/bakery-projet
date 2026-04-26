@@ -1985,6 +1985,18 @@ async def delete_supplier(
 async def get_pos(db: sqlalchemy.orm.Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
     return db.query(models.PurchaseOrder).filter(models.PurchaseOrder.owner_id == owner_id).all()
 
+@app.delete("/api/purchase-orders/{id}", dependencies=[Depends(requires_roles(["owner"]))])
+async def delete_po(id: str, db: sqlalchemy.orm.Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
+    po = db.query(models.PurchaseOrder).filter(
+        models.PurchaseOrder.id == id,
+        models.PurchaseOrder.owner_id == owner_id
+    ).first()
+    if not po:
+        raise HTTPException(status_code=404, detail="Order not found")
+    po.archived = True
+    db.commit()
+    return {"success": True}
+
 @app.post("/api/purchase-orders", dependencies=[Depends(requires_roles(["owner"]))])
 async def create_po(po: POCreate, db: sqlalchemy.orm.Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
     supplier = db.query(models.Supplier).filter(

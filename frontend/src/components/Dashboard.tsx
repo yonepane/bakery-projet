@@ -515,7 +515,10 @@ const Dashboard: React.FC = () => {
           return suppData[0].id;
         });
       }
-      if (posData) setPurchaseOrders(posData);
+      if (posData) {
+        const sorted = [...posData].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        setPurchaseOrders(sorted);
+      }
       if (expData) setExpenses(expData);
       if (staffData) setStaff(staffData);
       if (profData) setProfitReport(profData);
@@ -971,6 +974,22 @@ const Dashboard: React.FC = () => {
     } catch (e: any) { addToast("Failed to receive goods", "error"); }
   };
 
+  const handleDeletePO = async (id: string) => {
+    showConfirm({
+        title: "Delete Order",
+        message: "Are you sure you want to remove this order? It will be archived but preserved for accounting history.",
+        type: 'danger',
+        confirmText: "Delete",
+        onConfirm: async () => {
+            try {
+                await api.delete(`/purchase-orders/${id}`);
+                fetchData();
+                addToast("Order Archived", "success");
+            } catch (e: any) { addToast("Failed to archive order", "error"); }
+        }
+    });
+  };
+
   const openPOModal = (po: any) => {
     // Make a local editable copy so the owner can change notes, ETA, and
     // received quantities before saving.
@@ -1159,9 +1178,10 @@ const Dashboard: React.FC = () => {
       type: 'purchase_order',
       date: po.date,
       label: suppliers.find(supp => supp.id === po.supplier_id)?.name || `Supplier #${po.supplier_id}`,
-      meta: `${po.items.length} lines`,
+      meta: `${po.items.length} lines${po.archived ? ' (ARCHIVED)' : ''}`,
       amount: po.items.reduce((sum: number, item: any) => sum + ((Number(item.qty) || 0) * (Number(item.price) || 0)), 0),
       status: po.status,
+      archived: po.archived,
     })),
   ]
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
@@ -1466,6 +1486,11 @@ const Dashboard: React.FC = () => {
               <div className={`px-3 py-1.5 flex items-start gap-3 border rounded-xl ${isDarkMode ? 'border-gold/10 bg-black/20' : 'border-slate-200 bg-white shadow-sm'}`}>
                 <div className="text-right">
                   <p className={`text-[10px] uppercase tracking-widest font-black ${isDarkMode ? 'text-gold' : 'text-slate-500'}`}>Master Control</p>
+                  {editMode && (
+                    <p className={`text-xs font-bold ${isDarkMode ? 'text-gold' : 'text-slate-500'}`}>
+                      Active
+                    </p>
+                  )}
                 </div>
                 <div className="neo-toggle-container shrink-0">
                   <input
@@ -2292,17 +2317,26 @@ const Dashboard: React.FC = () => {
                             </div>
                         </div>
                         <div className="p-6 space-y-4 max-h-[640px] overflow-y-auto custom-scrollbar">
-                            {purchaseOrders.length > 0 ? (
-                                purchaseOrders.map(po => (
+                            {purchaseOrders.filter(po => !po.archived).length > 0 ? (
+                                purchaseOrders.filter(po => !po.archived).map(po => (
                                     <div key={po.id} className={`p-6 rounded-3xl border transition-all ${isDarkMode ? 'bg-white/5 border-white/5' : 'bg-slate-50 border-slate-100'}`}>
                                         <div className="flex justify-between items-start mb-4">
                                             <div>
                                                 <p className="text-[10px] font-black uppercase tracking-widest opacity-40 mb-1">Order ID</p>
                                                 <p className="font-bold font-mono text-sm">{po.id}</p>
                                             </div>
-                                            <span className={`text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full ${po.status === 'received' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-gold/10 text-gold'}`}>
-                                                {po.status}
-                                            </span>
+                                            <div className="flex flex-col items-end gap-2">
+                                                <span className={`text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full ${po.status === 'received' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-gold/10 text-gold'}`}>
+                                                    {po.status}
+                                                </span>
+                                                <button 
+                                                    onClick={() => handleDeletePO(po.id)}
+                                                    className="p-1.5 rounded-lg text-rose-500/30 hover:text-rose-500 hover:bg-rose-500/10 transition-all"
+                                                    title="Archive Order"
+                                                >
+                                                    <Trash2 size={14} />
+                                                </button>
+                                            </div>
                                         </div>
                                         <div className={`grid grid-cols-2 gap-3 mb-5 text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-cream/35' : 'text-slate-400'}`}>
                                             <div>
@@ -2603,7 +2637,32 @@ const Dashboard: React.FC = () => {
                 {inventory.products.map(p => (
                   <div key={p.id} className={`p-8 rounded-[2.5rem] border transition-colors ${isDarkMode ? 'border-white/5 bg-black/20' : 'border-slate-200 bg-white shadow-sm'}`}>
                     <div className="flex justify-between items-start mb-8">
-                      <div><span className="text-4xl mb-2 block">{p.icon}</span><h3 className={`text-xl font-bold luxury-font ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{p.name}</h3></div>
+                      <div>
+                        {editMode ? (
+                          <>
+                            <select 
+                              value={p.icon}
+                              onChange={(e) => handleUpdateProductField(p.id, 'icon', e.target.value)}
+                              className="text-4xl mb-2 block bg-transparent outline-none cursor-pointer"
+                            >
+                              {PRODUCT_ICON_CHOICES.map(icon => (
+                                <option key={icon} value={icon} className={isDarkMode ? 'bg-charcoal text-white' : ''}>{icon}</option>
+                              ))}
+                            </select>
+                            <input 
+                              type="text"
+                              value={p.name}
+                              onChange={(e) => handleUpdateProductField(p.id, 'name', e.target.value)}
+                              className={`text-xl font-bold luxury-font bg-transparent border-b border-white/10 outline-none w-full ${isDarkMode ? 'text-white' : 'text-slate-900'}`}
+                            />
+                          </>
+                        ) : (
+                          <>
+                            <span className="text-4xl mb-2 block">{p.icon}</span>
+                            <h3 className={`text-xl font-bold luxury-font ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{p.name}</h3>
+                          </>
+                        )}
+                      </div>
                       <div className="text-right">
                         <p className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-gold' : 'text-slate-400'}`}>Unit Cost</p>
                         <p className={`text-xl font-bold ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{formatPrice(p.live_cost || 0)}</p>
@@ -3454,7 +3513,33 @@ const Dashboard: React.FC = () => {
                                     selectedProduct.instructions.map((step, i) => (
                                         <div key={i} className="flex gap-6 group">
                                             <div className="w-10 h-10 rounded-full border border-gold/20 flex items-center justify-center font-black text-gold text-xs shrink-0 group-hover:bg-gold group-hover:text-charcoal transition-all">{i + 1}</div>
-                                            <p className={`text-lg leading-relaxed ${isDarkMode ? 'text-cream/80' : 'text-slate-600'}`}>{step}</p>
+                                            {editMode ? (
+                                              <div className="flex-1 flex gap-4 items-start">
+                                                <textarea
+                                                  value={step}
+                                                  onChange={(e) => {
+                                                    const next = [...selectedProduct.instructions];
+                                                    next[i] = e.target.value;
+                                                    setSelectedProduct({...selectedProduct, instructions: next});
+                                                    handleUpdateProductField(selectedProduct.id, 'instructions', next);
+                                                  }}
+                                                  className={`flex-1 text-lg leading-relaxed bg-transparent border-b border-white/5 outline-none resize-none min-h-[80px] ${isDarkMode ? 'text-cream/80' : 'text-slate-600'}`}
+                                                  placeholder="Describe this step..."
+                                                />
+                                                <button 
+                                                  onClick={() => {
+                                                    const next = selectedProduct.instructions.filter((_, idx) => idx !== i);
+                                                    setSelectedProduct({...selectedProduct, instructions: next});
+                                                    handleUpdateProductField(selectedProduct.id, 'instructions', next);
+                                                  }}
+                                                  className="p-2 text-rose-500/40 hover:text-rose-500 transition-colors"
+                                                >
+                                                  <X size={16}/>
+                                                </button>
+                                              </div>
+                                            ) : (
+                                              <p className={`text-lg leading-relaxed ${isDarkMode ? 'text-cream/80' : 'text-slate-600'}`}>{step}</p>
+                                            )}
                                         </div>
                                     ))
                                 ) : (
@@ -3462,6 +3547,19 @@ const Dashboard: React.FC = () => {
                                         <FileText size={48} className="mb-4" />
                                         <p className="font-black text-xs uppercase tracking-widest">No Protocol Defined</p>
                                     </div>
+                                )}
+
+                                {editMode && (
+                                  <button 
+                                    onClick={() => {
+                                      const next = [...(selectedProduct.instructions || []), ""];
+                                      setSelectedProduct({...selectedProduct, instructions: next});
+                                      handleUpdateProductField(selectedProduct.id, 'instructions', next);
+                                    }}
+                                    className="w-full py-4 rounded-2xl border border-dashed border-gold/20 text-gold font-black text-[10px] uppercase tracking-widest hover:bg-gold/5 transition-all"
+                                  >
+                                    + Add Instruction Step
+                                  </button>
                                 )}
                             </div>
                         </div>
