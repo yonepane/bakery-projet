@@ -1843,15 +1843,14 @@ async def search_external_recipes(query: str, current_user: models.User = Depend
             })
 
     # 2. Enrich the list with results from TheMealDB when reachable.
-    try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
+    async with httpx.AsyncClient(timeout=5.0) as client:
+        try:
             url = f"https://www.themealdb.com/api/json/v1/1/search.php?s={query}"
             response = await client.get(url)
             if response.status_code == 200:
                 data = response.json()
                 if data.get("meals"):
                     for meal in data["meals"]:
-                        # Avoid duplicates from the local starter-kit matches.
                         if not any(r["name"] == meal["strMeal"] for r in results):
                             results.append({
                                 "id": meal["idMeal"],
@@ -1859,17 +1858,28 @@ async def search_external_recipes(query: str, current_user: models.User = Depend
                                 "category": meal["strCategory"],
                                 "thumb": meal["strMealThumb"]
                             })
-    except Exception as e:
-        print(f"External API Error: {e}")
-        # If the API fails and nothing matched locally, return the whole starter kit.
-        if not results:
-            for recipe in BAKERY_STARTER_KIT:
-                results.append({
-                    "id": recipe["id"],
-                    "name": recipe["name"],
-                    "category": recipe["category"],
-                    "thumb": recipe["thumb"]
-                })
+        except Exception as e:
+            print(f"TheMealDB Error: {e}")
+
+        # 3. Add Spoonacular results if an API key is present.
+        sp_key = os.getenv("SPOONACULAR_API_KEY")
+        if sp_key:
+            try:
+                # searchRecipes endpoint uses points; complexSearch is usually preferred.
+                sp_url = f"https://api.spoonacular.com/recipes/complexSearch?query={query}&number=10&apiKey={sp_key}"
+                sp_res = await client.get(sp_url)
+                if sp_res.status_code == 200:
+                    sp_data = sp_res.json()
+                    for item in sp_data.get("results", []):
+                        if not any(r["name"].lower() == item["title"].lower() for r in results):
+                            results.append({
+                                "id": f"sp-{item['id']}", # Prefix to distinguish source
+                                "name": item["title"],
+                                "category": "General",
+                                "thumb": item["image"]
+                            })
+            except Exception as e:
+                print(f"Spoonacular Error: {e}")
     
     return results
 
@@ -1880,7 +1890,40 @@ async def get_external_recipe_details(recipe_id: str, current_user: models.User 
         if recipe["id"] == recipe_id:
             return recipe
 
-    # 2. Otherwise fetch and normalize the remote recipe shape.
+    # 2. Handle Spoonacular IDs
+    if recipe_id.startswith("sp-"):
+        real_id = recipe_id.replace("sp-", "")
+        sp_key = os.getenv("SPOONACULAR_API_KEY")
+        if not sp_key:
+            raise HTTPException(status_code=400, detail="Spoonacular API key is missing")
+        
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                url = f"https://api.spoonacular.com/recipes/{real_id}/information?includeNutrition=false&apiKey={sp_key}"
+                response = await client.get(url)
+                if response.status_code != 200:
+                    raise HTTPException(status_code=404, detail="Spoonacular recipe not found")
+                
+                data = response.json()
+                ingredients = []
+                for ing in data.get("extendedIngredients", []):
+                    # Spoonacular provides high quality metric data
+                    amount = ing.get("measures", {}).get("metric", {}).get("amount", 0)
+                    ingredients.append({
+                        "name": ing["name"].title(),
+                        "quantity": amount
+                    })
+                
+                return {
+                    "name": data["title"],
+                    "ingredients": ingredients,
+                    "thumb": data["image"],
+                    "instructions": [s.get("step") for s in data.get("analyzedInstructions", [{}])[0].get("steps", [])] if data.get("analyzedInstructions") else []
+                }
+        except Exception as e:
+            raise HTTPException(status_code=503, detail=f"Spoonacular error: {str(e)}")
+
+    # 3. Otherwise fetch and normalize TheMealDB shape.
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
             url = f"https://www.themealdb.com/api/json/v1/1/lookup.php?i={recipe_id}"

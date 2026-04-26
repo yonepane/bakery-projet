@@ -1128,6 +1128,7 @@ const Dashboard: React.FC = () => {
         ...newProduct,
         name: details.name,
         ingredients: details.ingredients,
+        instructions: details.instructions || [],
         id: `${slug}-${randomSuffix}`
       });
 
