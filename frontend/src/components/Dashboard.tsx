@@ -267,6 +267,7 @@ const Dashboard: React.FC = () => {
 
   // State used by create, edit, delete, and operations panels.
   const [showAddProduct, setShowAddProduct] = useState(false);
+  const [editingProductId, setEditingProductId] = useState<string | null>(null);
   const [showProductIconPicker, setShowProductIconPicker] = useState(false);
   const [showAddMaterial, setShowAddMaterial] = useState(false);
   const [editingMaterialName, setEditingMaterialName] = useState<string | null>(null);
@@ -873,19 +874,42 @@ const Dashboard: React.FC = () => {
     });
   };
 
+  const handleOpenEditProduct = (product: Product) => {
+    setEditingProductId(product.id);
+    setNewProduct({
+      id: product.id,
+      name: product.name,
+      price: product.price,
+      icon: product.icon || '🥐',
+      ingredients: product.ingredients || [],
+      prep_time: product.prep_time || 0,
+      cook_time: product.cook_time || 0,
+      yield_qty: product.yield_qty || 1,
+      instructions: product.instructions || []
+    });
+    setShowAddProduct(true);
+  };
+
   const handleAddProduct = async () => {
     if (!newProduct.id.trim() || !newProduct.name.trim()) {
       addToast("ID and Name are required", "error");
       return;
     }
     try {
-      const data = await api.post('/products', newProduct);
-      addToast(data.message || "Product Created", 'success');
+      let data;
+      if (editingProductId) {
+        data = await api.put(`/products/${editingProductId}`, newProduct);
+        addToast("Product Updated", 'success');
+      } else {
+        data = await api.post('/products', newProduct);
+        addToast(data.message || "Product Created", 'success');
+      }
       setShowAddProduct(false);
       setShowProductIconPicker(false);
+      setEditingProductId(null);
       fetchData();
       // Clear the form after a successful save.
-      setNewProduct({ id: '', name: '', price: 0, icon: '🥐', ingredients: [] });
+      setNewProduct({ id: '', name: '', price: 0, icon: '🥐', ingredients: [], prep_time: 0, cook_time: 0, yield_qty: 1, instructions: [] });
     } catch (e: any) { addToast("Action Failed", "error"); }
   };
 
@@ -2637,77 +2661,36 @@ const Dashboard: React.FC = () => {
                 {inventory.products.map(p => (
                   <div key={p.id} className={`p-8 rounded-[2.5rem] border transition-colors ${isDarkMode ? 'border-white/5 bg-black/20' : 'border-slate-200 bg-white shadow-sm'}`}>
                     <div className="flex justify-between items-start mb-8">
-                      <div>
-                        {editMode ? (
-                          <>
-                            <select 
-                              value={p.icon}
-                              onChange={(e) => handleUpdateProductField(p.id, 'icon', e.target.value)}
-                              className="text-4xl mb-2 block bg-transparent outline-none cursor-pointer"
-                            >
-                              {PRODUCT_ICON_CHOICES.map(icon => (
-                                <option key={icon} value={icon} className={isDarkMode ? 'bg-charcoal text-white' : ''}>{icon}</option>
-                              ))}
-                            </select>
-                            <input 
-                              type="text"
-                              value={p.name}
-                              onChange={(e) => handleUpdateProductField(p.id, 'name', e.target.value)}
-                              className={`text-xl font-bold luxury-font bg-transparent border-b border-white/10 outline-none w-full ${isDarkMode ? 'text-white' : 'text-slate-900'}`}
-                            />
-                          </>
-                        ) : (
-                          <>
-                            <span className="text-4xl mb-2 block">{p.icon}</span>
-                            <h3 className={`text-xl font-bold luxury-font ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{p.name}</h3>
-                          </>
+                      <div><span className="text-4xl mb-2 block">{p.icon}</span><h3 className={`text-xl font-bold luxury-font ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{p.name}</h3></div>
+                      <div className="text-right flex flex-col items-end gap-2">
+                        {editMode && (
+                          <button 
+                            onClick={() => handleOpenEditProduct(p)}
+                            className="p-2 rounded-lg bg-gold/10 text-gold hover:bg-gold/20 transition-all"
+                            title="Edit Product"
+                          >
+                            <Edit2 size={16}/>
+                          </button>
                         )}
-                      </div>
-                      <div className="text-right">
-                        <p className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-gold' : 'text-slate-400'}`}>Unit Cost</p>
-                        <p className={`text-xl font-bold ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{formatPrice(p.live_cost || 0)}</p>
+                        <div>
+                          <p className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-gold' : 'text-slate-400'}`}>Unit Cost</p>
+                          <p className={`text-xl font-bold ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{formatPrice(p.live_cost || 0)}</p>
+                        </div>
                       </div>
                       </div>
 
                       <div className="grid grid-cols-3 gap-2 mb-8 p-3 rounded-2xl bg-white/5 border border-white/5">
                        <div className="text-center">
                            <p className="text-[8px] uppercase font-black opacity-40 mb-1">Prep</p>
-                           {editMode ? (
-                               <input 
-                                 type="number" 
-                                 value={p.prep_time}
-                                 onChange={(e) => handleUpdateProductField(p.id, 'prep_time', parseInt(e.target.value) || 0)}
-                                 className="w-full bg-transparent text-center font-bold text-xs outline-none"
-                               />
-                           ) : (
-                               <p className="text-xs font-bold">{p.prep_time}m</p>
-                           )}
+                           <p className="text-xs font-bold">{p.prep_time}m</p>
                        </div>
                        <div className="text-center border-x border-white/5">
                            <p className="text-[8px] uppercase font-black opacity-40 mb-1">Cook</p>
-                           {editMode ? (
-                               <input 
-                                 type="number" 
-                                 value={p.cook_time}
-                                 onChange={(e) => handleUpdateProductField(p.id, 'cook_time', parseInt(e.target.value) || 0)}
-                                 className="w-full bg-transparent text-center font-bold text-xs outline-none"
-                               />
-                           ) : (
-                               <p className="text-xs font-bold">{p.cook_time}m</p>
-                           )}
+                           <p className="text-xs font-bold">{p.cook_time}m</p>
                        </div>
                        <div className="text-center">
                            <p className="text-[8px] uppercase font-black opacity-40 mb-1">Yield</p>
-                           {editMode ? (
-                               <input 
-                                 type="number" 
-                                 value={p.yield_qty}
-                                 onChange={(e) => handleUpdateProductField(p.id, 'yield_qty', parseInt(e.target.value) || 0)}
-                                 className="w-full bg-transparent text-center font-bold text-xs outline-none"
-                               />
-                           ) : (
-                               <p className="text-xs font-bold">{p.yield_qty}</p>
-                           )}
+                           <p className="text-xs font-bold">{p.yield_qty}</p>
                        </div>
                       </div>
 
@@ -2716,55 +2699,10 @@ const Dashboard: React.FC = () => {
                         <div key={ing.name} className="flex justify-between items-center text-xs group/ing">
                           <span className={isDarkMode ? 'text-cream/40' : 'text-slate-500'}>{ing.name}</span>
                           <div className="flex items-center gap-3">
-                            {editMode ? (
-                              <>
-                                <input 
-                                  type="number" 
-                                  value={ing.quantity}
-                                  onChange={(e) => {
-                                    const newIngs = [...p.ingredients];
-                                    newIngs[idx].quantity = parseFloat(e.target.value);
-                                    handleUpdateProductIngredients(p.id, newIngs);
-                                  }}
-                                  className={`w-16 text-right font-bold bg-transparent outline-none border-b border-transparent focus:border-gold/30 ${isDarkMode ? 'text-cream/80' : 'text-slate-700'}`}
-                                />
-                                <span className="opacity-40">{inventory.materials[ing.name]?.unit || 'g'}</span>
-                                <button 
-                                  onClick={() => {
-                                    const newIngs = p.ingredients.filter((_, i) => i !== idx);
-                                    handleUpdateProductIngredients(p.id, newIngs);
-                                  }}
-                                  className="text-rose-500 transition-opacity"
-                                >
-                                  <X size={12}/>
-                                </button>
-                              </>
-                            ) : (
-                              <span className="font-bold opacity-60">{ing.quantity} {inventory.materials[ing.name]?.unit || 'g'}</span>
-                            )}
+                            <span className="font-bold opacity-60">{ing.quantity} {inventory.materials[ing.name]?.unit || 'g'}</span>
                           </div>
                         </div>
                       ))}
-                      
-                      {editMode && (
-                        <div className="pt-4">
-                          <select 
-                            className={`w-full border-b border-white/5 text-[10px] font-black uppercase tracking-widest py-3 px-2 outline-none rounded-xl transition-all ${isDarkMode ? 'bg-black text-gold' : 'bg-slate-100 text-slate-600'}`}
-                            value=""
-                            onChange={(e) => {
-                              if (!e.target.value) return;
-                              if (p.ingredients.some(ing => ing.name === e.target.value)) return;
-                              const newIngs = [...p.ingredients, { name: e.target.value, quantity: 0 }];
-                              handleUpdateProductIngredients(p.id, newIngs);
-                            }}
-                          >
-                            <option value="" className={isDarkMode ? 'bg-charcoal text-gold' : ''}>+ Add Ingredient</option>
-                            {sortedMaterialNames.map(m => (
-                              <option key={m} value={m} className={isDarkMode ? 'bg-charcoal text-cream' : ''}>{m}</option>
-                            ))}
-                          </select>
-                        </div>
-                      )}
                     </div>
                     <div className={`pt-6 border-t flex justify-between items-center ${isDarkMode ? 'border-white/5' : 'border-slate-100'}`}>
                       <div>
@@ -3513,33 +3451,7 @@ const Dashboard: React.FC = () => {
                                     selectedProduct.instructions.map((step, i) => (
                                         <div key={i} className="flex gap-6 group">
                                             <div className="w-10 h-10 rounded-full border border-gold/20 flex items-center justify-center font-black text-gold text-xs shrink-0 group-hover:bg-gold group-hover:text-charcoal transition-all">{i + 1}</div>
-                                            {editMode ? (
-                                              <div className="flex-1 flex gap-4 items-start">
-                                                <textarea
-                                                  value={step}
-                                                  onChange={(e) => {
-                                                    const next = [...selectedProduct.instructions];
-                                                    next[i] = e.target.value;
-                                                    setSelectedProduct({...selectedProduct, instructions: next});
-                                                    handleUpdateProductField(selectedProduct.id, 'instructions', next);
-                                                  }}
-                                                  className={`flex-1 text-lg leading-relaxed bg-transparent border-b border-white/5 outline-none resize-none min-h-[80px] ${isDarkMode ? 'text-cream/80' : 'text-slate-600'}`}
-                                                  placeholder="Describe this step..."
-                                                />
-                                                <button 
-                                                  onClick={() => {
-                                                    const next = selectedProduct.instructions.filter((_, idx) => idx !== i);
-                                                    setSelectedProduct({...selectedProduct, instructions: next});
-                                                    handleUpdateProductField(selectedProduct.id, 'instructions', next);
-                                                  }}
-                                                  className="p-2 text-rose-500/40 hover:text-rose-500 transition-colors"
-                                                >
-                                                  <X size={16}/>
-                                                </button>
-                                              </div>
-                                            ) : (
-                                              <p className={`text-lg leading-relaxed ${isDarkMode ? 'text-cream/80' : 'text-slate-600'}`}>{step}</p>
-                                            )}
+                                            <p className={`text-lg leading-relaxed ${isDarkMode ? 'text-cream/80' : 'text-slate-600'}`}>{step}</p>
                                         </div>
                                     ))
                                 ) : (
@@ -3547,19 +3459,6 @@ const Dashboard: React.FC = () => {
                                         <FileText size={48} className="mb-4" />
                                         <p className="font-black text-xs uppercase tracking-widest">No Protocol Defined</p>
                                     </div>
-                                )}
-
-                                {editMode && (
-                                  <button 
-                                    onClick={() => {
-                                      const next = [...(selectedProduct.instructions || []), ""];
-                                      setSelectedProduct({...selectedProduct, instructions: next});
-                                      handleUpdateProductField(selectedProduct.id, 'instructions', next);
-                                    }}
-                                    className="w-full py-4 rounded-2xl border border-dashed border-gold/20 text-gold font-black text-[10px] uppercase tracking-widest hover:bg-gold/5 transition-all"
-                                  >
-                                    + Add Instruction Step
-                                  </button>
                                 )}
                             </div>
                         </div>
@@ -3577,53 +3476,59 @@ const Dashboard: React.FC = () => {
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
             <div className={`w-full max-w-2xl p-8 rounded-[2.5rem] border shadow-2xl flex flex-col max-h-[90vh] ${isDarkMode ? 'bg-[#121214] border-white/10' : 'bg-white border-slate-200'}`}>
                 <div className="flex justify-between items-start mb-8">
-                    <h3 className={`text-2xl font-bold luxury-font ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Register Entity</h3>
-                    <button onClick={() => setShowAddProduct(false)} className="text-white/20 hover:text-white"><X size={24}/></button>
+                    <h3 className={`text-2xl font-bold luxury-font ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{editingProductId ? 'Update Entity' : 'Register Entity'}</h3>
+                    <button onClick={() => { setShowAddProduct(false); setEditingProductId(null); }} className="text-white/20 hover:text-white"><X size={24}/></button>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8 overflow-y-auto pr-2 custom-scrollbar">
                     {/* Left Side: Search & Import */}
                     <div className="space-y-6">
-                        <div className={`p-6 rounded-2xl border ${isDarkMode ? 'bg-white/5 border-white/10' : 'bg-slate-50 border-slate-200'}`}>
-                            <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-4">Search Online Catalogue</label>
-                            <div className="flex gap-2 mb-4">
-                                <input 
-                                    type="text" 
-                                    placeholder="Search recipes..." 
-                                    value={recipeSearchQuery}
-                                    onChange={(e) => setRecipeSearchQuery(e.target.value)}
-                                    onKeyDown={(e) => e.key === 'Enter' && handleSearchRecipes()}
-                                    className={`flex-1 bg-transparent border-b py-2 outline-none font-bold text-sm ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`}
-                                />
-                                <button onClick={handleSearchRecipes} className="p-2 text-gold hover:scale-110 transition-transform"><Zap size={20}/></button>
-                            </div>
+                        {!editingProductId ? (
+                          <div className={`p-6 rounded-2xl border ${isDarkMode ? 'bg-white/5 border-white/10' : 'bg-slate-50 border-slate-200'}`}>
+                              <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-4">Search Online Catalogue</label>
+                              <div className="flex gap-2 mb-4">
+                                  <input 
+                                      type="text" 
+                                      placeholder="Search recipes..." 
+                                      value={recipeSearchQuery}
+                                      onChange={(e) => setRecipeSearchQuery(e.target.value)}
+                                      onKeyDown={(e) => e.key === 'Enter' && handleSearchRecipes()}
+                                      className={`flex-1 bg-transparent border-b py-2 outline-none font-bold text-sm ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`}
+                                  />
+                                  <button onClick={handleSearchRecipes} className="p-2 text-gold hover:scale-110 transition-transform"><Zap size={20}/></button>
+                              </div>
 
-                            <div className="space-y-2 max-h-[300px] overflow-y-auto custom-scrollbar">
-                                {isSearchingRecipes && (
-                                  <div className="py-10 flex flex-col items-center justify-center gap-4 text-gold">
-                                    <div className="pinwheel pinwheel--sm" aria-hidden="true">
-                                      <div className="pinwheel__line"></div>
-                                      <div className="pinwheel__line"></div>
-                                      <div className="pinwheel__line"></div>
-                                      <div className="pinwheel__line"></div>
-                                      <div className="pinwheel__line"></div>
-                                      <div className="pinwheel__line"></div>
+                              <div className="space-y-2 max-h-[300px] overflow-y-auto custom-scrollbar">
+                                  {isSearchingRecipes && (
+                                    <div className="py-10 flex flex-col items-center justify-center gap-4 text-gold">
+                                      <div className="pinwheel pinwheel--sm" aria-hidden="true">
+                                        <div className="pinwheel__line"></div>
+                                        <div className="pinwheel__line"></div>
+                                        <div className="pinwheel__line"></div>
+                                        <div className="pinwheel__line"></div>
+                                        <div className="pinwheel__line"></div>
+                                        <div className="pinwheel__line"></div>
+                                      </div>
+                                      <div className="text-xs font-black uppercase tracking-widest">Querying Global Matrix...</div>
                                     </div>
-                                    <div className="text-xs font-black uppercase tracking-widest">Querying Global Matrix...</div>
-                                  </div>
-                                )}
-                                {recipeSearchResults.map(recipe => (
-                                    <div key={recipe.id} onClick={() => handleImportRecipe(recipe.id)} className={`flex items-center gap-4 p-3 rounded-xl border cursor-pointer transition-all hover:border-gold/40 ${isDarkMode ? 'bg-black/20 border-white/5' : 'bg-white border-slate-100'}`}>
-                                        <img src={recipe.thumb} className="w-12 h-12 rounded-lg object-cover" alt={recipe.name} />
-                                        <div className="flex-1 min-w-0">
-                                            <p className={`font-bold text-xs truncate ${isDarkMode ? 'text-cream' : 'text-slate-900'}`}>{recipe.name}</p>
-                                            <p className="text-[10px] text-gold uppercase font-bold">{recipe.category}</p>
-                                        </div>
-                                        <Plus size={14} className="text-gold opacity-40" />
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
+                                  )}
+                                  {recipeSearchResults.map(recipe => (
+                                      <div key={recipe.id} onClick={() => handleImportRecipe(recipe.id)} className={`flex items-center gap-4 p-3 rounded-xl border cursor-pointer transition-all hover:border-gold/40 ${isDarkMode ? 'bg-black/20 border-white/5' : 'bg-white border-slate-100'}`}>
+                                          <img src={recipe.thumb} className="w-12 h-12 rounded-lg object-cover" alt={recipe.name} />
+                                          <div className="flex-1 min-w-0">
+                                              <p className={`font-bold text-xs truncate ${isDarkMode ? 'text-cream' : 'text-slate-900'}`}>{recipe.name}</p>
+                                              <p className="text-[10px] text-gold uppercase font-bold">{recipe.category}</p>
+                                          </div>
+                                          <Plus size={14} className="text-gold opacity-40" />
+                                      </div>
+                                  ))}
+                              </div>
+                          </div>
+                        ) : (
+                          <div className={`p-6 rounded-2xl border flex flex-col items-center justify-center h-full opacity-40 ${isDarkMode ? 'bg-white/5 border-white/10' : 'bg-slate-50 border-slate-200'}`}>
+                             <p className="text-[10px] font-black uppercase tracking-widest text-center">Entity Locked<br/><span className="text-[8px]">ID cannot be changed after registration</span></p>
+                          </div>
+                        )}
                     </div>
 
                     {/* Right Side: Manual Entry & Preview */}
@@ -3631,7 +3536,7 @@ const Dashboard: React.FC = () => {
                         <div className="space-y-4">
                             <div>
                                 <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-1">Identifier</label>
-                                <input type="text" placeholder="e.g. p4" value={newProduct.id} onChange={(e)=>setNewProduct({...newProduct, id: e.target.value})} className={`w-full bg-transparent border-b py-2 outline-none font-bold ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`} />
+                                <input type="text" placeholder="e.g. p4" value={newProduct.id} readOnly={!!editingProductId} onChange={(e)=>setNewProduct({...newProduct, id: e.target.value})} className={`w-full bg-transparent border-b py-2 outline-none font-bold ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'} ${editingProductId ? 'opacity-40' : ''}`} />
                             </div>
                             <div>
                                 <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-1">Display Name</label>
@@ -3751,8 +3656,9 @@ const Dashboard: React.FC = () => {
                             </div>
                         </div>
 
-                        <button onClick={handleAddProduct} className="w-full py-5 rounded-2xl font-black text-xs uppercase tracking-widest bg-gold text-charcoal shadow-gold-glow active:scale-95 transition-all mt-4">Commit to Registry</button>
-                    </div>
+                        <button onClick={handleAddProduct} className="w-full py-5 rounded-2xl font-black text-xs uppercase tracking-widest bg-gold text-charcoal shadow-gold-glow active:scale-95 transition-all mt-4">
+                            {editingProductId ? 'Save Changes' : 'Commit to Registry'}
+                        </button>                    </div>
                 </div>
             </div>
         </div>
