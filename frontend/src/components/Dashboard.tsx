@@ -395,6 +395,16 @@ const Dashboard: React.FC = () => {
     }
   };
 
+  const handleDeleteShiftLog = async (id: number) => {
+    try {
+        await api.delete(`/shift-logs/${id}`);
+        fetchData();
+        addToast("Note deleted", "success");
+    } catch (e) {
+        addToast("Delete failed", "error");
+    }
+  };
+
   const handleDeleteStaff = async (username: string) => {
     showConfirm({
         title: "Remove Staff",
@@ -1630,27 +1640,35 @@ const Dashboard: React.FC = () => {
                    <h3 className={`text-xl font-bold luxury-font uppercase mb-6 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Shift Handoff Log</h3>
 
                    {/* Log Feed */}
-                   <div className="flex-1 space-y-4 mb-6 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                   <div className="flex-1 space-y-4 mb-6 max-h-[300px] overflow-y-auto pr-3 custom-scrollbar scroll-smooth">
                      {shiftLogs.length > 0 ? (
                        shiftLogs.map((log) => (
-                         <div key={log.id} className={`p-4 rounded-2xl border transition-all ${isDarkMode ? 'bg-white/5 border-white/5 hover:border-white/10' : 'bg-slate-50 border-slate-100 hover:border-slate-200'}`}>
-                           <div className="flex justify-between items-center mb-2">
-                             <span className="text-[10px] font-black uppercase tracking-widest text-gold">{log.author}</span>
-                             <span className={`text-[10px] font-bold opacity-30 ${isDarkMode ? 'text-cream' : 'text-slate-900'}`}>
-                               {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                             </span>
+                         <div key={log.id} className={`p-4 rounded-2xl border group/log transition-all ${isDarkMode ? 'bg-white/5 border-white/5 hover:border-white/10' : 'bg-slate-50 border-slate-100 hover:border-slate-200 shadow-sm'}`}>
+                           <div className="flex justify-between items-start mb-2">
+                             <div className="flex flex-col">
+                               <span className="text-[10px] font-black uppercase tracking-widest text-gold">{log.author}</span>
+                               <span className={`text-[8px] font-bold opacity-30 ${isDarkMode ? 'text-cream' : 'text-slate-900'}`}>
+                                 {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • {new Date(log.timestamp).toLocaleDateString()}
+                               </span>
+                             </div>
+                             <button 
+                               onClick={() => handleDeleteShiftLog(log.id)}
+                               className="p-1 rounded-md opacity-0 group-hover/log:opacity-100 text-rose-500/40 hover:text-rose-500 hover:bg-rose-500/10 transition-all"
+                               title="Delete note"
+                             >
+                               <X size={12} />
+                             </button>
                            </div>
-                           <p className={`text-sm leading-relaxed ${isDarkMode ? 'text-cream/80' : 'text-slate-600'}`}>{log.content}</p>
+                           <p className={`text-sm leading-relaxed whitespace-pre-wrap ${isDarkMode ? 'text-cream/80' : 'text-slate-600'}`}>{log.content}</p>
                          </div>
                        ))
                      ) : (
                        <div className="py-12 text-center opacity-10 flex flex-col items-center justify-center">
                          <MessageSquare size={32} className="mb-2" />
-                         <p className="text-[10px] font-black uppercase tracking-widest">No entries for this shift</p>
+                         <p className="text-[10px] font-black uppercase tracking-widest">No entries yet</p>
                        </div>
                      )}
                    </div>
-
                    {/* Input Area */}
                    <div className="mt-auto">
                      <div className="relative">

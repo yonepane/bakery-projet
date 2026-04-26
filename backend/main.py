@@ -2172,6 +2172,15 @@ async def add_shift_log(log: ShiftLogCreate, db: sqlalchemy.orm.Session = Depend
     db.commit()
     return {"success": True}
 
+@app.delete("/api/shift-logs/{log_id}", dependencies=[Depends(requires_roles(["owner"]))])
+async def delete_shift_log(log_id: int, db: sqlalchemy.orm.Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
+    log = db.query(models.ShiftLog).filter(models.ShiftLog.id == log_id, models.ShiftLog.owner_id == owner_id).first()
+    if not log:
+        raise HTTPException(status_code=404, detail="Log not found")
+    db.delete(log)
+    db.commit()
+    return {"success": True}
+
 @app.get("/api/accounting/export", dependencies=[Depends(requires_roles(["owner"]))])
 async def export_accounting(
     start: str,
