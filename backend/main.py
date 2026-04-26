@@ -107,6 +107,29 @@ def ensure_runtime_schema():
                 conn.execute(text("ALTER TABLE purchase_orders ADD COLUMN expected_delivery_date TIMESTAMP"))
             if "archived" not in po_columns:
                 conn.execute(text("ALTER TABLE purchase_orders ADD COLUMN archived BOOLEAN DEFAULT FALSE"))
+            
+            # Ensure ShiftRecord table exists
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS shift_records (
+                    id SERIAL PRIMARY KEY,
+                    owner_id INTEGER REFERENCES users(id),
+                    start_time TIMESTAMP,
+                    end_time TIMESTAMP,
+                    revenue FLOAT,
+                    cost FLOAT
+                )
+            """))
+            
+            # Ensure ShiftLog table exists
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS shift_logs (
+                    id SERIAL PRIMARY KEY,
+                    owner_id INTEGER REFERENCES users(id),
+                    timestamp TIMESTAMP,
+                    author VARCHAR,
+                    content VARCHAR
+                )
+            """))
 
 def verify_password(plain_password, hashed_password):
     return pwd_context.verify(plain_password, hashed_password)
@@ -2231,17 +2254,49 @@ async def reset_session(
     db: sqlalchemy.orm.Session = Depends(get_db),
     owner_id: int = Depends(get_effective_owner_id),
 ):
-    # Moving `last_reset_at` forward creates a new "current shift" window.
-    now_str = datetime.now().isoformat()
-    setting = db.query(models.SystemSetting).filter(
+    # Calculate current shift totals before resetting.
+    reset_setting = db.query(models.SystemSetting).filter(
         models.SystemSetting.key == "last_reset_at",
         models.SystemSetting.owner_id == owner_id
     ).first()
-    if setting:
-        setting.value = now_str
+
+    now = datetime.now()
+    if reset_setting:
+        last_reset = datetime.fromisoformat(reset_setting.value)
     else:
-        setting = models.SystemSetting(key="last_reset_at", owner_id=owner_id, value=now_str)
-        db.add(setting)
+        last_reset = datetime(now.year, now.month, now.day)
+
+    # Get data since last reset
+    transactions = db.query(models.Transaction).filter(
+        models.Transaction.owner_id == owner_id,
+        models.Transaction.timestamp >= last_reset
+    ).all()
+    waste = db.query(models.WasteRecord).filter(
+        models.WasteRecord.owner_id == owner_id,
+        models.WasteRecord.date >= last_reset
+    ).all()
+
+    revenue = sum(t.total_revenue for t in transactions if t.type == 'sale')
+    cost = sum(t.total_cost for t in transactions) + sum(w.loss_cost for w in waste)
+
+    # Save Shift Record
+    shift_record = models.ShiftRecord(
+        owner_id=owner_id,
+        start_time=last_reset,
+        end_time=now,
+        revenue=revenue,
+        cost=cost
+    )
+    db.add(shift_record)
+
+    # Moving `last_reset_at` forward creates a new "current shift" window.
+    now_str = now.isoformat()
+    if reset_setting:
+        reset_setting.value = now_str
+    else:
+        reset_setting = models.SystemSetting(key="last_reset_at", owner_id=owner_id, value=now_str)
+        db.add(reset_setting)
+    
     db.commit()
     return {"success": True, "message": "Shift has been closed. Session profit reset to 0. Historical data preserved."}
 

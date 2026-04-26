@@ -166,3 +166,12 @@ class ShiftLog(Base):
     timestamp = Column(DateTime, default=datetime.datetime.utcnow)
     author = Column(String)
     content = Column(String)
+
+class ShiftRecord(Base):
+    __tablename__ = "shift_records"
+    id = Column(Integer, primary_key=True, index=True)
+    owner_id = Column(Integer, ForeignKey("users.id"))
+    start_time = Column(DateTime)
+    end_time = Column(DateTime, default=datetime.datetime.utcnow)
+    revenue = Column(Float)
+    cost = Column(Float)

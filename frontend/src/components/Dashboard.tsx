@@ -1602,9 +1602,9 @@ const Dashboard: React.FC = () => {
               <div className="space-y-8">
                 <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
                   {[
-                    { label: 'Total Revenue', value: formatPrice(analytics.revenue), color: isDarkMode ? 'text-cream' : 'text-slate-900' },
-                    { label: 'Total Cost', value: formatPrice(analytics.cost), color: 'text-rose-500' },
-                    { label: 'Net Profit & ROI', value: `${formatPrice(analytics.revenue - analytics.cost)} (${analytics.revenue > 0 ? (((analytics.revenue - analytics.cost) / analytics.revenue) * 100).toFixed(1) : 0}%)`, color: analytics.revenue > analytics.cost ? 'text-emerald-500' : 'text-rose-500' },
+                    { label: 'Session Revenue', value: formatPrice(analytics.today_revenue), color: isDarkMode ? 'text-cream' : 'text-slate-900' },
+                    { label: 'Session Cost', value: formatPrice(analytics.today_cost), color: 'text-rose-500' },
+                    { label: 'Session Profit & ROI', value: `${formatPrice(analytics.today_revenue - analytics.today_cost)} (${analytics.today_revenue > 0 ? (((analytics.today_revenue - analytics.today_cost) / analytics.today_revenue) * 100).toFixed(1) : 0}%)`, color: (analytics.today_revenue > analytics.today_cost) ? 'text-emerald-500' : 'text-rose-500' },
                     { label: 'BOM Entities', value: inventory.products.length, color: isDarkMode ? 'text-gold' : 'text-slate-900' }
                   ].map((stat, i) => (
                     <div key={i} className={`p-6 rounded-[2rem] border transition-colors ${isDarkMode ? 'border-white/5 bg-black/20' : 'border-slate-200 bg-white shadow-sm'}`}>
@@ -1855,8 +1855,60 @@ const Dashboard: React.FC = () => {
             )}
 
             {activeTab === 'intelligence' && (
-              <div className="space-y-8">
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+               <div className="space-y-8">
+                 {/* History Explorer */}
+                 <div className={`p-8 rounded-[2.5rem] border transition-all ${isDarkMode ? 'border-gold/10 bg-black/20' : 'border-slate-200 bg-white shadow-sm'}`}>
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8">
+                        <div>
+                            <h3 className={`text-xl font-bold luxury-font uppercase ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>History Explorer</h3>
+                            <p className="text-[10px] font-black uppercase tracking-widest opacity-40 mt-1">Analyze performance for any specific period</p>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-4">
+                            <div className="flex items-center gap-2">
+                                <label className="text-[8px] font-black uppercase tracking-widest opacity-40">From</label>
+                                <input
+                                    type="date"
+                                    value={accountingRange.start}
+                                    max={accountingRange.end}
+                                    onChange={(e) => setAccountingRange(prev => ({ ...prev, start: e.target.value }))}
+                                    className={`bg-transparent border-b border-white/10 text-[10px] font-bold outline-none py-1 ${isDarkMode ? 'text-gold' : 'text-slate-900'}`}
+                                />
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <label className="text-[8px] font-black uppercase tracking-widest opacity-40">To</label>
+                                <input
+                                    type="date"
+                                    value={accountingRange.end}
+                                    min={accountingRange.start}
+                                    onChange={(e) => setAccountingRange(prev => ({ ...prev, end: e.target.value }))}
+                                    className={`bg-transparent border-b border-white/10 text-[10px] font-bold outline-none py-1 ${isDarkMode ? 'text-gold' : 'text-slate-900'}`}
+                                />
+                            </div>
+                            <button 
+                                onClick={() => setAccountingRange({ start: monthStart, end: monthEnd })}
+                                className="text-[8px] font-black uppercase tracking-widest text-gold/40 hover:text-gold transition-colors"
+                            >
+                                Reset to Month
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        {[
+                            { label: 'Period Revenue', value: formatPrice(monthlySales), color: isDarkMode ? 'text-cream' : 'text-slate-900' },
+                            { label: 'Period Cost', value: formatPrice(monthlyExpensesTotal), color: 'text-rose-500' },
+                            { label: 'Period Profit', value: formatPrice(monthlySales - monthlyExpensesTotal), color: (monthlySales - monthlyExpensesTotal > 0) ? 'text-emerald-500' : 'text-rose-500' }
+                        ].map((stat, i) => (
+                            <div key={i} className={`p-6 rounded-3xl border ${isDarkMode ? 'bg-white/5 border-white/5' : 'bg-slate-50 border-slate-100'}`}>
+                                <p className="text-[8px] font-black uppercase tracking-widest opacity-40 mb-2">{stat.label}</p>
+                                <p className={`text-xl font-bold ${stat.color}`}>{stat.value}</p>
+                            </div>
+                        ))}
+                    </div>
+                 </div>
+
+                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
                     <div className={`p-8 rounded-[2.5rem] border transition-all ${isDarkMode ? 'border-gold/20 bg-black/40 shadow-[0_0_50px_rgba(212,175,55,0.05)]' : 'border-slate-200 bg-white shadow-xl'}`}>
                         <div className="flex items-center gap-4 mb-4">
                             <div className="p-3 rounded-2xl bg-gold/20 text-gold"><Zap size={24} /></div>
