@@ -1880,6 +1880,32 @@ async def search_external_recipes(query: str, current_user: models.User = Depend
                             })
             except Exception as e:
                 print(f"Spoonacular Error: {e}")
+
+        # 4. Add Edamam results if API keys are present.
+        ed_id = os.getenv("EDAMAM_APP_ID")
+        ed_key = os.getenv("EDAMAM_APP_KEY")
+        if ed_id and ed_key:
+            try:
+                # type=public is the standard for the free tier.
+                ed_url = f"https://api.edamam.com/api/recipes/v2?type=public&q={query}&app_id={ed_id}&app_key={ed_key}"
+                ed_res = await client.get(ed_url)
+                if ed_res.status_code == 200:
+                    ed_data = ed_res.json()
+                    for hit in ed_data.get("hits", []):
+                        recipe = hit.get("recipe", {})
+                        # Extract a unique ID from the self-link URI
+                        uri = recipe.get("uri", "")
+                        r_id = uri.split("_")[-1] if "_" in uri else uuid.uuid4().hex[:8]
+                        
+                        if not any(r["name"].lower() == recipe["label"].lower() for r in results):
+                            results.append({
+                                "id": f"ed-{r_id}", # Prefix for Edamam
+                                "name": recipe["label"],
+                                "category": "General",
+                                "thumb": recipe["image"]
+                            })
+            except Exception as e:
+                print(f"Edamam Error: {e}")
     
     return results
 
@@ -1923,7 +1949,49 @@ async def get_external_recipe_details(recipe_id: str, current_user: models.User 
         except Exception as e:
             raise HTTPException(status_code=503, detail=f"Spoonacular error: {str(e)}")
 
-    # 3. Otherwise fetch and normalize TheMealDB shape.
+    # 3. Handle Edamam IDs
+    if recipe_id.startswith("ed-"):
+        real_id = recipe_id.replace("ed-", "")
+        ed_id = os.getenv("EDAMAM_APP_ID")
+        ed_key = os.getenv("EDAMAM_APP_KEY")
+        if not ed_id or not ed_key:
+            raise HTTPException(status_code=400, detail="Edamam API credentials missing")
+        
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                # Edamam v2 lookup uses the full URI or the ID part.
+                # URI format: http://www.edamam.com/ontologies/edamam.owl#recipe_{ID}
+                uri = f"http://www.edamam.com/ontologies/edamam.owl#recipe_{real_id}"
+                import urllib.parse
+                safe_uri = urllib.parse.quote(uri)
+                url = f"https://api.edamam.com/api/recipes/v2/by-uri?type=public&uri={safe_uri}&app_id={ed_id}&app_key={ed_key}"
+                
+                response = await client.get(url)
+                if response.status_code != 200:
+                    raise HTTPException(status_code=404, detail="Edamam recipe not found")
+                
+                data = response.json()
+                if not data.get("hits"):
+                    raise HTTPException(status_code=404, detail="Edamam recipe data empty")
+                
+                recipe = data["hits"][0]["recipe"]
+                ingredients = []
+                for ing in recipe.get("ingredients", []):
+                    ingredients.append({
+                        "name": ing.get("food", "Unknown").title(),
+                        "quantity": ing.get("weight", 0) # Edamam weight is in grams
+                    })
+                
+                return {
+                    "name": recipe["label"],
+                    "ingredients": ingredients,
+                    "thumb": recipe["image"],
+                    "instructions": recipe.get("instructionLines", [])
+                }
+        except Exception as e:
+            raise HTTPException(status_code=503, detail=f"Edamam error: {str(e)}")
+
+    # 4. Otherwise fetch and normalize TheMealDB shape.
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
             url = f"https://www.themealdb.com/api/json/v1/1/lookup.php?i={recipe_id}"
