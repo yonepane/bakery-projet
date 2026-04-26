@@ -653,6 +653,9 @@ class ExpenseCreate(BaseModel):
     amount: float
     description: Optional[str] = None
 
+class ShiftLogCreate(BaseModel):
+    content: str
+
 class StockAdjust(BaseModel):
     item_type: str # 'product' or 'material'
     id: str
@@ -2150,6 +2153,22 @@ async def get_expenses(db: sqlalchemy.orm.Session = Depends(get_db), owner_id: i
 async def add_expense(exp: ExpenseCreate, db: sqlalchemy.orm.Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
     new_exp = models.Expense(**exp.dict(), owner_id=owner_id)
     db.add(new_exp)
+    db.commit()
+    return {"success": True}
+
+@app.get("/api/shift-logs", dependencies=[Depends(requires_roles(["owner", "cashier"]))])
+async def get_shift_logs(db: sqlalchemy.orm.Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id)):
+    return db.query(models.ShiftLog).filter(models.ShiftLog.owner_id == owner_id).order_by(models.ShiftLog.timestamp.desc()).all()
+
+@app.post("/api/shift-logs", dependencies=[Depends(requires_roles(["owner", "cashier"]))])
+async def add_shift_log(log: ShiftLogCreate, db: sqlalchemy.orm.Session = Depends(get_db), owner_id: int = Depends(get_effective_owner_id), user: models.User = Depends(get_current_user)):
+    new_log = models.ShiftLog(
+        content=log.content,
+        author=user.username,
+        owner_id=owner_id,
+        timestamp=datetime.utcnow()
+    )
+    db.add(new_log)
     db.commit()
     return {"success": True}
 

@@ -158,3 +158,11 @@ class Planner(Base):
     date = Column(String) # Planned day, written as YYYY-MM-DD.
     quantity = Column(Integer)
     status = Column(String, default="pending") # Whether the planned batch is still pending or already completed.
+
+class ShiftLog(Base):
+    __tablename__ = "shift_logs"
+    id = Column(Integer, primary_key=True, index=True)
+    owner_id = Column(Integer, ForeignKey("users.id"))
+    timestamp = Column(DateTime, default=datetime.datetime.utcnow)
+    author = Column(String)
+    content = Column(String)

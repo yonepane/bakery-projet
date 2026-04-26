@@ -31,7 +31,9 @@ import {
   Brain,
   XCircle,
   Truck,
-  ChefHat
+  ChefHat,
+  MessageSquare,
+  Send
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -314,6 +316,7 @@ const Dashboard: React.FC = () => {
   const [suppliers, setSuppliers] = useState<any[]>([]);
   const [selectedSupplierId, setSelectedSupplierId] = useState<number | null>(null);
   const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
+  const [shiftLogs, setShiftLogs] = useState<any[]>([]);
   const [expenses, setExpenses] = useState<any[]>([]);
   const [wasteRecords, setWasteRecords] = useState<any[]>([]);
   const [staff, setStaff] = useState<any[]>([]);
@@ -375,18 +378,18 @@ const Dashboard: React.FC = () => {
   };
 
   const handleSaveGeneralNote = async () => {
-    // Save the owner's operations note inside the settings store.
+    if (!generalNote.trim()) return;
+    // Save a new shift log entry.
     setIsSavingGeneralNote(true);
     try {
-      await http.patch('/settings', {
-        updates: {
-          operations_note: generalNote
-        }
+      await http.post('/shift-logs', {
+        content: generalNote
       });
-      setSettings((prev: any) => ({ ...prev, operations_note: generalNote }));
-      addToast("Operations note saved", "success");
+      setGeneralNote(''); // Clear the input after posting
+      fetchData();
+      addToast("Note posted to log", "success");
     } catch (e: any) {
-      addToast("Failed to save operations note", "error");
+      addToast("Failed to post note", "error");
     } finally {
       setIsSavingGeneralNote(false);
     }
@@ -479,7 +482,7 @@ const Dashboard: React.FC = () => {
       };
 
       // Load the main dashboard data in parallel for better speed.
-      const [invData, anaData, aleData, histData, planData, settData, ordData, purData, suppData, posData, expData, staffData, profData, wasteData] = await Promise.all([
+      const [invData, anaData, aleData, histData, planData, settData, ordData, purData, suppData, posData, expData, staffData, profData, wasteData, logData] = await Promise.all([
         safeGet('/inventory'),
         isOwner ? safeGet('/analytics') : Promise.resolve({ ...analytics }),
         safeGet('/alerts', []),
@@ -493,9 +496,9 @@ const Dashboard: React.FC = () => {
         isOwner ? safeGet('/expenses', []) : Promise.resolve([]),
         isOwner ? safeGet('/staff', []) : Promise.resolve([]),
         isOwner ? safeGet('/intelligence/profit-report', []) : Promise.resolve([]),
-        isOwner ? safeGet('/waste', []) : Promise.resolve([])
+        isOwner ? safeGet('/waste', []) : Promise.resolve([]),
+        safeGet('/shift-logs', [])
       ]);
-      
       console.log("Data sync completed");
       if (invData) setInventory(invData);
       if (anaData) setAnalytics(anaData);
@@ -524,6 +527,7 @@ const Dashboard: React.FC = () => {
       if (staffData) setStaff(staffData);
       if (profData) setProfitReport(profData);
       if (wasteData) setWasteRecords(wasteData);
+      if (logData) setShiftLogs(logData);
       
       if (invData && invData.materials) {
         // Fill the simulator with the latest saved ingredient prices.
@@ -1622,27 +1626,60 @@ const Dashboard: React.FC = () => {
                       </ResponsiveContainer>
                     </div>
                   </div>
-                  <div className={`p-8 rounded-[2.5rem] border transition-colors ${isDarkMode ? 'border-gold/10 bg-black/20' : 'border-slate-200 bg-white shadow-sm'}`}>
-                    <h3 className={`text-xl font-bold luxury-font uppercase mb-6 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Operations Note</h3>
-                    <p className={`text-sm mb-6 ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>Shared shift note for handoff context, vendor issues, reminders, or anything the next person should see immediately.</p>
-                    <textarea
-                      value={generalNote}
-                      onChange={(e) => setGeneralNote(e.target.value)}
-                      placeholder="Shift handoff, urgent stock note, delivery issue, tomorrow prep reminder..."
-                      className={`w-full min-h-[190px] resize-none rounded-2xl border p-5 text-sm leading-6 outline-none transition-all ${isDarkMode ? 'bg-white/5 border-white/10 text-cream placeholder:text-cream/20' : 'bg-slate-50 border-slate-200 text-slate-900 placeholder:text-slate-400'}`}
-                    />
-                    <div className="mt-5 flex items-center justify-between gap-4">
-                      <p className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-cream/25' : 'text-slate-400'}`}>{generalNote.trim().length} chars</p>
-                      <button
-                        onClick={handleSaveGeneralNote}
-                        disabled={isSavingGeneralNote}
-                        className={`px-6 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all disabled:cursor-not-allowed disabled:opacity-40 ${isDarkMode ? 'bg-gold text-charcoal shadow-gold-glow' : 'bg-slate-900 text-white shadow-xl'}`}
-                      >
-                        {isSavingGeneralNote ? 'Saving...' : 'Save Note'}
-                      </button>
-                    </div>
-                  </div>
-                  <div className={`p-8 rounded-[2.5rem] border transition-colors ${isDarkMode ? 'border-gold/10 bg-black/20' : 'border-slate-200 bg-white shadow-sm'}`}>
+                  <div className={`p-8 rounded-[2.5rem] border flex flex-col transition-colors ${isDarkMode ? 'border-gold/10 bg-black/20' : 'border-slate-200 bg-white shadow-sm'}`}>
+                   <h3 className={`text-xl font-bold luxury-font uppercase mb-6 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Shift Handoff Log</h3>
+
+                   {/* Log Feed */}
+                   <div className="flex-1 space-y-4 mb-6 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                     {shiftLogs.length > 0 ? (
+                       shiftLogs.map((log) => (
+                         <div key={log.id} className={`p-4 rounded-2xl border transition-all ${isDarkMode ? 'bg-white/5 border-white/5 hover:border-white/10' : 'bg-slate-50 border-slate-100 hover:border-slate-200'}`}>
+                           <div className="flex justify-between items-center mb-2">
+                             <span className="text-[10px] font-black uppercase tracking-widest text-gold">{log.author}</span>
+                             <span className={`text-[10px] font-bold opacity-30 ${isDarkMode ? 'text-cream' : 'text-slate-900'}`}>
+                               {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                             </span>
+                           </div>
+                           <p className={`text-sm leading-relaxed ${isDarkMode ? 'text-cream/80' : 'text-slate-600'}`}>{log.content}</p>
+                         </div>
+                       ))
+                     ) : (
+                       <div className="py-12 text-center opacity-10 flex flex-col items-center justify-center">
+                         <MessageSquare size={32} className="mb-2" />
+                         <p className="text-[10px] font-black uppercase tracking-widest">No entries for this shift</p>
+                       </div>
+                     )}
+                   </div>
+
+                   {/* Input Area */}
+                   <div className="mt-auto">
+                     <div className="relative">
+                       <textarea
+                         value={generalNote}
+                         onChange={(e) => setGeneralNote(e.target.value)}
+                         onKeyDown={(e) => {
+                           if (e.key === 'Enter' && !e.shiftKey) {
+                             e.preventDefault();
+                             handleSaveGeneralNote();
+                           }
+                         }}
+                         placeholder="Type a handoff note..."
+                         className={`w-full min-h-[100px] resize-none rounded-2xl border p-4 text-sm leading-relaxed outline-none transition-all ${isDarkMode ? 'bg-white/5 border-white/10 text-cream placeholder:text-cream/20 focus:border-gold/30' : 'bg-slate-50 border-slate-200 text-slate-900 placeholder:text-slate-400 focus:border-slate-400'}`}
+                       />
+                       <button
+                         onClick={handleSaveGeneralNote}
+                         disabled={isSavingGeneralNote || !generalNote.trim()}
+                         className={`absolute bottom-3 right-3 p-3 rounded-xl transition-all disabled:opacity-20 ${isDarkMode ? 'bg-gold text-charcoal shadow-gold-glow' : 'bg-slate-900 text-white shadow-xl'}`}
+                       >
+                         {isSavingGeneralNote ? (
+                           <div className="w-4 h-4 border-2 border-charcoal/20 border-t-charcoal rounded-full animate-spin" />
+                         ) : (
+                           <Send size={16} />
+                         )}
+                       </button>
+                     </div>
+                   </div>
+                  </div>                  <div className={`p-8 rounded-[2.5rem] border transition-colors ${isDarkMode ? 'border-gold/10 bg-black/20' : 'border-slate-200 bg-white shadow-sm'}`}>
                     <h3 className={`text-xl font-bold luxury-font uppercase mb-8 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Financial Intelligence</h3>
                     <p className={`text-sm mb-6 ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>Generate executive summaries for accounting and performance review.</p>
                     <div className="flex gap-4">
