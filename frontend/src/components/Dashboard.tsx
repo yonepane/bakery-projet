@@ -510,7 +510,12 @@ const Dashboard: React.FC = () => {
         safeGet('/shift-logs', [])
       ]);
       console.log("Data sync completed");
-      if (invData) setInventory(invData);
+      if (invData) {
+        if (invData.products) {
+          invData.products.sort((a: any, b: any) => (a.name || "").localeCompare(b.name || ""));
+        }
+        setInventory(invData);
+      }
       if (anaData) setAnalytics(anaData);
       if (aleData) setAlerts(aleData);
       if (histData) setHistory(histData);
