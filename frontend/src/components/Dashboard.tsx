@@ -68,23 +68,23 @@ import {
   Transaction,
   UserSession,
 } from './dashboard/types';
-import {
-  DashboardPanel,
-  POSPanel,
-  InventoryPanel,
-  FichePanel,
-  AnalyticsPanel,
-  HistoryPanel,
-  PlannerPanel,
-  ExpensesPanel,
-  FinancePanel,
-  OrdersPanel,
-  PurchasingPanel,
-  SettingsPanel,
-  StaffPanel,
-  IntelligencePanel,
-  KitchenPanel
-} from './dashboard/panels';
+// PERF: Lazy load all panels so code for hidden tabs is not downloaded/parsed on mount.
+// This directly addresses the "Reduce unused JavaScript" audit (~250KB savings).
+const DashboardPanel = React.lazy(() => import('./dashboard/panels/DashboardPanel'));
+const POSPanel = React.lazy(() => import('./dashboard/panels/POSPanel'));
+const InventoryPanel = React.lazy(() => import('./dashboard/panels/InventoryPanel'));
+const FichePanel = React.lazy(() => import('./dashboard/panels/FichePanel'));
+const AnalyticsPanel = React.lazy(() => import('./dashboard/panels/AnalyticsPanel'));
+const HistoryPanel = React.lazy(() => import('./dashboard/panels/HistoryPanel'));
+const PlannerPanel = React.lazy(() => import('./dashboard/panels/PlannerPanel'));
+const ExpensesPanel = React.lazy(() => import('./dashboard/panels/ExpensesPanel'));
+const FinancePanel = React.lazy(() => import('./dashboard/panels/FinancePanel'));
+const OrdersPanel = React.lazy(() => import('./dashboard/panels/OrdersPanel'));
+const PurchasingPanel = React.lazy(() => import('./dashboard/panels/PurchasingPanel'));
+const SettingsPanel = React.lazy(() => import('./dashboard/panels/SettingsPanel'));
+const StaffPanel = React.lazy(() => import('./dashboard/panels/StaffPanel'));
+const IntelligencePanel = React.lazy(() => import('./dashboard/panels/IntelligencePanel'));
+const KitchenPanel = React.lazy(() => import('./dashboard/panels/KitchenPanel'));
 import { DashboardSharedProps } from './dashboard/types';
 
 import {
@@ -599,7 +599,7 @@ const Dashboard: React.FC = () => {
   if (!user) {
     return (
       <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
-        <div className={`login-shell min-h-screen flex items-center justify-center px-6 ${isDarkMode ? 'text-white' : 'bg-slate-50 text-slate-900'}`}>
+        <main className={`login-shell min-h-screen flex items-center justify-center px-6 ${isDarkMode ? 'text-white' : 'bg-slate-50 text-slate-900'}`}>
           <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -709,7 +709,7 @@ const Dashboard: React.FC = () => {
                 <div className="h-px bg-gold/20 flex-1" />
               </div>
 
-              <div className="w-full flex justify-center">
+              <div className="w-full flex justify-center min-h-[44px]">
                 <GoogleLogin 
                   onSuccess={handleGoogleSuccess}
                   onError={() => addToast("Login Interrupted", "error")}
@@ -720,7 +720,7 @@ const Dashboard: React.FC = () => {
               </div>
             </div>
           </motion.div>
-        </div>
+        </main>
       </GoogleOAuthProvider>
     );
   }
@@ -1546,21 +1546,23 @@ const Dashboard: React.FC = () => {
             exit={{ opacity: 0, y: -10 }}
             transition={{ duration: 0.3 }}
           >
-            {activeTab === 'dashboard' && <DashboardPanel {...panelProps} />}
-            {activeTab === 'pos' && <POSPanel {...panelProps} />}
-            {activeTab === 'inventory' && <InventoryPanel {...panelProps} />}
-            {activeTab === 'fiche' && <FichePanel {...panelProps} />}
-            {activeTab === 'simulator' && <AnalyticsPanel {...panelProps} />}
-            {activeTab === 'history' && <HistoryPanel {...panelProps} />}
-            {activeTab === 'kitchen' && <KitchenPanel {...panelProps} />}
-            {activeTab === 'intelligence' && <IntelligencePanel {...panelProps} />}
-            {activeTab === 'planner' && <PlannerPanel {...panelProps} />}
-            {activeTab === 'orders' && <OrdersPanel {...panelProps} />}
-            {activeTab === 'purchasing' && <PurchasingPanel {...panelProps} />}
-            {activeTab === 'expenses' && <ExpensesPanel {...panelProps} />}
-            {activeTab === 'comptabilite' && <FinancePanel {...panelProps} />}
-            {activeTab === 'staff' && <StaffPanel {...panelProps} />}
-            {activeTab === 'settings' && <SettingsPanel {...panelProps} />}
+            <React.Suspense fallback={<div className="h-40 flex items-center justify-center text-gold animate-pulse">Engaging {activeTab}...</div>}>
+              {activeTab === 'dashboard' && <DashboardPanel {...panelProps} />}
+              {activeTab === 'pos' && <POSPanel {...panelProps} />}
+              {activeTab === 'inventory' && <InventoryPanel {...panelProps} />}
+              {activeTab === 'fiche' && <FichePanel {...panelProps} />}
+              {activeTab === 'simulator' && <AnalyticsPanel {...panelProps} />}
+              {activeTab === 'history' && <HistoryPanel {...panelProps} />}
+              {activeTab === 'kitchen' && <KitchenPanel {...panelProps} />}
+              {activeTab === 'intelligence' && <IntelligencePanel {...panelProps} />}
+              {activeTab === 'planner' && <PlannerPanel {...panelProps} />}
+              {activeTab === 'orders' && <OrdersPanel {...panelProps} />}
+              {activeTab === 'purchasing' && <PurchasingPanel {...panelProps} />}
+              {activeTab === 'expenses' && <ExpensesPanel {...panelProps} />}
+              {activeTab === 'comptabilite' && <FinancePanel {...panelProps} />}
+              {activeTab === 'staff' && <StaffPanel {...panelProps} />}
+              {activeTab === 'settings' && <SettingsPanel {...panelProps} />}
+            </React.Suspense>
           </motion.div>
         </AnimatePresence>
         </motion.main>
