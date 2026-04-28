@@ -15,26 +15,11 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 
-    <!--
-      PERF: Step 2 — Load Google Fonts asynchronously (non-render-blocking).
-      media="print" makes the browser download but not apply the stylesheet;
-      onload swaps it to "all" once ready. The <noscript> fallback keeps it
-      working in environments where JS is disabled.
-      &display=swap ensures text is visible immediately using fallback fonts —
-      this directly fixes the "font-display" LCP delay.
-    -->
+    <!-- Load Google Fonts synchronously to avoid FOUC. The preconnects handle the DNS/TLS overhead. -->
     <link
-      rel="preload"
       href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
-      as="style"
-      onload="this.onload=null;this.rel='stylesheet'"
+      rel="stylesheet"
     />
-    <noscript>
-      <link
-        href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
-        rel="stylesheet"
-      />
-    </noscript>
 
     <!--
       PERF: Step 3 — Inline only the critical above-the-fold CSS needed to

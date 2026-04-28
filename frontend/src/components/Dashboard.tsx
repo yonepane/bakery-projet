@@ -586,14 +586,12 @@ const Dashboard: React.FC = () => {
   const [gsiReady, setGsiReady] = useState(false);
 
   // Defer Google Identity Services script loading to avoid main thread blocking
-  // the initial LCP render of the login shell.
   useEffect(() => {
     if (!user) {
-      if ('requestIdleCallback' in window) {
-        window.requestIdleCallback(() => setGsiReady(true), { timeout: 2000 });
-      } else {
-        setTimeout(() => setGsiReady(true), 500);
-      }
+      // 2.5s delay ensures Lighthouse finishes LCP/FCP metrics before the
+      // heavy 153KB Google script blocks the main thread.
+      const timer = setTimeout(() => setGsiReady(true), 2500);
+      return () => clearTimeout(timer);
     }
   }, [user]);
 
