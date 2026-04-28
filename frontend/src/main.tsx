@@ -11,18 +11,10 @@ registerSW({ immediate: true })
 // only the login shell on first paint. The ~130 KB Dashboard module is
 // code-split into its own chunk and downloaded only after React mounts.
 // This is the single biggest contributor to the LCP improvement.
-const Dashboard = lazy(() => import('./components/Dashboard'))
+import Dashboard from './components/Dashboard'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    {/*
-      Suspense boundary: while the Dashboard chunk is being downloaded the user
-      sees the body background (already styled via the inlined critical CSS in
-      index.html) instead of a white flash. The fallback is intentionally null
-      because the #root:empty spinner in index.html already handles it.
-    */}
-    <Suspense fallback={null}>
-      <Dashboard />
-    </Suspense>
+    <Dashboard />
   </React.StrictMode>,
 )

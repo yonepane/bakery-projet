@@ -583,9 +583,22 @@ const Dashboard: React.FC = () => {
     }
   }, [user]);
 
+  const [gsiReady, setGsiReady] = useState(false);
+
+  // Defer Google Identity Services script loading to avoid main thread blocking
+  // the initial LCP render of the login shell.
+  useEffect(() => {
+    if (!user) {
+      if ('requestIdleCallback' in window) {
+        window.requestIdleCallback(() => setGsiReady(true), { timeout: 2000 });
+      } else {
+        setTimeout(() => setGsiReady(true), 500);
+      }
+    }
+  }, [user]);
+
   if (!user) {
     return (
-      <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
         <main className={`login-shell min-h-screen flex items-center justify-center px-6 ${isDarkMode ? 'text-white' : 'bg-slate-50 text-slate-900'}`}>
           <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
@@ -616,7 +629,8 @@ const Dashboard: React.FC = () => {
                   />
                 </picture>
               </div>
-              <div className="login-title-wrap">
+              {/* PERF: Fixed height container prevents CLS when Outfit font loads and swaps */}
+              <div className="login-title-wrap h-[88px]">
                 <h1 className="text-4xl font-bold luxury-font tracking-tighter uppercase mb-3">
                   <span className="text-white">Bakery</span>
                   <span className="text-gold">OS</span>
@@ -696,19 +710,24 @@ const Dashboard: React.FC = () => {
                 <div className="h-px bg-gold/20 flex-1" />
               </div>
 
-              <div className="w-[200px] h-[44px] flex justify-center">
-                <GoogleLogin 
-                  onSuccess={handleGoogleSuccess}
-                  onError={() => addToast("Login Interrupted", "error")}
-                  theme={isDarkMode ? 'filled_black' : 'outline'}
-                  shape="pill"
-                  use_fedcm={false}
-                />
+              <div className="w-[240px] h-[44px] flex justify-center overflow-hidden">
+                {gsiReady ? (
+                  <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
+                    <GoogleLogin 
+                      onSuccess={handleGoogleSuccess}
+                      onError={() => addToast("Login Interrupted", "error")}
+                      theme={isDarkMode ? 'filled_black' : 'outline'}
+                      shape="pill"
+                      use_fedcm={false}
+                    />
+                  </GoogleOAuthProvider>
+                ) : (
+                  <div className="w-[200px] h-[40px] rounded-full bg-white/5 animate-pulse" />
+                )}
               </div>
             </div>
           </motion.div>
         </main>
-      </GoogleOAuthProvider>
     );
   }
 
