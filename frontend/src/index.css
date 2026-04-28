@@ -477,12 +477,25 @@
 
 
   /* ═══════════════════════════════════════════════
-     LOGIN PAGE — EX MACHINA CINEMATIC LUXURY
-     Centered monolith card with breathtaking effects.
+     LOGIN PAGE — DESKTOP BENTO GRID PORTAL
+     Jaw-dropping desktop-first layout.
   ════════════════════════════════════════════════ */
 
-  .cinematic-shell {
-    background-color: #000;
+  .bento-shell {
+    background-color: #030303;
+    background-image:
+      radial-gradient(ellipse at 50% -20%, rgba(212, 175, 55, 0.05), transparent 60%),
+      radial-gradient(ellipse at 80% 120%, rgba(180, 130, 20, 0.03), transparent 60%);
+  }
+
+  .bento-panel {
+    background: rgba(10, 10, 10, 0.6);
+    backdrop-filter: blur(40px);
+    -webkit-backdrop-filter: blur(40px);
+    box-shadow:
+      0 20px 80px -20px rgba(0, 0, 0, 0.8),
+      inset 0 1px 0 rgba(255, 255, 255, 0.04),
+      inset 0 0 20px rgba(212, 175, 55, 0.02);
   }
 
   .monolith-card {

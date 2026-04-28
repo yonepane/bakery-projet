@@ -37,7 +37,8 @@ import {
   Eye,
   EyeOff,
   BarChart2,
-  Users
+  Users,
+  Clock
 } from 'lucide-react';
 
 // axios is consumed internally by api.ts and http.ts — no direct import needed here.
@@ -612,119 +613,15 @@ const Dashboard: React.FC = () => {
     }));
 
     return (
-      <main className="cinematic-shell min-h-screen flex items-center justify-center relative overflow-hidden bg-black text-white" role="main">
-        
-        {/* ── CINEMATIC BACKGROUND ───────────────────────────────── */}
-        <div className="absolute inset-0 z-0 pointer-events-none">
-          {/* Deep abstract moving auroras */}
-          <motion.div
-            animate={{
-              rotate: [0, 360],
-              scale: [1, 1.2, 1],
-            }}
-            transition={{ duration: 40, repeat: Infinity, ease: "linear" }}
-            className="absolute -top-[50%] -left-[50%] w-[200%] h-[200%] opacity-20"
-            style={{
-              background: 'conic-gradient(from 90deg at 50% 50%, #000000 0%, rgba(212, 175, 55, 0.1) 25%, #000000 50%, rgba(184, 134, 11, 0.1) 75%, #000000 100%)',
-              filter: 'blur(100px)'
-            }}
-          />
-          
-          {/* Central eclipse glow behind the card */}
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] rounded-full bg-gold/5 blur-[120px]" />
-          
-          {/* Floating gold dust */}
-          {particles.map(p => (
-            <motion.div
-              key={p.id}
-              animate={{
-                y: ['0vh', '-100vh'],
-                opacity: [0, 0.8, 0],
-                x: `${p.x + (Math.random() * 10 - 5)}vw`
-              }}
-              transition={{
-                duration: p.duration,
-                repeat: Infinity,
-                delay: p.delay,
-                ease: "linear"
-              }}
-              className="absolute rounded-full bg-gold"
-              style={{
-                left: `${p.x}vw`,
-                top: `${p.y}vh`,
-                width: p.size,
-                height: p.size,
-                boxShadow: '0 0 10px 2px rgba(212, 175, 55, 0.4)'
-              }}
-            />
-          ))}
-          
-          {/* Vignette to darken edges */}
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,#000_100%)]" />
-        </div>
-
-        {/* ── LUXURY MONOLITH CARD ───────────────────────────────── */}
-        <motion.div
-          initial={{ opacity: 0, y: 40, scale: 0.95 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          transition={{ duration: 1.2, ease: [0.16, 1, 0.3, 1] }}
-          className="relative z-10 w-full max-w-[440px] px-6"
-        >
-          <div className="monolith-card">
-            
-            {/* Shimmer sweep effect on the card itself */}
-            <div className="monolith-shimmer" />
-
-            <div className="relative z-10 px-10 py-12 flex flex-col items-center">
-              
-              {/* Logo / Crest */}
-              <motion.div 
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 0.4, duration: 1 }}
-                className="mb-8 relative"
-              >
-                <div className="absolute inset-0 bg-gold/20 blur-xl rounded-full" />
-                <div className="h-24 w-24 rounded-full overflow-hidden border border-gold/40 relative z-10 monolith-badge">
-                  <picture>
-                    <source type="image/webp" srcSet="/columbina-login-1x.webp 1x, /columbina-login.webp 2x" />
-                    <img src="/columbina-login.jpg" alt="Crest" className="w-full h-full object-cover" />
-                  </picture>
-                </div>
-              </motion.div>
-
-              {/* Title */}
-              <div className="text-center mb-10 w-full">
-                <h1 className="text-3xl font-light tracking-[0.2em] uppercase text-white mb-2 font-serif">
-                  Bakery<span className="font-bold text-gold">OS</span>
-                </h1>
-                <div className="h-[1px] w-12 bg-gold/50 mx-auto my-4" />
-                <p className="text-[10px] tracking-[0.4em] uppercase text-white/40">
-                  {authMode === 'login' ? 'Authorized Personnel Only' : 'Establish Your Empire'}
-                </p>
-              </div>
-
-              {/* Mode Toggle */}
-              <div className="flex w-full mb-10 border-b border-white/10">
-                <button
-                  onClick={() => setAuthMode('login')}
-                  className={`flex-1 pb-4 text-[10px] font-bold tracking-widest uppercase transition-colors relative ${authMode === 'login' ? 'text-gold' : 'text-white/30 hover:text-white/60'}`}
-                >
-                  Authenticate
-                  {authMode === 'login' && <motion.div layoutId="mode-indicator" className="absolute bottom-[-1px] left-0 right-0 h-[2px] bg-gold shadow-[0_0_10px_rgba(212,175,55,0.8)]" />}
-                </button>
-                <button
-                  onClick={() => setAuthMode('signup')}
-                  className={`flex-1 pb-4 text-[10px] font-bold tracking-widest uppercase transition-colors relative ${authMode === 'signup' ? 'text-gold' : 'text-white/30 hover:text-white/60'}`}
-                >
-                  Initialize
-                  {authMode === 'signup' && <motion.div layoutId="mode-indicator" className="absolute bottom-[-1px] left-0 right-0 h-[2px] bg-gold shadow-[0_0_10px_rgba(212,175,55,0.8)]" />}
-                </button>
-              </div>
-
-              {/* Form */}
-              <form onSubmit={authMode === 'login' ? handleLogin : handleSignup} className="w-full space-y-6">
-                
+      <main className="bento-shell min-h-screen p-4 lg:p-6 bg-[#030303] text-white" role="main">
+        {/* Mobile Fallback: just center the login form, since this is desktop focused */}
+        <div className="lg:hidden flex items-center justify-center min-h-screen">
+          <div className="w-full max-w-sm px-6">
+            <h1 className="text-3xl font-light tracking-[0.2em] uppercase text-white mb-8 font-serif text-center">
+              Bakery<span className="font-bold text-gold">OS</span>
+            </h1>
+            {/* We duplicate the form logic here for the mobile view, but keep it simple */}
+            <form onSubmit={authMode === 'login' ? handleLogin : handleSignup} className="space-y-6">
                 <div className="relative group">
                   <input
                     type="text"
@@ -765,61 +662,230 @@ const Dashboard: React.FC = () => {
                   </button>
                 </div>
 
-                {authMode === 'signup' && (
+                <button type="submit" disabled={isAuthSubmitting} className="monolith-btn mt-8">
+                  {isAuthSubmitting ? <span className="login-spinner" /> : (authMode === 'login' ? 'Initiate Link' : 'Deploy System')}
+                </button>
+            </form>
+          </div>
+        </div>
+
+        {/* ── DESKTOP BENTO GRID ───────────────────────────────── */}
+        <div className="hidden lg:grid h-[calc(100vh-3rem)] grid-cols-12 grid-rows-12 gap-4 lg:gap-6 w-full max-w-[1800px] mx-auto">
+          
+          {/* Main Hero Panel (Left 8 columns) */}
+          <div className="col-span-8 row-span-12 relative rounded-[2rem] overflow-hidden bento-panel border border-white/5">
+            {/* Deep background for hero */}
+            <div className="absolute inset-0 bg-black">
+              {/* Aurora effect */}
+              <motion.div
+                animate={{ rotate: [0, 360], scale: [1, 1.1, 1] }}
+                transition={{ duration: 60, repeat: Infinity, ease: "linear" }}
+                className="absolute -top-[50%] -left-[50%] w-[200%] h-[200%] opacity-[0.15]"
+                style={{
+                  background: 'conic-gradient(from 90deg at 50% 50%, #000000 0%, rgba(212, 175, 55, 0.1) 25%, #000000 50%, rgba(184, 134, 11, 0.1) 75%, #000000 100%)',
+                  filter: 'blur(100px)'
+                }}
+              />
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] rounded-full bg-gold/5 blur-[120px]" />
+              {/* Floating dust */}
+              {particles.map(p => (
+                <motion.div
+                  key={p.id}
+                  animate={{ y: ['0vh', '-100vh'], opacity: [0, 0.6, 0], x: `${p.x + (Math.random() * 10 - 5)}vw` }}
+                  transition={{ duration: p.duration, repeat: Infinity, delay: p.delay, ease: "linear" }}
+                  className="absolute rounded-full bg-gold"
+                  style={{ left: `${p.x}vw`, top: `${p.y}vh`, width: p.size, height: p.size, boxShadow: '0 0 10px 1px rgba(212, 175, 55, 0.3)' }}
+                />
+              ))}
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,#000_100%)] opacity-80" />
+            </div>
+
+            {/* Content overlay */}
+            <div className="relative z-10 h-full p-16 flex flex-col justify-between">
+              <div className="flex items-center gap-6">
+                <div className="h-16 w-16 rounded-full overflow-hidden border border-gold/40 relative monolith-badge shrink-0">
+                  <picture>
+                    <source type="image/webp" srcSet="/columbina-login-1x.webp 1x, /columbina-login.webp 2x" />
+                    <img src="/columbina-login.jpg" alt="Crest" className="w-full h-full object-cover" />
+                  </picture>
+                </div>
+                <div>
+                  <h1 className="text-4xl font-light tracking-[0.2em] uppercase text-white font-serif leading-none">
+                    Bakery<span className="font-bold text-gold">OS</span>
+                  </h1>
+                  <p className="text-[10px] tracking-[0.4em] uppercase text-white/40 mt-2">Enterprise Terminal</p>
+                </div>
+              </div>
+
+              <div className="max-w-2xl">
+                <motion.p 
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.2, duration: 1 }}
+                  className="text-7xl font-bold luxury-font tracking-tighter leading-[0.9] text-white"
+                >
+                  Unrivaled <br/>
+                  Control over <br/>
+                  <span className="text-transparent bg-clip-text bg-gradient-to-r from-gold via-[#ffd700] to-gold">Operations.</span>
+                </motion.p>
+                <div className="mt-12 flex items-center gap-12 text-[10px] tracking-widest uppercase font-bold text-white/30">
+                  <div className="flex items-center gap-3">
+                    <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse shadow-[0_0_10px_rgba(34,197,94,0.6)]" />
+                    Global Node Active
+                  </div>
+                  <div>Latency: 12ms</div>
+                  <div>Encryption: AES-256</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Right Column Stack (4 columns) */}
+          <div className="col-span-4 row-span-12 flex flex-col gap-4 lg:gap-6">
+            
+            {/* Top Widget: System Status */}
+            <div className="flex-none h-48 rounded-[2rem] overflow-hidden bento-panel border border-white/5 relative p-8 flex flex-col justify-between group">
+              <div className="absolute inset-0 bg-white/[0.02] group-hover:bg-white/[0.04] transition-colors" />
+              <div className="relative z-10 flex justify-between items-start">
+                <span className="text-[10px] font-black tracking-widest uppercase text-white/40">System Status</span>
+                <Clock className="text-white/20" size={16} />
+              </div>
+              <div className="relative z-10">
+                <div className="text-3xl font-light text-white tracking-tight mb-1">Optimal</div>
+                <div className="flex items-center gap-2 text-xs text-white/50">
+                  <div className="w-full bg-white/10 h-1 rounded-full overflow-hidden">
+                    <div className="bg-gold h-full w-[98%]" />
+                  </div>
+                  98%
+                </div>
+              </div>
+            </div>
+
+            {/* Bottom Widget: The Monolith Form */}
+            <div className="flex-1 rounded-[2rem] overflow-hidden bento-panel border border-white/5 relative flex flex-col items-center justify-center p-10">
+              <div className="absolute inset-0 bg-white/[0.01]" />
+              {/* Form container */}
+              <div className="relative z-10 w-full max-w-[320px]">
+                
+                {/* Mode Toggle */}
+                <div className="flex w-full mb-10 border-b border-white/10">
+                  <button
+                    onClick={() => setAuthMode('login')}
+                    className={`flex-1 pb-4 text-[10px] font-bold tracking-widest uppercase transition-colors relative ${authMode === 'login' ? 'text-gold' : 'text-white/30 hover:text-white/60'}`}
+                  >
+                    Authenticate
+                    {authMode === 'login' && <motion.div layoutId="mode-indicator" className="absolute bottom-[-1px] left-0 right-0 h-[2px] bg-gold shadow-[0_0_10px_rgba(212,175,55,0.8)]" />}
+                  </button>
+                  <button
+                    onClick={() => setAuthMode('signup')}
+                    className={`flex-1 pb-4 text-[10px] font-bold tracking-widest uppercase transition-colors relative ${authMode === 'signup' ? 'text-gold' : 'text-white/30 hover:text-white/60'}`}
+                  >
+                    Initialize
+                    {authMode === 'signup' && <motion.div layoutId="mode-indicator" className="absolute bottom-[-1px] left-0 right-0 h-[2px] bg-gold shadow-[0_0_10px_rgba(212,175,55,0.8)]" />}
+                  </button>
+                </div>
+
+                {/* Form */}
+                <form onSubmit={authMode === 'login' ? handleLogin : handleSignup} className="w-full space-y-8">
+                  
                   <div className="relative group">
                     <input
-                      type={showPassword ? 'text' : 'password'}
-                      value={signupForm.confirmPassword}
-                      onChange={(e) => setSignupForm({ ...signupForm, confirmPassword: e.target.value })}
+                      type="text"
+                      value={authMode === 'login' ? loginForm.username : signupForm.username}
+                      onChange={(e) => authMode === 'login'
+                        ? setLoginForm({ ...loginForm, username: e.target.value })
+                        : setSignupForm({ ...signupForm, username: e.target.value })}
                       className="monolith-input peer"
                       placeholder=" "
                       required
                     />
-                    <label className="monolith-label">Verify Cipher</label>
+                    <label className="monolith-label">
+                      {authMode === 'login' ? 'Identity / Username' : 'Commander Identity'}
+                    </label>
                     <div className="monolith-input-highlight" />
                   </div>
-                )}
 
-                <button
-                  type="submit"
-                  disabled={isAuthSubmitting}
-                  className="monolith-btn mt-8"
-                >
-                  {isAuthSubmitting
-                    ? <span className="flex items-center justify-center gap-3"><span className="login-spinner" /> Establishing Link</span>
-                    : authMode === 'login' ? 'Initiate Link' : 'Deploy System'
-                  }
-                </button>
-              </form>
+                  <div className="relative group">
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      value={authMode === 'login' ? loginForm.password : signupForm.password}
+                      onChange={(e) => authMode === 'login'
+                        ? setLoginForm({ ...loginForm, password: e.target.value })
+                        : setSignupForm({ ...signupForm, password: e.target.value })}
+                      className="monolith-input peer pr-10"
+                      placeholder=" "
+                      required
+                    />
+                    <label className="monolith-label">Access Cipher</label>
+                    <div className="monolith-input-highlight" />
+                    
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-0 bottom-3 text-white/20 hover:text-gold transition-colors p-2"
+                    >
+                      {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
+                    </button>
+                  </div>
 
-              {/* GSI Integration */}
-              <div className="w-full mt-10">
-                <div className="flex items-center gap-4 mb-6 opacity-30">
-                  <div className="h-px flex-1 bg-white" />
-                  <span className="text-[8px] tracking-[0.2em] uppercase">External Link</span>
-                  <div className="h-px flex-1 bg-white" />
-                </div>
-
-                <div className="h-[44px] w-[240px] mx-auto overflow-hidden rounded-full border border-white/10 hover:border-gold/30 transition-colors">
-                  {gsiReady ? (
-                    <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
-                      <GoogleLogin
-                        onSuccess={handleGoogleSuccess}
-                        onError={() => addToast('Link Failed', 'error')}
-                        theme="filled_black"
-                        shape="pill"
-                        use_fedcm={false}
+                  {authMode === 'signup' && (
+                    <div className="relative group">
+                      <input
+                        type={showPassword ? 'text' : 'password'}
+                        value={signupForm.confirmPassword}
+                        onChange={(e) => setSignupForm({ ...signupForm, confirmPassword: e.target.value })}
+                        className="monolith-input peer"
+                        placeholder=" "
+                        required
                       />
-                    </GoogleOAuthProvider>
-                  ) : (
-                    <div className="w-full h-full bg-white/5 animate-pulse" />
+                      <label className="monolith-label">Verify Cipher</label>
+                      <div className="monolith-input-highlight" />
+                    </div>
                   )}
-                </div>
-              </div>
 
+                  <button
+                    type="submit"
+                    disabled={isAuthSubmitting}
+                    className="monolith-btn mt-8"
+                  >
+                    {isAuthSubmitting
+                      ? <span className="flex items-center justify-center gap-3"><span className="login-spinner" /> Establishing Link</span>
+                      : authMode === 'login' ? 'Initiate Link' : 'Deploy System'
+                    }
+                  </button>
+                </form>
+
+                {/* GSI Integration */}
+                <div className="w-full mt-12">
+                  <div className="flex items-center gap-4 mb-6 opacity-30">
+                    <div className="h-px flex-1 bg-white" />
+                    <span className="text-[8px] tracking-[0.2em] uppercase">External Auth</span>
+                    <div className="h-px flex-1 bg-white" />
+                  </div>
+
+                  <div className="h-[44px] w-full max-w-[240px] mx-auto overflow-hidden rounded-full border border-white/10 hover:border-gold/30 transition-colors">
+                    {gsiReady ? (
+                      <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
+                        <GoogleLogin
+                          onSuccess={handleGoogleSuccess}
+                          onError={() => addToast('Link Failed', 'error')}
+                          theme="filled_black"
+                          shape="pill"
+                          use_fedcm={false}
+                        />
+                      </GoogleOAuthProvider>
+                    ) : (
+                      <div className="w-full h-full bg-white/5 animate-pulse" />
+                    )}
+                  </div>
+                </div>
+
+              </div>
             </div>
+
           </div>
-        </motion.div>
+
+        </div>
       </main>
     );
   }
