@@ -33,7 +33,11 @@ import {
   Truck,
   ChefHat,
   MessageSquare,
-  Send
+  Send,
+  Eye,
+  EyeOff,
+  BarChart2,
+  Users
 } from 'lucide-react';
 
 // axios is consumed internally by api.ts and http.ts — no direct import needed here.
@@ -584,6 +588,7 @@ const Dashboard: React.FC = () => {
   }, [user]);
 
   const [gsiReady, setGsiReady] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   // Defer Google Identity Services script loading to avoid main thread blocking
   useEffect(() => {
@@ -597,157 +602,259 @@ const Dashboard: React.FC = () => {
 
   if (!user) {
     return (
-        <main className={`login-shell min-h-screen flex items-center justify-center px-6 ${isDarkMode ? 'text-white' : 'bg-slate-50 text-slate-900'}`}>
-          {/* Ambient Background Elements */}
-          {isDarkMode && (
-            <div className="absolute inset-0 overflow-hidden pointer-events-none">
-              <motion.div
-                animate={{ y: [0, -30, 0], opacity: [0.3, 0.6, 0.3] }}
-                transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
-                className="absolute top-[10%] left-[20%] w-96 h-96 bg-gold/10 rounded-full blur-[100px]"
-              />
-              <motion.div
-                animate={{ y: [0, 40, 0], x: [0, 30, 0], opacity: [0.2, 0.5, 0.2] }}
-                transition={{ duration: 10, repeat: Infinity, ease: "easeInOut", delay: 2 }}
-                className="absolute bottom-[10%] right-[15%] w-[30rem] h-[30rem] bg-amber-600/10 rounded-full blur-[120px]"
-              />
-              <motion.div
-                animate={{ scale: [1, 1.2, 1], opacity: [0.1, 0.3, 0.1] }}
-                transition={{ duration: 12, repeat: Infinity, ease: "easeInOut", delay: 4 }}
-                className="absolute top-[40%] right-[40%] w-64 h-64 bg-yellow-500/5 rounded-full blur-[80px]"
-              />
-            </div>
-          )}
+      /* 
+       * LAYOUT: Full-height split screen.
+       * Left 60% = branding, right 40% = login panel.
+       * On mobile (<lg) collapses to single centered column.
+       */
+      <main className="login-shell min-h-screen flex text-white" role="main" aria-label="BakeryOS Login">
 
-          <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 10 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-              className={`login-card p-10 rounded-[2.5rem] w-full max-w-md z-10 ${isDarkMode ? 'shadow-gold-glow' : 'bg-white border-slate-200 shadow-2xl'}`}
-          >
-            <div className="relative text-center mb-10">
-              {/*
-                PERF: Use <picture> to serve WebP (smaller), with 1×/2× srcset
-                for retina screens. Explicit width+height prevent layout shift
-                (CLS). fetchpriority="high" tells the browser this is the LCP
-                element — improves LCP metric directly.
-              */}
-              <div className="login-badge mx-auto mb-6 flex h-20 w-20 items-center justify-center overflow-hidden rounded-[2rem] border border-gold/25 bg-gold/10">
+        {/* ── LEFT BRANDING PANEL ───────────────────────────────── */}
+        <div className="login-left hidden lg:flex flex-col justify-between p-14 relative overflow-hidden w-[60%]">
+
+          {/* Static radial glows — NO backdrop-filter here, perf safe */}
+          <div aria-hidden="true" className="pointer-events-none absolute inset-0">
+            <div className="login-orb login-orb--tl" />
+            <div className="login-orb login-orb--br" />
+            <div className="login-grid-overlay" />
+          </div>
+
+          {/* Logo wordmark */}
+          <div className="relative z-10">
+            <div className="flex items-center gap-3">
+              <div className="login-badge flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl border border-gold/30 bg-gold/10 shrink-0">
                 <picture>
-                  <source
-                    type="image/webp"
-                    srcSet="/columbina-login-1x.webp 1x, /columbina-login.webp 2x"
-                  />
-                  <img
-                    src="/columbina-login.jpg"
-                    alt="BakeryOS icon"
-                    width={78}
-                    height={78}
-                    className="h-full w-full object-cover"
-                    fetchPriority="high"
-                    decoding="async"
-                  />
+                  <source type="image/webp" srcSet="/columbina-login-1x.webp 1x, /columbina-login.webp 2x" />
+                  <img src="/columbina-login.jpg" alt="" width={40} height={40} className="h-full w-full object-cover" fetchPriority="high" decoding="async" />
                 </picture>
               </div>
-              {/* PERF: Fixed height container prevents CLS when Outfit font loads and swaps */}
-              <div className="login-title-wrap h-[88px]">
-                <h1 className="text-4xl font-bold luxury-font tracking-tighter uppercase mb-3">
-                  <span className="text-white">Bakery</span>
-                  <span className="text-gold">OS</span>
-                </h1>
-                <p className="text-[10px] font-black uppercase tracking-[0.3em] text-cream/40">BETA 0.1</p>
+              <span className="luxury-font text-xl font-bold tracking-tight">
+                Bakery<span className="text-gold">OS</span>
+              </span>
+            </div>
+          </div>
+
+          {/* Hero copy — CLS safe: fixed min-height container */}
+          <div className="relative z-10 flex-1 flex flex-col justify-center max-w-xl py-12">
+            {/* PERF: h-[88px] reserves space before Outfit font swaps */}
+            <div className="mb-6 h-[88px]">
+              <p className="text-[11px] font-black uppercase tracking-[0.3em] text-gold/60 mb-4">Premium Operations Platform</p>
+              <h1 className="text-5xl font-bold luxury-font tracking-tight leading-none text-white">
+                Smart Bakery<br />
+                <span className="text-gold-gradient">Management.</span>
+              </h1>
+            </div>
+            <p className="text-base text-white/45 leading-relaxed max-w-sm">
+              Run your entire bakery operation from one terminal. Real-time intelligence, total control.
+            </p>
+
+            {/* Feature highlights */}
+            <div className="mt-12 space-y-5">
+              {[
+                { icon: BarChart2, label: 'Live Revenue Analytics', desc: 'Track sales, margins & forecasts in real-time' },
+                { icon: Package, label: 'Smart Inventory Control', desc: 'Auto-alerts, waste logs & supplier purchasing' },
+                { icon: Users, label: 'Full Team Management', desc: 'Staff roles, attendance & performance insights' },
+              ].map(({ icon: Icon, label, desc }) => (
+                <div key={label} className="flex items-start gap-4">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gold/10 border border-gold/20">
+                    <Icon size={16} className="text-gold" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-white/90 leading-tight">{label}</p>
+                    <p className="text-xs text-white/35 mt-0.5">{desc}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Bottom trust row */}
+          <div className="relative z-10 flex items-center gap-6">
+            <span className="text-[10px] uppercase tracking-widest text-white/25 font-black">Trusted by artisan bakeries</span>
+            <div className="flex gap-2">
+              {[1, 2, 3, 4].map(i => (
+                <div key={i} className="h-5 w-5 rounded-full bg-white/10 border border-white/10" />
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* ── RIGHT LOGIN PANEL ─────────────────────────────────── */}
+        {/* 
+         * PERF: Only ONE backdrop-filter blur on the whole page.
+         * This is the single most expensive CSS property — isolating it
+         * to a single fixed-size element prevents cascade recalculation.
+         */}
+        <div className="login-right flex flex-col items-center justify-center w-full lg:w-[40%] px-6 py-12 relative">
+
+          {/* The ONLY backdrop-filter blur on the page */}
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+            className="login-panel w-full max-w-[420px]"
+          >
+            {/* Mobile-only logo */}
+            <div className="flex lg:hidden items-center justify-center gap-2 mb-10">
+              <div className="login-badge flex h-8 w-8 items-center justify-center overflow-hidden rounded-lg border border-gold/30 bg-gold/10 shrink-0">
+                <img src="/columbina-login.jpg" alt="" width={32} height={32} className="h-full w-full object-cover" decoding="async" />
               </div>
+              <span className="luxury-font text-lg font-bold tracking-tight">Bakery<span className="text-gold">OS</span></span>
             </div>
 
-            <div className="mb-6 grid grid-cols-2 gap-2 rounded-2xl border border-gold/10 bg-white/[0.03] p-1">
+            {/* Title */}
+            <div className="mb-8">
+              <h2 className="text-2xl font-bold text-white tracking-tight">
+                {authMode === 'login' ? 'Welcome back' : 'Create account'}
+              </h2>
+              <p className="text-sm text-white/40 mt-1">
+                {authMode === 'login' ? 'Sign in to your bakery terminal' : 'Set up your bakery operation'}
+              </p>
+            </div>
+
+            {/* Mode toggle — pill style */}
+            <div className="mb-8 grid grid-cols-2 gap-1 rounded-xl border border-white/8 bg-white/[0.03] p-1">
               <button
                 type="button"
                 onClick={() => setAuthMode('login')}
-                className={`rounded-xl px-4 py-3 text-[11px] font-black uppercase tracking-[0.2em] transition-all ${authMode === 'login' ? 'bg-gold text-charcoal shadow-gold-glow' : 'text-cream/55 hover:text-cream'}`}
-              >
-                Log In
-              </button>
+                className={`rounded-lg py-2.5 text-[11px] font-black uppercase tracking-[0.15em] transition-all duration-200 ${authMode === 'login' ? 'bg-gold text-charcoal' : 'text-white/40 hover:text-white/70'}`}
+              >Log In</button>
               <button
                 type="button"
                 onClick={() => setAuthMode('signup')}
-                className={`rounded-xl px-4 py-3 text-[11px] font-black uppercase tracking-[0.2em] transition-all ${authMode === 'signup' ? 'bg-gold text-charcoal shadow-gold-glow' : 'text-cream/55 hover:text-cream'}`}
-              >
-                Sign Up
-              </button>
+                className={`rounded-lg py-2.5 text-[11px] font-black uppercase tracking-[0.15em] transition-all duration-200 ${authMode === 'signup' ? 'bg-gold text-charcoal' : 'text-white/40 hover:text-white/70'}`}
+              >Sign Up</button>
             </div>
 
-            <form onSubmit={authMode === 'login' ? handleLogin : handleSignup} className="space-y-6">
-              <div>
-                <label className="text-[10px] font-black uppercase tracking-widest text-gold/65 mb-2 block">
-                  {authMode === 'login' ? 'Operator ID' : 'Owner Username'}
+            {/* Form */}
+            <form onSubmit={authMode === 'login' ? handleLogin : handleSignup} className="space-y-4">
+              {/* Username field */}
+              <div className="login-field-wrap">
+                <label className="login-label" htmlFor="login-username">
+                  {authMode === 'login' ? 'Username' : 'Owner Username'}
                 </label>
                 <input
+                  id="login-username"
                   type="text"
                   value={authMode === 'login' ? loginForm.username : signupForm.username}
                   onChange={(e) => authMode === 'login'
-                    ? setLoginForm({...loginForm, username: e.target.value})
-                    : setSignupForm({...signupForm, username: e.target.value})}
-                  className={`login-input w-full font-bold ${isDarkMode ? 'login-input--dark' : ''}`}
-                  placeholder="Username"
+                    ? setLoginForm({ ...loginForm, username: e.target.value })
+                    : setSignupForm({ ...signupForm, username: e.target.value })}
+                  className="login-field"
+                  placeholder="e.g. pierre_dupont"
                   autoComplete={authMode === 'login' ? 'username' : 'new-username'}
+                  required
                 />
               </div>
-              <div>
-                <label className="text-[10px] font-black uppercase tracking-widest text-gold/65 mb-2 block">Secure Key</label>
-                <input
-                  type="password"
-                  value={authMode === 'login' ? loginForm.password : signupForm.password}
-                  onChange={(e) => authMode === 'login'
-                    ? setLoginForm({...loginForm, password: e.target.value})
-                    : setSignupForm({...signupForm, password: e.target.value})}
-                  className={`login-input w-full font-bold ${isDarkMode ? 'login-input--dark' : ''}`}
-                  placeholder="••••••••"
-                  autoComplete={authMode === 'login' ? 'current-password' : 'new-password'}
-                />
-              </div>
-              {authMode === 'signup' && (
-                <div>
-                  <label className="text-[10px] font-black uppercase tracking-widest text-gold/65 mb-2 block">Confirm Key</label>
+
+              {/* Password field with toggle */}
+              <div className="login-field-wrap">
+                <label className="login-label" htmlFor="login-password">Password</label>
+                <div className="relative">
                   <input
-                    type="password"
+                    id="login-password"
+                    type={showPassword ? 'text' : 'password'}
+                    value={authMode === 'login' ? loginForm.password : signupForm.password}
+                    onChange={(e) => authMode === 'login'
+                      ? setLoginForm({ ...loginForm, password: e.target.value })
+                      : setSignupForm({ ...signupForm, password: e.target.value })}
+                    className="login-field pr-12"
+                    placeholder="••••••••"
+                    autoComplete={authMode === 'login' ? 'current-password' : 'new-password'}
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-white/25 hover:text-gold transition-colors"
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Confirm password (signup only) */}
+              {authMode === 'signup' && (
+                <div className="login-field-wrap">
+                  <label className="login-label" htmlFor="login-confirm">Confirm Password</label>
+                  <input
+                    id="login-confirm"
+                    type={showPassword ? 'text' : 'password'}
                     value={signupForm.confirmPassword}
-                    onChange={(e) => setSignupForm({...signupForm, confirmPassword: e.target.value})}
-                    className={`login-input w-full font-bold ${isDarkMode ? 'login-input--dark' : ''}`}
+                    onChange={(e) => setSignupForm({ ...signupForm, confirmPassword: e.target.value })}
+                    className="login-field"
                     placeholder="••••••••"
                     autoComplete="new-password"
+                    required
                   />
                 </div>
               )}
-              <button disabled={isAuthSubmitting} className={`login-gold-button w-full py-5 rounded-2xl font-black text-xs uppercase tracking-[0.24em] disabled:opacity-60 ${isDarkMode ? '' : 'bg-slate-900 text-white shadow-xl'}`}>
-                {isAuthSubmitting ? 'Please Wait' : authMode === 'login' ? 'Access Terminal' : 'Create Bakery'}
+
+              {/* Remember me + Forgot */}
+              {authMode === 'login' && (
+                <div className="flex items-center justify-between pt-1">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" className="login-checkbox" />
+                    <span className="text-xs text-white/40">Remember me</span>
+                  </label>
+                  <button type="button" className="text-xs text-gold/70 hover:text-gold transition-colors font-medium">
+                    Forgot password?
+                  </button>
+                </div>
+              )}
+
+              {/* Primary CTA */}
+              <button
+                type="submit"
+                disabled={isAuthSubmitting}
+                className="login-cta w-full mt-2"
+              >
+                {isAuthSubmitting
+                  ? <span className="flex items-center justify-center gap-2"><span className="login-spinner" />Processing...</span>
+                  : authMode === 'login' ? 'Access Terminal' : 'Create Bakery'
+                }
               </button>
             </form>
 
-            <div className="mt-8 flex flex-col items-center gap-6">
-              <div className="flex items-center w-full gap-4 text-gold/30">
-                <div className="h-px bg-gold/20 flex-1" />
-                <span className="text-[8px] font-bold uppercase tracking-widest">{authMode === 'login' ? 'Or Secure Login' : 'Or Create With Google'}</span>
-                <div className="h-px bg-gold/20 flex-1" />
-              </div>
-
-              <div className="w-[240px] h-[44px] flex justify-center overflow-hidden">
-                {gsiReady ? (
-                  <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
-                    <GoogleLogin 
-                      onSuccess={handleGoogleSuccess}
-                      onError={() => addToast("Login Interrupted", "error")}
-                      theme={isDarkMode ? 'filled_black' : 'outline'}
-                      shape="pill"
-                      use_fedcm={false}
-                    />
-                  </GoogleOAuthProvider>
-                ) : (
-                  <div className="w-[200px] h-[40px] rounded-full bg-white/5 animate-pulse" />
-                )}
-              </div>
+            {/* Divider */}
+            <div className="my-6 flex items-center gap-3">
+              <div className="h-px flex-1 bg-white/8" />
+              <span className="text-[10px] font-bold uppercase tracking-widest text-white/25">or continue with</span>
+              <div className="h-px flex-1 bg-white/8" />
             </div>
+
+            {/* Google Sign-in — PERF: fixed h-[44px] prevents iframe CLS */}
+            <div className="h-[44px] flex justify-center items-center overflow-hidden rounded-xl">
+              {gsiReady ? (
+                <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
+                  <GoogleLogin
+                    onSuccess={handleGoogleSuccess}
+                    onError={() => addToast('Login Interrupted', 'error')}
+                    theme="filled_black"
+                    shape="rectangular"
+                    use_fedcm={false}
+                    width={420}
+                  />
+                </GoogleOAuthProvider>
+              ) : (
+                /* Skeleton placeholder reserves exact space before GSI iframe loads */
+                <div className="w-full h-[44px] rounded-xl bg-white/5 animate-pulse" />
+              )}
+            </div>
+
+            {/* Footer note */}
+            <p className="mt-8 text-center text-[10px] text-white/20 leading-relaxed">
+              By continuing, you agree to our{' '}
+              <span className="text-white/40 underline underline-offset-2 cursor-pointer hover:text-gold transition-colors">Terms</span>
+              {' '}and{' '}
+              <span className="text-white/40 underline underline-offset-2 cursor-pointer hover:text-gold transition-colors">Privacy Policy</span>.
+            </p>
+
           </motion.div>
-        </main>
+        </div>
+
+      </main>
     );
   }
 
