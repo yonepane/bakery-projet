@@ -613,7 +613,7 @@ const Dashboard: React.FC = () => {
     }));
 
     return (
-      <main className="bento-shell min-h-screen p-4 lg:p-6 bg-[#030303] text-white" role="main">
+      <main className="bento-shell min-h-screen p-4 lg:p-6 bg-black text-white" role="main">
         {/* Mobile Fallback: just center the login form, since this is desktop focused */}
         <div className="lg:hidden flex items-center justify-center min-h-screen">
           <div className="w-full max-w-sm px-6">
@@ -624,6 +624,7 @@ const Dashboard: React.FC = () => {
             <form onSubmit={authMode === 'login' ? handleLogin : handleSignup} className="space-y-6">
                 <div className="relative group">
                   <input
+                    id="mobile-username"
                     type="text"
                     value={authMode === 'login' ? loginForm.username : signupForm.username}
                     onChange={(e) => authMode === 'login'
@@ -633,7 +634,7 @@ const Dashboard: React.FC = () => {
                     placeholder=" "
                     required
                   />
-                  <label className="monolith-label">
+                  <label htmlFor="mobile-username" className="monolith-label">
                     {authMode === 'login' ? 'Identity / Username' : 'Commander Identity'}
                   </label>
                   <div className="monolith-input-highlight" />
@@ -641,6 +642,7 @@ const Dashboard: React.FC = () => {
 
                 <div className="relative group">
                   <input
+                    id="mobile-password"
                     type={showPassword ? 'text' : 'password'}
                     value={authMode === 'login' ? loginForm.password : signupForm.password}
                     onChange={(e) => authMode === 'login'
@@ -650,13 +652,14 @@ const Dashboard: React.FC = () => {
                     placeholder=" "
                     required
                   />
-                  <label className="monolith-label">Access Cipher</label>
+                  <label htmlFor="mobile-password" className="monolith-label">Access Cipher</label>
                   <div className="monolith-input-highlight" />
                   
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute right-0 bottom-3 text-white/20 hover:text-gold transition-colors p-2"
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
                   >
                     {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
                   </button>
@@ -740,149 +743,130 @@ const Dashboard: React.FC = () => {
             </div>
           </div>
 
-          {/* Right Column Stack (4 columns) */}
-          <div className="col-span-4 row-span-12 flex flex-col gap-4 lg:gap-6">
-            
-            {/* Top Widget: System Status */}
-            <div className="flex-none h-48 rounded-[2rem] overflow-hidden bento-panel border border-white/5 relative p-8 flex flex-col justify-between group">
-              <div className="absolute inset-0 bg-white/[0.02] group-hover:bg-white/[0.04] transition-colors" />
-              <div className="relative z-10 flex justify-between items-start">
-                <span className="text-[10px] font-black tracking-widest uppercase text-white/40">System Status</span>
-                <Clock className="text-white/20" size={16} />
+          {/* Right Column (4 columns) - Login Panel */}
+          <div className="col-span-4 row-span-12 rounded-[2rem] overflow-hidden bento-panel border border-white/5 relative flex flex-col items-center justify-center p-10">
+            <div className="absolute inset-0 bg-white/[0.01]" />
+            {/* Form container */}
+            <div className="relative z-10 w-full max-w-[320px]">
+              
+              {/* Mode Toggle */}
+              <div className="flex w-full mb-10 border-b border-white/10">
+                <button
+                  onClick={() => setAuthMode('login')}
+                  className={`flex-1 pb-4 text-[10px] font-bold tracking-widest uppercase transition-colors relative ${authMode === 'login' ? 'text-gold' : 'text-white/30 hover:text-white/60'}`}
+                >
+                  Authenticate
+                  {authMode === 'login' && <motion.div layoutId="mode-indicator" className="absolute bottom-[-1px] left-0 right-0 h-[2px] bg-gold shadow-[0_0_10px_rgba(212,175,55,0.8)]" />}
+                </button>
+                <button
+                  onClick={() => setAuthMode('signup')}
+                  className={`flex-1 pb-4 text-[10px] font-bold tracking-widest uppercase transition-colors relative ${authMode === 'signup' ? 'text-gold' : 'text-white/30 hover:text-white/60'}`}
+                >
+                  Initialize
+                  {authMode === 'signup' && <motion.div layoutId="mode-indicator" className="absolute bottom-[-1px] left-0 right-0 h-[2px] bg-gold shadow-[0_0_10px_rgba(212,175,55,0.8)]" />}
+                </button>
               </div>
-              <div className="relative z-10">
-                <div className="text-3xl font-light text-white tracking-tight mb-1">Optimal</div>
-                <div className="flex items-center gap-2 text-xs text-white/50">
-                  <div className="w-full bg-white/10 h-1 rounded-full overflow-hidden">
-                    <div className="bg-gold h-full w-[98%]" />
-                  </div>
-                  98%
-                </div>
-              </div>
-            </div>
 
-            {/* Bottom Widget: The Monolith Form */}
-            <div className="flex-1 rounded-[2rem] overflow-hidden bento-panel border border-white/5 relative flex flex-col items-center justify-center p-10">
-              <div className="absolute inset-0 bg-white/[0.01]" />
-              {/* Form container */}
-              <div className="relative z-10 w-full max-w-[320px]">
+              {/* Form */}
+              <form onSubmit={authMode === 'login' ? handleLogin : handleSignup} className="w-full space-y-8">
                 
-                {/* Mode Toggle */}
-                <div className="flex w-full mb-10 border-b border-white/10">
+                <div className="relative group">
+                  <input
+                    id="desktop-username"
+                    type="text"
+                    value={authMode === 'login' ? loginForm.username : signupForm.username}
+                    onChange={(e) => authMode === 'login'
+                      ? setLoginForm({ ...loginForm, username: e.target.value })
+                      : setSignupForm({ ...signupForm, username: e.target.value })}
+                    className="monolith-input peer"
+                    placeholder=" "
+                    required
+                  />
+                  <label htmlFor="desktop-username" className="monolith-label">
+                    {authMode === 'login' ? 'Identity / Username' : 'Commander Identity'}
+                  </label>
+                  <div className="monolith-input-highlight" />
+                </div>
+
+                <div className="relative group">
+                  <input
+                    id="desktop-password"
+                    type={showPassword ? 'text' : 'password'}
+                    value={authMode === 'login' ? loginForm.password : signupForm.password}
+                    onChange={(e) => authMode === 'login'
+                      ? setLoginForm({ ...loginForm, password: e.target.value })
+                      : setSignupForm({ ...signupForm, password: e.target.value })}
+                    className="monolith-input peer pr-10"
+                    placeholder=" "
+                    required
+                  />
+                  <label htmlFor="desktop-password" className="monolith-label">Access Cipher</label>
+                  <div className="monolith-input-highlight" />
+                  
                   <button
-                    onClick={() => setAuthMode('login')}
-                    className={`flex-1 pb-4 text-[10px] font-bold tracking-widest uppercase transition-colors relative ${authMode === 'login' ? 'text-gold' : 'text-white/30 hover:text-white/60'}`}
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-0 bottom-3 text-white/20 hover:text-gold transition-colors p-2"
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
                   >
-                    Authenticate
-                    {authMode === 'login' && <motion.div layoutId="mode-indicator" className="absolute bottom-[-1px] left-0 right-0 h-[2px] bg-gold shadow-[0_0_10px_rgba(212,175,55,0.8)]" />}
-                  </button>
-                  <button
-                    onClick={() => setAuthMode('signup')}
-                    className={`flex-1 pb-4 text-[10px] font-bold tracking-widest uppercase transition-colors relative ${authMode === 'signup' ? 'text-gold' : 'text-white/30 hover:text-white/60'}`}
-                  >
-                    Initialize
-                    {authMode === 'signup' && <motion.div layoutId="mode-indicator" className="absolute bottom-[-1px] left-0 right-0 h-[2px] bg-gold shadow-[0_0_10px_rgba(212,175,55,0.8)]" />}
+                    {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
                   </button>
                 </div>
 
-                {/* Form */}
-                <form onSubmit={authMode === 'login' ? handleLogin : handleSignup} className="w-full space-y-8">
-                  
+                {authMode === 'signup' && (
                   <div className="relative group">
                     <input
-                      type="text"
-                      value={authMode === 'login' ? loginForm.username : signupForm.username}
-                      onChange={(e) => authMode === 'login'
-                        ? setLoginForm({ ...loginForm, username: e.target.value })
-                        : setSignupForm({ ...signupForm, username: e.target.value })}
+                      id="desktop-confirm-password"
+                      type={showPassword ? 'text' : 'password'}
+                      value={signupForm.confirmPassword}
+                      onChange={(e) => setSignupForm({ ...signupForm, confirmPassword: e.target.value })}
                       className="monolith-input peer"
                       placeholder=" "
                       required
                     />
-                    <label className="monolith-label">
-                      {authMode === 'login' ? 'Identity / Username' : 'Commander Identity'}
-                    </label>
+                    <label htmlFor="desktop-confirm-password" className="monolith-label">Verify Cipher</label>
                     <div className="monolith-input-highlight" />
                   </div>
+                )}
 
-                  <div className="relative group">
-                    <input
-                      type={showPassword ? 'text' : 'password'}
-                      value={authMode === 'login' ? loginForm.password : signupForm.password}
-                      onChange={(e) => authMode === 'login'
-                        ? setLoginForm({ ...loginForm, password: e.target.value })
-                        : setSignupForm({ ...signupForm, password: e.target.value })}
-                      className="monolith-input peer pr-10"
-                      placeholder=" "
-                      required
-                    />
-                    <label className="monolith-label">Access Cipher</label>
-                    <div className="monolith-input-highlight" />
-                    
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-0 bottom-3 text-white/20 hover:text-gold transition-colors p-2"
-                    >
-                      {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
-                    </button>
-                  </div>
+                <button
+                  type="submit"
+                  disabled={isAuthSubmitting}
+                  className="monolith-btn mt-8"
+                >
+                  {isAuthSubmitting
+                    ? <span className="flex items-center justify-center gap-3"><span className="login-spinner" /> Establishing Link</span>
+                    : authMode === 'login' ? 'Initiate Link' : 'Deploy System'
+                  }
+                </button>
+              </form>
 
-                  {authMode === 'signup' && (
-                    <div className="relative group">
-                      <input
-                        type={showPassword ? 'text' : 'password'}
-                        value={signupForm.confirmPassword}
-                        onChange={(e) => setSignupForm({ ...signupForm, confirmPassword: e.target.value })}
-                        className="monolith-input peer"
-                        placeholder=" "
-                        required
-                      />
-                      <label className="monolith-label">Verify Cipher</label>
-                      <div className="monolith-input-highlight" />
-                    </div>
-                  )}
-
-                  <button
-                    type="submit"
-                    disabled={isAuthSubmitting}
-                    className="monolith-btn mt-8"
-                  >
-                    {isAuthSubmitting
-                      ? <span className="flex items-center justify-center gap-3"><span className="login-spinner" /> Establishing Link</span>
-                      : authMode === 'login' ? 'Initiate Link' : 'Deploy System'
-                    }
-                  </button>
-                </form>
-
-                {/* GSI Integration */}
-                <div className="w-full mt-12">
-                  <div className="flex items-center gap-4 mb-6 opacity-30">
-                    <div className="h-px flex-1 bg-white" />
-                    <span className="text-[8px] tracking-[0.2em] uppercase">External Auth</span>
-                    <div className="h-px flex-1 bg-white" />
-                  </div>
-
-                  <div className="h-[44px] w-full max-w-[240px] mx-auto overflow-hidden rounded-full border border-white/10 hover:border-gold/30 transition-colors">
-                    {gsiReady ? (
-                      <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
-                        <GoogleLogin
-                          onSuccess={handleGoogleSuccess}
-                          onError={() => addToast('Link Failed', 'error')}
-                          theme="filled_black"
-                          shape="pill"
-                          use_fedcm={false}
-                        />
-                      </GoogleOAuthProvider>
-                    ) : (
-                      <div className="w-full h-full bg-white/5 animate-pulse" />
-                    )}
-                  </div>
+              {/* GSI Integration */}
+              <div className="w-full mt-12">
+                <div className="flex items-center gap-4 mb-6 opacity-30">
+                  <div className="h-px flex-1 bg-white" />
+                  <span className="text-[8px] tracking-[0.2em] uppercase">External Auth</span>
+                  <div className="h-px flex-1 bg-white" />
                 </div>
 
+                <div className="h-[44px] w-full max-w-[240px] mx-auto overflow-hidden rounded-full border border-white/10 hover:border-gold/30 transition-colors">
+                  {gsiReady ? (
+                    <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
+                      <GoogleLogin
+                        onSuccess={handleGoogleSuccess}
+                        onError={() => addToast('Link Failed', 'error')}
+                        theme="filled_black"
+                        shape="pill"
+                        use_fedcm={false}
+                      />
+                    </GoogleOAuthProvider>
+                  ) : (
+                    <div className="w-full h-full bg-white/5 animate-pulse" />
+                  )}
+                </div>
               </div>
-            </div>
 
+            </div>
           </div>
 
         </div>
