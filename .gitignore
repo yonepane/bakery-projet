@@ -24,3 +24,4 @@ frontend/dist/
 nohup.out
 .vercel
 .env*.local
+*.log

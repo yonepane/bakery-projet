@@ -1,4 +1,0 @@
-Traceback (most recent call last):
-  File "/home/dane/bakery-os/backend/main.py", line 11, in <module>
-    from fastapi import FastAPI, HTTPException, Request, Depends
-ModuleNotFoundError: No module named 'fastapi'

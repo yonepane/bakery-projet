@@ -1,0 +1,92 @@
+"""Authentication routes for BakeryOS."""
+
+import os
+
+import sqlalchemy.orm
+from fastapi import APIRouter, Depends, HTTPException
+from google.auth.transport import requests as google_requests
+from google.oauth2 import id_token
+
+try:
+    from .. import models
+    from ..auth import create_access_token, get_password_hash, verify_password
+    from ..database import get_db
+    from ..schemas import GoogleLoginRequest, LoginRequest, Token
+except ImportError:
+    import models
+    from auth import create_access_token, get_password_hash, verify_password
+    from database import get_db
+    from schemas import GoogleLoginRequest, LoginRequest, Token
+
+router = APIRouter()
+
+GOOGLE_CLIENT_ID = os.getenv(
+    "GOOGLE_CLIENT_ID",
+    "183197193874-qhf5nd87o77oo86jhksat53ncq3ahjp8.apps.googleusercontent.com",
+)
+
+
+@router.post("/api/auth/google")
+async def google_login(req: GoogleLoginRequest, db: sqlalchemy.orm.Session = Depends(get_db)):
+    try:
+        idinfo = id_token.verify_oauth2_token(req.credential, google_requests.Request(), GOOGLE_CLIENT_ID)
+        email = idinfo["email"]
+
+        user = db.query(models.User).filter(models.User.username == email).first()
+        if not user:
+            user = models.User(
+                username=email,
+                password=get_password_hash("google_oauth_protected"),
+                role="owner",
+                parent_owner_id=None,
+            )
+            db.add(user)
+            db.commit()
+            db.refresh(user)
+        elif user.role != "owner":
+            user.role = "owner"
+            db.commit()
+
+        access_token = create_access_token(data={"sub": user.username})
+        return {
+            "access_token": access_token,
+            "token_type": "bearer",
+            "username": user.username,
+            "role": user.role,
+        }
+    except Exception as exc:
+        print(f"Google Auth Error: {exc}")
+        raise HTTPException(status_code=400, detail="Google authentication failed")
+
+
+@router.post("/api/auth/signup")
+async def signup(req: LoginRequest, db: sqlalchemy.orm.Session = Depends(get_db)):
+    existing = db.query(models.User).filter(models.User.username == req.username).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Username already taken")
+
+    new_user = models.User(
+        username=req.username,
+        password=get_password_hash(req.password),
+        role="owner",
+    )
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+
+    return {"message": "Bakery registered successfully. You can now log in."}
+
+
+@router.post("/api/auth/login", response_model=Token)
+async def login(req: LoginRequest, db: sqlalchemy.orm.Session = Depends(get_db)):
+    user = db.query(models.User).filter(models.User.username == req.username).first()
+    if not user or not verify_password(req.password, user.password):
+        raise HTTPException(status_code=401, detail="Invalid username or password")
+
+    access_token = create_access_token(data={"sub": user.username})
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "username": user.username,
+        "role": user.role,
+    }

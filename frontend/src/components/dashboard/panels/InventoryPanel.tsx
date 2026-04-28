@@ -1,0 +1,145 @@
+import React from 'react';
+import { Edit2, Plus, Trash2 } from 'lucide-react';
+import { DashboardSharedProps } from '../types';
+
+type Props = Pick<DashboardSharedProps,
+  'isDarkMode' | 'inventory' | 'sortedMaterialEntries' | 'editMode' |
+  'formatPrice' | 'handleAdjustStock' | 'openSelector' | 'startEditingMaterial' |
+  'handleDeleteMaterial' | 'setShowAddProduct' | 'setShowAddMaterial' |
+  'setEditingMaterialName' | 'setNewMaterial' | 'handleUpdateProductPrice'>;
+
+const InventoryPanel: React.FC<Props> = ({
+  isDarkMode, inventory, sortedMaterialEntries, editMode, formatPrice,
+  handleAdjustStock, openSelector, startEditingMaterial, handleDeleteMaterial,
+  setShowAddProduct, setShowAddMaterial, setEditingMaterialName, setNewMaterial,
+  handleUpdateProductPrice,
+}) => (
+  <div className="space-y-8 animate-in fade-in duration-500">
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      {/* Finished Goods */}
+      <div className={`rounded-[2rem] border overflow-hidden transition-colors ${isDarkMode ? 'glass-panel' : 'bg-white border-slate-200 shadow-xl'}`}>
+        <div className="p-8 border-b border-white/5 flex justify-between items-center">
+          <h3 className={`text-xl font-bold luxury-font uppercase ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Finished Goods</h3>
+          {editMode && <button onClick={() => setShowAddProduct(true)} className={`p-2 rounded-lg ${isDarkMode ? 'bg-gold/10 text-gold' : 'bg-slate-100 text-slate-900'}`}><Plus size={16} /></button>}
+        </div>
+        <table className="w-full text-left">
+          <thead>
+            <tr className={`border-b text-[10px] font-black uppercase tracking-[0.2em] ${isDarkMode ? 'border-white/5 text-cream/40' : 'border-slate-100 text-slate-400'}`}>
+              <th className="px-8 py-6">Entity</th>
+              <th className="px-8 py-6">Stock</th>
+              <th className="px-8 py-6 text-right">Margin</th>
+            </tr>
+          </thead>
+          <tbody className={`divide-y ${isDarkMode ? 'divide-white/5' : 'divide-slate-100'}`}>
+            {inventory.products.map(p => {
+              const margin = p.price > 0 ? ((p.price - (p.live_cost || 0)) / p.price * 100) : 0;
+              return (
+                <tr key={p.id} className="group hover:bg-white/[0.02] transition-colors">
+                  <td className="px-8 py-6">
+                    <div className="flex items-center gap-4">
+                      <span className="text-3xl">{p.icon}</span>
+                      <p className={`font-bold ${isDarkMode ? 'text-cream' : 'text-slate-900'}`}>{p.name}</p>
+                    </div>
+                  </td>
+                  <td className="px-8 py-6">
+                    <div className="flex items-center gap-3">
+                      <button onClick={() => handleAdjustStock('product', p.id, -1)} className={`w-6 h-6 rounded-md flex items-center justify-center text-xs ${isDarkMode ? 'bg-white/5 hover:bg-rose-500/20 text-rose-500' : 'bg-slate-100 hover:bg-rose-100 text-rose-600'}`}>-</button>
+                      <span className={`font-bold text-sm min-w-[3ch] text-center ${p.stock < 10 ? 'text-rose-500' : ''}`}>{p.stock}</span>
+                      <button
+                        onClick={() => openSelector({ title: 'Quick Stock', label: 'Add Quantity', value: '50', type: 'text', onConfirm: (val) => handleAdjustStock('product', p.id, parseInt(val)) })}
+                        className={`w-6 h-6 rounded-md flex items-center justify-center text-xs ${isDarkMode ? 'bg-white/5 hover:bg-emerald-500/20 text-emerald-500' : 'bg-slate-100 hover:bg-emerald-100 text-emerald-600'}`}>+</button>
+                    </div>
+                  </td>
+                  <td className="px-8 py-6 text-right">
+                    <div className="flex flex-col items-end gap-1">
+                      <div className="flex items-center gap-2">
+                        <span className={`text-sm font-bold ${isDarkMode ? 'text-gold' : 'text-slate-900'}`}>{formatPrice(p.price)}</span>
+                        {editMode && (
+                          <button onClick={() => openSelector({ title: 'Update Price', label: 'New Selling Price', value: p.price.toString(), type: 'text', onConfirm: (val) => handleUpdateProductPrice(p.id, parseFloat(val)) })} className="text-gold/40 hover:text-gold transition-colors">
+                            <Edit2 size={12} />
+                          </button>
+                        )}
+                      </div>
+                      <span className={`text-[10px] font-bold ${margin > 30 ? 'text-emerald-500' : 'text-rose-500'}`}>{margin.toFixed(1)}% Margin</span>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Raw Materials */}
+      <div className={`rounded-[2rem] border overflow-hidden transition-colors ${isDarkMode ? 'glass-panel' : 'bg-white border-slate-200 shadow-xl'}`}>
+        <div className="p-8 border-b border-white/5 flex justify-between items-center">
+          <h3 className={`text-xl font-bold luxury-font uppercase ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Raw Materials</h3>
+          {editMode && (
+            <button onClick={() => { setEditingMaterialName(null); setNewMaterial({ name: '', unit: 'g', price: 0, min_threshold: 0 }); setShowAddMaterial(true); }} className={`p-2 rounded-lg ${isDarkMode ? 'bg-gold/10 text-gold' : 'bg-slate-100 text-slate-900'}`}>
+              <Plus size={16} />
+            </button>
+          )}
+        </div>
+        <table className="w-full text-left table-fixed">
+          <colgroup>
+            <col className="w-[35%]" />
+            <col className="w-[30%]" />
+            <col className="w-[20%]" />
+            {editMode && <col className="w-[15%]" />}
+          </colgroup>
+          <thead>
+            <tr className={`border-b text-[10px] font-black uppercase tracking-[0.2em] ${isDarkMode ? 'border-white/5 text-cream/40' : 'border-slate-100 text-slate-400'}`}>
+              <th className="px-4 py-5 pl-8">Ingredient</th>
+              <th className="px-4 py-5">Stock Level</th>
+              <th className="px-4 py-5">Supplier</th>
+              {editMode && <th className="px-4 py-5 pr-6 text-right">Actions</th>}
+            </tr>
+          </thead>
+          <tbody className={`divide-y ${isDarkMode ? 'divide-white/5' : 'divide-slate-100'}`}>
+            {sortedMaterialEntries.map(([name, data]) => (
+              <tr key={name} className="group hover:bg-white/[0.02] transition-colors">
+                <td className="px-4 py-5 pl-8">
+                  <p className={`font-bold truncate ${isDarkMode ? 'text-cream' : 'text-slate-900'}`}>{name}</p>
+                  <p className={`text-[10px] uppercase font-bold tracking-widest ${isDarkMode ? 'text-gold/60' : 'text-slate-400'}`}>{formatPrice(data.price)}/{data.unit}</p>
+                </td>
+                <td className="px-4 py-5 font-bold">
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => handleAdjustStock('material', name, -100)} className={`w-6 h-6 rounded-md flex items-center justify-center text-xs shrink-0 ${isDarkMode ? 'bg-white/5 hover:bg-rose-500/20 text-rose-500' : 'bg-slate-100 hover:bg-rose-100 text-rose-600'}`}>-</button>
+                    <span className={`font-bold text-sm min-w-[4ch] text-center ${data.stock < data.min_threshold ? 'text-rose-500' : (isDarkMode ? 'text-gold' : 'text-slate-900')}`}>{data.stock}</span>
+                    <button onClick={() => openSelector({ title: 'Quick Stock', label: `Add Quantity (${data.unit})`, value: '1000', type: 'text', onConfirm: (val) => handleAdjustStock('material', name, parseInt(val)) })} className={`w-6 h-6 rounded-md flex items-center justify-center text-xs shrink-0 ${isDarkMode ? 'bg-white/5 hover:bg-emerald-500/20 text-emerald-500' : 'bg-slate-100 hover:bg-emerald-100 text-emerald-600'}`}>+</button>
+                    <span className="text-[10px] opacity-40 shrink-0">{data.unit}</span>
+                  </div>
+                </td>
+                <td className="px-4 py-5">
+                  <span className={`text-[10px] font-black uppercase tracking-widest truncate block ${isDarkMode ? 'text-cream/20' : 'text-slate-300'}`}>{(data as any).supplier || 'Standard'}</span>
+                </td>
+                {editMode && (
+                  <td className="px-4 py-5 pr-6 text-right">
+                    <div className="flex items-center justify-end gap-2">
+                      <button
+                        onClick={() => startEditingMaterial(name, data)}
+                        className={`p-2 rounded-lg transition-all ${isDarkMode ? 'bg-white/5 text-cream/40 hover:text-gold hover:bg-gold/10' : 'bg-slate-50 text-slate-400 hover:text-slate-900 hover:bg-slate-100'}`}
+                        title="Edit"
+                      >
+                        <Edit2 size={13} />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteMaterial(name)}
+                        className={`p-2 rounded-lg transition-all ${isDarkMode ? 'bg-white/5 text-cream/40 hover:text-rose-400 hover:bg-rose-500/10' : 'bg-slate-50 text-slate-400 hover:text-rose-600 hover:bg-rose-50'}`}
+                        title="Delete"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  </td>
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+);
+
+export default InventoryPanel;

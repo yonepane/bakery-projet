@@ -4,11 +4,11 @@
 
 @layer components {
   .glass-card {
-    @apply bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl shadow-xl;
+    @apply bg-charcoal/30 backdrop-blur-xl border border-white/5 rounded-3xl shadow-glass transition-all duration-300;
   }
   
   .glass-sidebar {
-    @apply bg-black/40 backdrop-blur-lg border-r border-white/5;
+    @apply bg-charcoal/50 backdrop-blur-2xl border-r border-white/5 shadow-2xl;
   }
 
   .gold-border-glow {
@@ -724,5 +724,19 @@
 body {
   margin: 0;
   min-height: 100vh;
-  background: radial-gradient(circle at top right, #1e1e1e, #0a0a0a);
+  background-color: theme('colors.charcoal.dark');
+  background-image: theme('backgroundImage.mesh-dark');
+  background-attachment: fixed;
+  color: theme('colors.slate.100');
+  font-family: theme('fontFamily.sans');
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Base custom classes to match the new luxury design */
+.glass-panel {
+  @apply bg-charcoal/40 backdrop-blur-xl border border-white/5 rounded-3xl shadow-glass transition-all duration-500;
+}
+
+.glass-panel:hover {
+  @apply shadow-glass-hover border-white/10;
 }
