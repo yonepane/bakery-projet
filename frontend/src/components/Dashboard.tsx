@@ -601,259 +601,225 @@ const Dashboard: React.FC = () => {
   }, [user]);
 
   if (!user) {
+    // Generate random positions for gold dust particles only once
+    const particles = Array.from({ length: 30 }).map((_, i) => ({
+      id: i,
+      size: Math.random() * 3 + 1,
+      x: Math.random() * 100,
+      y: Math.random() * 100,
+      duration: Math.random() * 20 + 15,
+      delay: Math.random() * 10,
+    }));
+
     return (
-      /* 
-       * LAYOUT: Full-height split screen.
-       * Left 60% = branding, right 40% = login panel.
-       * On mobile (<lg) collapses to single centered column.
-       */
-      <main className="login-shell min-h-screen flex text-white" role="main" aria-label="BakeryOS Login">
-
-        {/* ── LEFT BRANDING PANEL ───────────────────────────────── */}
-        <div className="login-left hidden lg:flex flex-col justify-between p-14 relative overflow-hidden w-[60%]">
-
-          {/* Static radial glows — NO backdrop-filter here, perf safe */}
-          <div aria-hidden="true" className="pointer-events-none absolute inset-0">
-            <div className="login-orb login-orb--tl" />
-            <div className="login-orb login-orb--br" />
-            <div className="login-grid-overlay" />
-          </div>
-
-          {/* Logo wordmark */}
-          <div className="relative z-10">
-            <div className="flex items-center gap-3">
-              <div className="login-badge flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl border border-gold/30 bg-gold/10 shrink-0">
-                <picture>
-                  <source type="image/webp" srcSet="/columbina-login-1x.webp 1x, /columbina-login.webp 2x" />
-                  <img src="/columbina-login.jpg" alt="" width={40} height={40} className="h-full w-full object-cover" fetchPriority="high" decoding="async" />
-                </picture>
-              </div>
-              <span className="luxury-font text-xl font-bold tracking-tight">
-                Bakery<span className="text-gold">OS</span>
-              </span>
-            </div>
-          </div>
-
-          {/* Hero copy — CLS safe: fixed min-height container */}
-          <div className="relative z-10 flex-1 flex flex-col justify-center max-w-xl py-12">
-            {/* PERF: h-[88px] reserves space before Outfit font swaps */}
-            <div className="mb-6 h-[88px]">
-              <p className="text-[11px] font-black uppercase tracking-[0.3em] text-gold/60 mb-4">Premium Operations Platform</p>
-              <h1 className="text-5xl font-bold luxury-font tracking-tight leading-none text-white">
-                Smart Bakery<br />
-                <span className="text-gold-gradient">Management.</span>
-              </h1>
-            </div>
-            <p className="text-base text-white/45 leading-relaxed max-w-sm">
-              Run your entire bakery operation from one terminal. Real-time intelligence, total control.
-            </p>
-
-            {/* Feature highlights */}
-            <div className="mt-12 space-y-5">
-              {[
-                { icon: BarChart2, label: 'Live Revenue Analytics', desc: 'Track sales, margins & forecasts in real-time' },
-                { icon: Package, label: 'Smart Inventory Control', desc: 'Auto-alerts, waste logs & supplier purchasing' },
-                { icon: Users, label: 'Full Team Management', desc: 'Staff roles, attendance & performance insights' },
-              ].map(({ icon: Icon, label, desc }) => (
-                <div key={label} className="flex items-start gap-4">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gold/10 border border-gold/20">
-                    <Icon size={16} className="text-gold" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-bold text-white/90 leading-tight">{label}</p>
-                    <p className="text-xs text-white/35 mt-0.5">{desc}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Bottom trust row */}
-          <div className="relative z-10 flex items-center gap-6">
-            <span className="text-[10px] uppercase tracking-widest text-white/25 font-black">Trusted by artisan bakeries</span>
-            <div className="flex gap-2">
-              {[1, 2, 3, 4].map(i => (
-                <div key={i} className="h-5 w-5 rounded-full bg-white/10 border border-white/10" />
-              ))}
-            </div>
-          </div>
+      <main className="cinematic-shell min-h-screen flex items-center justify-center relative overflow-hidden bg-black text-white" role="main">
+        
+        {/* ── CINEMATIC BACKGROUND ───────────────────────────────── */}
+        <div className="absolute inset-0 z-0 pointer-events-none">
+          {/* Deep abstract moving auroras */}
+          <motion.div
+            animate={{
+              rotate: [0, 360],
+              scale: [1, 1.2, 1],
+            }}
+            transition={{ duration: 40, repeat: Infinity, ease: "linear" }}
+            className="absolute -top-[50%] -left-[50%] w-[200%] h-[200%] opacity-20"
+            style={{
+              background: 'conic-gradient(from 90deg at 50% 50%, #000000 0%, rgba(212, 175, 55, 0.1) 25%, #000000 50%, rgba(184, 134, 11, 0.1) 75%, #000000 100%)',
+              filter: 'blur(100px)'
+            }}
+          />
+          
+          {/* Central eclipse glow behind the card */}
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] rounded-full bg-gold/5 blur-[120px]" />
+          
+          {/* Floating gold dust */}
+          {particles.map(p => (
+            <motion.div
+              key={p.id}
+              animate={{
+                y: ['0vh', '-100vh'],
+                opacity: [0, 0.8, 0],
+                x: `${p.x + (Math.random() * 10 - 5)}vw`
+              }}
+              transition={{
+                duration: p.duration,
+                repeat: Infinity,
+                delay: p.delay,
+                ease: "linear"
+              }}
+              className="absolute rounded-full bg-gold"
+              style={{
+                left: `${p.x}vw`,
+                top: `${p.y}vh`,
+                width: p.size,
+                height: p.size,
+                boxShadow: '0 0 10px 2px rgba(212, 175, 55, 0.4)'
+              }}
+            />
+          ))}
+          
+          {/* Vignette to darken edges */}
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,#000_100%)]" />
         </div>
 
-        {/* ── RIGHT LOGIN PANEL ─────────────────────────────────── */}
-        {/* 
-         * PERF: Only ONE backdrop-filter blur on the whole page.
-         * This is the single most expensive CSS property — isolating it
-         * to a single fixed-size element prevents cascade recalculation.
-         */}
-        <div className="login-right flex flex-col items-center justify-center w-full lg:w-[40%] px-6 py-12 relative">
+        {/* ── LUXURY MONOLITH CARD ───────────────────────────────── */}
+        <motion.div
+          initial={{ opacity: 0, y: 40, scale: 0.95 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{ duration: 1.2, ease: [0.16, 1, 0.3, 1] }}
+          className="relative z-10 w-full max-w-[440px] px-6"
+        >
+          <div className="monolith-card">
+            
+            {/* Shimmer sweep effect on the card itself */}
+            <div className="monolith-shimmer" />
 
-          {/* The ONLY backdrop-filter blur on the page */}
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-            className="login-panel w-full max-w-[420px]"
-          >
-            {/* Mobile-only logo */}
-            <div className="flex lg:hidden items-center justify-center gap-2 mb-10">
-              <div className="login-badge flex h-8 w-8 items-center justify-center overflow-hidden rounded-lg border border-gold/30 bg-gold/10 shrink-0">
-                <img src="/columbina-login.jpg" alt="" width={32} height={32} className="h-full w-full object-cover" decoding="async" />
-              </div>
-              <span className="luxury-font text-lg font-bold tracking-tight">Bakery<span className="text-gold">OS</span></span>
-            </div>
+            <div className="relative z-10 px-10 py-12 flex flex-col items-center">
+              
+              {/* Logo / Crest */}
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.4, duration: 1 }}
+                className="mb-8 relative"
+              >
+                <div className="absolute inset-0 bg-gold/20 blur-xl rounded-full" />
+                <div className="h-24 w-24 rounded-full overflow-hidden border border-gold/40 relative z-10 monolith-badge">
+                  <picture>
+                    <source type="image/webp" srcSet="/columbina-login-1x.webp 1x, /columbina-login.webp 2x" />
+                    <img src="/columbina-login.jpg" alt="Crest" className="w-full h-full object-cover" />
+                  </picture>
+                </div>
+              </motion.div>
 
-            {/* Title */}
-            <div className="mb-8">
-              <h2 className="text-2xl font-bold text-white tracking-tight">
-                {authMode === 'login' ? 'Welcome back' : 'Create account'}
-              </h2>
-              <p className="text-sm text-white/40 mt-1">
-                {authMode === 'login' ? 'Sign in to your bakery terminal' : 'Set up your bakery operation'}
-              </p>
-            </div>
-
-            {/* Mode toggle — pill style */}
-            <div className="mb-8 grid grid-cols-2 gap-1 rounded-xl border border-white/8 bg-white/[0.03] p-1">
-              <button
-                type="button"
-                onClick={() => setAuthMode('login')}
-                className={`rounded-lg py-2.5 text-[11px] font-black uppercase tracking-[0.15em] transition-all duration-200 ${authMode === 'login' ? 'bg-gold text-charcoal' : 'text-white/40 hover:text-white/70'}`}
-              >Log In</button>
-              <button
-                type="button"
-                onClick={() => setAuthMode('signup')}
-                className={`rounded-lg py-2.5 text-[11px] font-black uppercase tracking-[0.15em] transition-all duration-200 ${authMode === 'signup' ? 'bg-gold text-charcoal' : 'text-white/40 hover:text-white/70'}`}
-              >Sign Up</button>
-            </div>
-
-            {/* Form */}
-            <form onSubmit={authMode === 'login' ? handleLogin : handleSignup} className="space-y-4">
-              {/* Username field */}
-              <div className="login-field-wrap">
-                <label className="login-label" htmlFor="login-username">
-                  {authMode === 'login' ? 'Username' : 'Owner Username'}
-                </label>
-                <input
-                  id="login-username"
-                  type="text"
-                  value={authMode === 'login' ? loginForm.username : signupForm.username}
-                  onChange={(e) => authMode === 'login'
-                    ? setLoginForm({ ...loginForm, username: e.target.value })
-                    : setSignupForm({ ...signupForm, username: e.target.value })}
-                  className="login-field"
-                  placeholder="e.g. pierre_dupont"
-                  autoComplete={authMode === 'login' ? 'username' : 'new-username'}
-                  required
-                />
+              {/* Title */}
+              <div className="text-center mb-10 w-full">
+                <h1 className="text-3xl font-light tracking-[0.2em] uppercase text-white mb-2 font-serif">
+                  Bakery<span className="font-bold text-gold">OS</span>
+                </h1>
+                <div className="h-[1px] w-12 bg-gold/50 mx-auto my-4" />
+                <p className="text-[10px] tracking-[0.4em] uppercase text-white/40">
+                  {authMode === 'login' ? 'Authorized Personnel Only' : 'Establish Your Empire'}
+                </p>
               </div>
 
-              {/* Password field with toggle */}
-              <div className="login-field-wrap">
-                <label className="login-label" htmlFor="login-password">Password</label>
-                <div className="relative">
+              {/* Mode Toggle */}
+              <div className="flex w-full mb-10 border-b border-white/10">
+                <button
+                  onClick={() => setAuthMode('login')}
+                  className={`flex-1 pb-4 text-[10px] font-bold tracking-widest uppercase transition-colors relative ${authMode === 'login' ? 'text-gold' : 'text-white/30 hover:text-white/60'}`}
+                >
+                  Authenticate
+                  {authMode === 'login' && <motion.div layoutId="mode-indicator" className="absolute bottom-[-1px] left-0 right-0 h-[2px] bg-gold shadow-[0_0_10px_rgba(212,175,55,0.8)]" />}
+                </button>
+                <button
+                  onClick={() => setAuthMode('signup')}
+                  className={`flex-1 pb-4 text-[10px] font-bold tracking-widest uppercase transition-colors relative ${authMode === 'signup' ? 'text-gold' : 'text-white/30 hover:text-white/60'}`}
+                >
+                  Initialize
+                  {authMode === 'signup' && <motion.div layoutId="mode-indicator" className="absolute bottom-[-1px] left-0 right-0 h-[2px] bg-gold shadow-[0_0_10px_rgba(212,175,55,0.8)]" />}
+                </button>
+              </div>
+
+              {/* Form */}
+              <form onSubmit={authMode === 'login' ? handleLogin : handleSignup} className="w-full space-y-6">
+                
+                <div className="relative group">
                   <input
-                    id="login-password"
+                    type="text"
+                    value={authMode === 'login' ? loginForm.username : signupForm.username}
+                    onChange={(e) => authMode === 'login'
+                      ? setLoginForm({ ...loginForm, username: e.target.value })
+                      : setSignupForm({ ...signupForm, username: e.target.value })}
+                    className="monolith-input peer"
+                    placeholder=" "
+                    required
+                  />
+                  <label className="monolith-label">
+                    {authMode === 'login' ? 'Identity / Username' : 'Commander Identity'}
+                  </label>
+                  <div className="monolith-input-highlight" />
+                </div>
+
+                <div className="relative group">
+                  <input
                     type={showPassword ? 'text' : 'password'}
                     value={authMode === 'login' ? loginForm.password : signupForm.password}
                     onChange={(e) => authMode === 'login'
                       ? setLoginForm({ ...loginForm, password: e.target.value })
                       : setSignupForm({ ...signupForm, password: e.target.value })}
-                    className="login-field pr-12"
-                    placeholder="••••••••"
-                    autoComplete={authMode === 'login' ? 'current-password' : 'new-password'}
+                    className="monolith-input peer pr-10"
+                    placeholder=" "
                     required
                   />
+                  <label className="monolith-label">Access Cipher</label>
+                  <div className="monolith-input-highlight" />
+                  
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-white/25 hover:text-gold transition-colors"
-                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    className="absolute right-0 bottom-3 text-white/20 hover:text-gold transition-colors p-2"
                   >
-                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
                   </button>
+                </div>
+
+                {authMode === 'signup' && (
+                  <div className="relative group">
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      value={signupForm.confirmPassword}
+                      onChange={(e) => setSignupForm({ ...signupForm, confirmPassword: e.target.value })}
+                      className="monolith-input peer"
+                      placeholder=" "
+                      required
+                    />
+                    <label className="monolith-label">Verify Cipher</label>
+                    <div className="monolith-input-highlight" />
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={isAuthSubmitting}
+                  className="monolith-btn mt-8"
+                >
+                  {isAuthSubmitting
+                    ? <span className="flex items-center justify-center gap-3"><span className="login-spinner" /> Establishing Link</span>
+                    : authMode === 'login' ? 'Initiate Link' : 'Deploy System'
+                  }
+                </button>
+              </form>
+
+              {/* GSI Integration */}
+              <div className="w-full mt-10">
+                <div className="flex items-center gap-4 mb-6 opacity-30">
+                  <div className="h-px flex-1 bg-white" />
+                  <span className="text-[8px] tracking-[0.2em] uppercase">External Link</span>
+                  <div className="h-px flex-1 bg-white" />
+                </div>
+
+                <div className="h-[44px] w-[240px] mx-auto overflow-hidden rounded-full border border-white/10 hover:border-gold/30 transition-colors">
+                  {gsiReady ? (
+                    <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
+                      <GoogleLogin
+                        onSuccess={handleGoogleSuccess}
+                        onError={() => addToast('Link Failed', 'error')}
+                        theme="filled_black"
+                        shape="pill"
+                        use_fedcm={false}
+                      />
+                    </GoogleOAuthProvider>
+                  ) : (
+                    <div className="w-full h-full bg-white/5 animate-pulse" />
+                  )}
                 </div>
               </div>
 
-              {/* Confirm password (signup only) */}
-              {authMode === 'signup' && (
-                <div className="login-field-wrap">
-                  <label className="login-label" htmlFor="login-confirm">Confirm Password</label>
-                  <input
-                    id="login-confirm"
-                    type={showPassword ? 'text' : 'password'}
-                    value={signupForm.confirmPassword}
-                    onChange={(e) => setSignupForm({ ...signupForm, confirmPassword: e.target.value })}
-                    className="login-field"
-                    placeholder="••••••••"
-                    autoComplete="new-password"
-                    required
-                  />
-                </div>
-              )}
-
-              {/* Remember me + Forgot */}
-              {authMode === 'login' && (
-                <div className="flex items-center justify-between pt-1">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input type="checkbox" className="login-checkbox" />
-                    <span className="text-xs text-white/40">Remember me</span>
-                  </label>
-                  <button type="button" className="text-xs text-gold/70 hover:text-gold transition-colors font-medium">
-                    Forgot password?
-                  </button>
-                </div>
-              )}
-
-              {/* Primary CTA */}
-              <button
-                type="submit"
-                disabled={isAuthSubmitting}
-                className="login-cta w-full mt-2"
-              >
-                {isAuthSubmitting
-                  ? <span className="flex items-center justify-center gap-2"><span className="login-spinner" />Processing...</span>
-                  : authMode === 'login' ? 'Access Terminal' : 'Create Bakery'
-                }
-              </button>
-            </form>
-
-            {/* Divider */}
-            <div className="my-6 flex items-center gap-3">
-              <div className="h-px flex-1 bg-white/8" />
-              <span className="text-[10px] font-bold uppercase tracking-widest text-white/25">or continue with</span>
-              <div className="h-px flex-1 bg-white/8" />
             </div>
-
-            {/* Google Sign-in — PERF: fixed h-[44px] prevents iframe CLS */}
-            <div className="h-[44px] flex justify-center items-center overflow-hidden rounded-xl">
-              {gsiReady ? (
-                <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
-                  <GoogleLogin
-                    onSuccess={handleGoogleSuccess}
-                    onError={() => addToast('Login Interrupted', 'error')}
-                    theme="filled_black"
-                    shape="rectangular"
-                    use_fedcm={false}
-                    width={420}
-                  />
-                </GoogleOAuthProvider>
-              ) : (
-                /* Skeleton placeholder reserves exact space before GSI iframe loads */
-                <div className="w-full h-[44px] rounded-xl bg-white/5 animate-pulse" />
-              )}
-            </div>
-
-            {/* Footer note */}
-            <p className="mt-8 text-center text-[10px] text-white/20 leading-relaxed">
-              By continuing, you agree to our{' '}
-              <span className="text-white/40 underline underline-offset-2 cursor-pointer hover:text-gold transition-colors">Terms</span>
-              {' '}and{' '}
-              <span className="text-white/40 underline underline-offset-2 cursor-pointer hover:text-gold transition-colors">Privacy Policy</span>.
-            </p>
-
-          </motion.div>
-        </div>
-
+          </div>
+        </motion.div>
       </main>
     );
   }
