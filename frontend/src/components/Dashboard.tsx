@@ -35,20 +35,7 @@ import {
   MessageSquare,
   Send
 } from 'lucide-react';
-import { 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  ResponsiveContainer, 
-  AreaChart, 
-  Area,
-  PieChart,
-  Pie,
-  Cell
-} from 'recharts';
+
 // axios is consumed internally by api.ts and http.ts — no direct import needed here.
 import { motion, AnimatePresence } from 'framer-motion';
 import { QRCodeSVG } from 'qrcode.react';
@@ -709,7 +696,7 @@ const Dashboard: React.FC = () => {
                 <div className="h-px bg-gold/20 flex-1" />
               </div>
 
-              <div className="w-full flex justify-center min-h-[44px]">
+              <div className="w-[200px] h-[44px] flex justify-center">
                 <GoogleLogin 
                   onSuccess={handleGoogleSuccess}
                   onError={() => addToast("Login Interrupted", "error")}

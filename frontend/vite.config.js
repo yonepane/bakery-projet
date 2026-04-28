@@ -20,7 +20,42 @@ export default defineConfig({
         theme_color: '#ffffff',
         icons: []
       }
-    })
+    }),
+    {
+      name: 'inline-css',
+      enforce: 'post',
+      generateBundle(options, bundle) {
+        let cssToInline = [];
+        let htmlAsset = null;
+
+        for (const [fileName, assetInfo] of Object.entries(bundle)) {
+          if (fileName.endsWith('.css')) {
+            cssToInline.push(assetInfo);
+            // Optionally, we can remove the CSS file from the bundle so it's not emitted:
+            // delete bundle[fileName];
+          } else if (fileName === 'index.html') {
+            htmlAsset = assetInfo;
+          }
+        }
+
+        if (htmlAsset && cssToInline.length > 0) {
+          let newHtml = htmlAsset.source;
+          for (const cssFile of cssToInline) {
+            // Remove the link tag
+            newHtml = newHtml.replace(
+              new RegExp(`<link[^>]*?href="[./]*?${cssFile.fileName}"[^>]*?>`),
+              ''
+            );
+            // Inject the style tag right before </head>
+            newHtml = newHtml.replace(
+              '</head>',
+              `<style>${cssFile.source}</style></head>`
+            );
+          }
+          htmlAsset.source = newHtml;
+        }
+      }
+    }
   ],
   server: {
     proxy: {
@@ -60,4 +95,4 @@ export default defineConfig({
       }
     }
   }
-})
+});
