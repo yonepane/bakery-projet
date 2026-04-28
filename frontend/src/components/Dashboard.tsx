@@ -49,7 +49,7 @@ import {
   Pie,
   Cell
 } from 'recharts';
-import axios from 'axios';
+// axios is consumed internally by api.ts and http.ts — no direct import needed here.
 import { motion, AnimatePresence } from 'framer-motion';
 import { QRCodeSVG } from 'qrcode.react';
 import { api, processSyncQueue } from '../lib/api';
@@ -606,8 +606,28 @@ const Dashboard: React.FC = () => {
               className={`login-card p-8 rounded-[2rem] w-full max-w-md ${isDarkMode ? 'shadow-gold-glow' : 'bg-white border-slate-200 shadow-2xl'}`}
           >
             <div className="relative text-center mb-10">
+              {/*
+                PERF: Use <picture> to serve WebP (smaller), with 1×/2× srcset
+                for retina screens. Explicit width+height prevent layout shift
+                (CLS). fetchpriority="high" tells the browser this is the LCP
+                element — improves LCP metric directly.
+              */}
               <div className="login-badge mx-auto mb-6 flex h-20 w-20 items-center justify-center overflow-hidden rounded-[2rem] border border-gold/25 bg-gold/10">
-                <img src="/columbina-login.jpg" alt="BakeryOS icon" className="h-full w-full object-cover" />
+                <picture>
+                  <source
+                    type="image/webp"
+                    srcSet="/columbina-login-1x.webp 1x, /columbina-login.webp 2x"
+                  />
+                  <img
+                    src="/columbina-login.jpg"
+                    alt="BakeryOS icon"
+                    width={78}
+                    height={78}
+                    className="h-full w-full object-cover"
+                    fetchPriority="high"
+                    decoding="async"
+                  />
+                </picture>
               </div>
               <div className="login-title-wrap">
                 <h1 className="text-4xl font-bold luxury-font tracking-tighter uppercase mb-3">
@@ -1829,7 +1849,7 @@ const Dashboard: React.FC = () => {
                                   )}
                                   {recipeSearchResults.map(recipe => (
                                       <div key={recipe.id} onClick={() => handleImportRecipe(recipe.id)} className={`flex items-center gap-4 p-3 rounded-xl border cursor-pointer transition-all hover:border-gold/40 ${isDarkMode ? 'bg-black/20 border-white/5' : 'bg-white border-slate-100'}`}>
-                                          <img src={recipe.thumb} className="w-12 h-12 rounded-lg object-cover" alt={recipe.name} />
+                                          <img src={recipe.thumb} className="w-12 h-12 rounded-lg object-cover" alt={recipe.name} width={48} height={48} loading="lazy" decoding="async" />
                                           <div className="flex-1 min-w-0">
                                               <p className={`font-bold text-xs truncate ${isDarkMode ? 'text-cream' : 'text-slate-900'}`}>{recipe.name}</p>
                                               <p className="text-[10px] text-gold uppercase font-bold">{recipe.category}</p>
