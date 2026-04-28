@@ -15,11 +15,22 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 
-    <!-- Load Google Fonts synchronously to avoid FOUC. The preconnects handle the DNS/TLS overhead. -->
+    <!-- Load Google Fonts asynchronously (non-render-blocking).
+         media="print" makes the browser download but not apply the stylesheet;
+         onload swaps it to "all" once ready.
+         &display=swap ensures text is visible immediately using fallback fonts. -->
     <link
+      rel="preload"
       href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
-      rel="stylesheet"
+      as="style"
+      onload="this.onload=null;this.rel='stylesheet'"
     />
+    <noscript>
+      <link
+        href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
+        rel="stylesheet"
+      />
+    </noscript>
 
     <!--
       PERF: Step 3 — Inline only the critical above-the-fold CSS needed to
@@ -56,10 +67,19 @@
         margin:0 auto 1.5rem;
       }
       .login-badge img{width:100%;height:100%;object-fit:cover}
+      /* Reserve full screen for React root to prevent body CLS on hydration */
+      #root {
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
       /* Loading spinner shown before React mounts */
       #root:empty::after{
-        content:'';display:block;
-        width:40px;height:40px;margin:45vh auto 0;
+        content:'';
+        display:block;
+        width:40px;
+        height:40px;
         border:3px solid rgba(212,175,55,.2);
         border-top-color:#d4af37;
         border-radius:50%;
