@@ -720,25 +720,48 @@ const Dashboard: React.FC = () => {
                 </div>
               </div>
 
-              <div className="max-w-2xl">
+              <div className="max-w-2xl mt-auto">
                 <motion.p 
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.2, duration: 1 }}
                   className="text-7xl font-bold luxury-font tracking-tighter leading-[0.9] text-white"
                 >
-                  Unrivaled <br/>
-                  Control over <br/>
-                  <span className="text-transparent bg-clip-text bg-gradient-to-r from-gold via-[#ffd700] to-gold">Operations.</span>
+                  The Intelligence <br/>
+                  Behind the <br/>
+                  <span className="text-transparent bg-clip-text bg-gradient-to-r from-gold via-[#ffd700] to-gold">Craft.</span>
                 </motion.p>
-                <div className="mt-12 flex items-center gap-12 text-[10px] tracking-widest uppercase font-bold text-white/30">
-                  <div className="flex items-center gap-3">
-                    <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse shadow-[0_0_10px_rgba(34,197,94,0.6)]" />
-                    Global Node Active
+                
+                {/* System Readouts to fill the empty space with an OS vibe */}
+                <motion.div 
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.6, duration: 1 }}
+                  className="mt-16 grid grid-cols-3 gap-8 border-t border-white/10 pt-8"
+                >
+                  <div>
+                    <div className="text-[9px] uppercase tracking-[0.2em] text-white/30 mb-2">Core Modules</div>
+                    <div className="text-sm font-light text-white/70 space-y-1">
+                      <div className="flex items-center gap-2"><div className="w-1 h-1 bg-gold rounded-full" /> Predictive Ordering</div>
+                      <div className="flex items-center gap-2"><div className="w-1 h-1 bg-gold rounded-full" /> Yield Analytics</div>
+                      <div className="flex items-center gap-2"><div className="w-1 h-1 bg-gold rounded-full" /> Multi-node POS</div>
+                    </div>
                   </div>
-                  <div>Latency: 12ms</div>
-                  <div>Encryption: AES-256</div>
-                </div>
+                  <div>
+                    <div className="text-[9px] uppercase tracking-[0.2em] text-white/30 mb-2">Network Status</div>
+                    <div className="text-sm font-light text-white/70 space-y-1">
+                      <div className="flex items-center gap-2"><div className="w-1 h-1 bg-green-500 rounded-full animate-pulse" /> Mainframe Active</div>
+                      <div className="flex items-center gap-2 text-white/40"><div className="w-1 h-1 bg-white/20 rounded-full" /> Encrypted AES-256</div>
+                      <div className="flex items-center gap-2 text-white/40"><div className="w-1 h-1 bg-white/20 rounded-full" /> Latency: 12ms</div>
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-[9px] uppercase tracking-[0.2em] text-white/30 mb-2">Authorization</div>
+                    <div className="text-sm font-light text-white/70">
+                      Biometric & Cipher keys required for Level 4 access.
+                    </div>
+                  </div>
+                </motion.div>
               </div>
             </div>
           </div>
