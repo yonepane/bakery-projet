@@ -452,22 +452,27 @@
   }
 
   .login-input--dark {
-    background-color: #16181b;
+    background: linear-gradient(145deg, rgba(30, 32, 36, 0.4), rgba(20, 22, 25, 0.8));
     color: #f8f4e8;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
     box-shadow:
-      inset 2px 5px 10px rgba(0, 0, 0, 0.55),
-      0 0 0 1px rgba(212, 175, 55, 0.05);
+      inset 2px 5px 10px rgba(0, 0, 0, 0.7),
+      0 0 0 1px rgba(212, 175, 55, 0.1);
   }
 
   .login-input--dark::placeholder {
-    color: rgba(248, 244, 232, 0.28);
+    color: rgba(248, 244, 232, 0.2);
+    font-weight: 500;
   }
 
   .login-input--dark:focus {
-    background-color: #1b1e22;
+    background: linear-gradient(145deg, rgba(35, 38, 43, 0.6), rgba(25, 28, 32, 0.9));
     box-shadow:
-      0 0 36px rgba(212, 175, 55, 0.14),
-      0 0 0 1px rgba(212, 175, 55, 0.18);
+      0 0 40px rgba(212, 175, 55, 0.2),
+      0 0 0 1px rgba(212, 175, 55, 0.4),
+      inset 2px 5px 10px rgba(0, 0, 0, 0.8);
+    transform: scale(1.02);
   }
 
   .login-shell {
@@ -495,13 +500,15 @@
     position: relative;
     overflow: hidden;
     background:
-      linear-gradient(180deg, rgba(7, 7, 7, 0.985) 0%, rgba(2, 2, 2, 0.995) 100%);
-    border: 1px solid rgba(212, 175, 55, 0.12);
+      linear-gradient(180deg, rgba(10, 10, 12, 0.55) 0%, rgba(2, 2, 3, 0.75) 100%);
+    backdrop-filter: blur(40px);
+    -webkit-backdrop-filter: blur(40px);
+    border: 1px solid rgba(212, 175, 55, 0.18);
     box-shadow:
-      0 28px 90px rgba(0, 0, 0, 0.78),
-      0 0 0 1px rgba(255, 232, 173, 0.02),
-      inset 0 1px 0 rgba(255, 239, 197, 0.05),
-      inset 0 0 70px rgba(212, 175, 55, 0.015);
+      0 30px 100px -10px rgba(0, 0, 0, 0.9),
+      0 0 0 1px rgba(255, 232, 173, 0.05),
+      inset 0 1px 0 rgba(255, 239, 197, 0.1),
+      inset 0 0 80px rgba(212, 175, 55, 0.05);
   }
 
   .login-card::before {
@@ -525,54 +532,70 @@
   }
 
   .login-gold-button {
-    --glow-color: rgb(244, 207, 107);
-    --glow-spread-color: rgba(212, 175, 55, 0.62);
+    --glow-color: rgb(212, 175, 55);
+    --glow-spread-color: rgba(212, 175, 55, 0.4);
     --enhanced-glow-color: rgb(255, 232, 173);
-    --btn-color: rgb(84, 57, 10);
+    --btn-color: rgb(15, 15, 17);
     position: relative;
-    border: 0.18em solid var(--glow-color);
+    border: 1px solid rgba(212, 175, 55, 0.5);
     color: var(--glow-color);
-    background-color: var(--btn-color);
+    background: linear-gradient(180deg, rgba(20, 20, 22, 0.8) 0%, rgba(10, 10, 12, 0.9) 100%);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
     outline: none;
     box-shadow:
-      0 0 1em 0.25em var(--glow-color),
-      0 0 4em 1em var(--glow-spread-color),
-      inset 0 0 0.75em 0.25em var(--glow-color);
-    text-shadow: 0 0 0.5em var(--glow-color);
-    transition:
-      all 0.3s ease;
+      0 0 20px rgba(212, 175, 55, 0.15),
+      inset 0 0 20px rgba(212, 175, 55, 0.05);
+    text-shadow: 0 0 10px rgba(212, 175, 55, 0.3);
+    transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    overflow: hidden;
+  }
+
+  .login-gold-button::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+    transform: translateX(-100%);
+    transition: transform 0.6s ease;
   }
 
   .login-gold-button::after {
     pointer-events: none;
     content: "";
     position: absolute;
-    top: 120%;
-    left: 0;
-    height: 100%;
-    width: 100%;
+    top: 100%;
+    left: 10%;
+    height: 50%;
+    width: 80%;
     background-color: var(--glow-spread-color);
-    filter: blur(2em);
-    opacity: 0.7;
-    transform: perspective(1.5em) rotateX(35deg) scale(1, 0.6);
+    filter: blur(1.5em);
+    opacity: 0;
+    transition: opacity 0.4s ease;
   }
 
   .login-gold-button:hover {
-    color: var(--btn-color);
-    background-color: var(--glow-color);
+    color: var(--enhanced-glow-color);
+    border-color: var(--glow-color);
     box-shadow:
-      0 0 1em 0.25em var(--glow-color),
-      0 0 4em 2em var(--glow-spread-color),
-      inset 0 0 0.75em 0.25em var(--glow-color);
-    transform: translateY(-2px);
+      0 0 30px rgba(212, 175, 55, 0.3),
+      inset 0 0 30px rgba(212, 175, 55, 0.1);
+    transform: translateY(-3px) scale(1.01);
+  }
+
+  .login-gold-button:hover::before {
+    transform: translateX(100%);
+  }
+
+  .login-gold-button:hover::after {
+    opacity: 1;
   }
 
   .login-gold-button:active {
-    transform: translateY(0);
+    transform: translateY(1px) scale(0.98);
     box-shadow:
-      0 0 0.6em 0.25em var(--glow-color),
-      0 0 2.5em 2em var(--glow-spread-color),
-      inset 0 0 0.5em 0.25em var(--glow-color);
+      0 0 10px rgba(212, 175, 55, 0.2),
+      inset 0 0 10px rgba(212, 175, 55, 0.1);
   }
 
   .pinwheel {

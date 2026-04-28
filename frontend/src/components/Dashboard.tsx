@@ -598,10 +598,32 @@ const Dashboard: React.FC = () => {
   if (!user) {
     return (
         <main className={`login-shell min-h-screen flex items-center justify-center px-6 ${isDarkMode ? 'text-white' : 'bg-slate-50 text-slate-900'}`}>
+          {/* Ambient Background Elements */}
+          {isDarkMode && (
+            <div className="absolute inset-0 overflow-hidden pointer-events-none">
+              <motion.div
+                animate={{ y: [0, -30, 0], opacity: [0.3, 0.6, 0.3] }}
+                transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
+                className="absolute top-[10%] left-[20%] w-96 h-96 bg-gold/10 rounded-full blur-[100px]"
+              />
+              <motion.div
+                animate={{ y: [0, 40, 0], x: [0, 30, 0], opacity: [0.2, 0.5, 0.2] }}
+                transition={{ duration: 10, repeat: Infinity, ease: "easeInOut", delay: 2 }}
+                className="absolute bottom-[10%] right-[15%] w-[30rem] h-[30rem] bg-amber-600/10 rounded-full blur-[120px]"
+              />
+              <motion.div
+                animate={{ scale: [1, 1.2, 1], opacity: [0.1, 0.3, 0.1] }}
+                transition={{ duration: 12, repeat: Infinity, ease: "easeInOut", delay: 4 }}
+                className="absolute top-[40%] right-[40%] w-64 h-64 bg-yellow-500/5 rounded-full blur-[80px]"
+              />
+            </div>
+          )}
+
           <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className={`login-card p-8 rounded-[2rem] w-full max-w-md ${isDarkMode ? 'shadow-gold-glow' : 'bg-white border-slate-200 shadow-2xl'}`}
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
+              className={`login-card p-10 rounded-[2.5rem] w-full max-w-md z-10 ${isDarkMode ? 'shadow-gold-glow' : 'bg-white border-slate-200 shadow-2xl'}`}
           >
             <div className="relative text-center mb-10">
               {/*
