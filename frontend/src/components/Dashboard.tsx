@@ -215,6 +215,7 @@ const Dashboard: React.FC = () => {
   // State used by the price simulation tool.
   const [editMode, setEditMode] = useState(false);
   const [simPrices, setSimPrices] = useState<Record<string, number>>({});
+  const [simulatedInflations, setSimulatedInflations] = useState<Record<string, number>>({});
   const [simulationResult, setSimulationResult] = useState<any[]>([]);
 
   // State used by create, edit, delete, and operations panels.
@@ -1363,7 +1364,7 @@ const Dashboard: React.FC = () => {
     editingMaterialName, setEditingMaterialName, editingSupplier, setEditingSupplier,
     newMaterial, setNewMaterial, newSupplier, setNewSupplier, selectedPO, setSelectedPO,
     poReceiveDraft, setPoReceiveDraft,
-    simPrices, setSimPrices, simulationResult, runSimulation, saveSimulation,
+    simPrices, setSimPrices, simulatedInflations, setSimulatedInflations, simulationResult, runSimulation, saveSimulation,
     isForecasting, handleSmartForecast, handleProduce, setPlanner, setSelectedProduct,
     generalNote, setGeneralNote, isSavingGeneralNote, handleSaveGeneralNote, handleDeleteShiftLog,
     sortedMaterialEntries,
@@ -1759,8 +1760,8 @@ const Dashboard: React.FC = () => {
                             onChange={(e) => setWasteForm({...wasteForm, product_id: e.target.value})}
                             className={`w-full p-5 rounded-2xl border outline-none font-bold text-sm ${isDarkMode ? 'bg-white/5 border-white/10 text-cream focus:border-gold/40' : 'bg-slate-50 border-slate-200 text-slate-900'}`}
                         >
-                            <option value="">Select product...</option>
-                            {inventory.products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                            <option value="" className={isDarkMode ? 'bg-[#0a0a0b] text-gold' : ''}>Select product...</option>
+                            {inventory.products.map(p => <option key={p.id} value={p.id} className={isDarkMode ? 'bg-[#0a0a0b] text-gold' : ''}>{p.name}</option>)}
                         </select>
                     </div>
 
@@ -2187,11 +2188,11 @@ const Dashboard: React.FC = () => {
                         <div>
                             <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">Base Unit</label>
                             <select value={newMaterial.unit} onChange={(e)=>setNewMaterial({...newMaterial, unit: e.target.value})} className={`w-full bg-transparent border-b py-2 outline-none font-bold ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`}>
-                                <option value="g">Grams (g)</option>
-                                <option value="kg">Kilograms (kg)</option>
-                                <option value="ml">Milliliters (ml)</option>
-                                <option value="L">Liters (L)</option>
-                                <option value="unit">Unit</option>
+                                <option value="g" className={isDarkMode ? 'bg-[#0a0a0b] text-gold' : ''}>Grams (g)</option>
+                                <option value="kg" className={isDarkMode ? 'bg-[#0a0a0b] text-gold' : ''}>Kilograms (kg)</option>
+                                <option value="ml" className={isDarkMode ? 'bg-[#0a0a0b] text-gold' : ''}>Milliliters (ml)</option>
+                                <option value="L" className={isDarkMode ? 'bg-[#0a0a0b] text-gold' : ''}>Liters (L)</option>
+                                <option value="unit" className={isDarkMode ? 'bg-[#0a0a0b] text-gold' : ''}>Unit</option>
                             </select>
                         </div>
                         <div>
@@ -2486,7 +2487,7 @@ const Dashboard: React.FC = () => {
                                   className={`w-full border-b py-3 px-2 outline-none text-[10px] font-black uppercase tracking-widest rounded-xl ${isDarkMode ? 'bg-black text-gold border-white/10' : 'bg-white text-slate-700 border-slate-200'}`}
                               >
                                   {suppliers.map((supp: any) => (
-                                      <option key={supp.id} value={supp.id}>{supp.name}</option>
+                                      <option key={supp.id} value={supp.id} className={isDarkMode ? 'bg-[#0a0a0b] text-gold' : ''}>{supp.name}</option>
                                   ))}
                               </select>
                               <p className={`text-xs ${isDarkMode ? 'text-cream/40' : 'text-slate-500'}`}>

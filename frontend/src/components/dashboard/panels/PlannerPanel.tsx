@@ -53,8 +53,8 @@ const PlannerPanel: React.FC<Props> = ({
               const p = inventory.products.find(x => x.id === e.target.value);
               if (p) setPlanner([...planner, { id: Math.random().toString(36).substr(2, 9), date: new Date().toISOString(), product_id: p.id, quantity: 10, status: 'pending' }]);
             }} className={`p-4 rounded-2xl border outline-none font-bold text-sm ${isDarkMode ? 'bg-white/5 border-white/10 text-cream focus:border-gold/40' : 'bg-slate-50 border-slate-200 text-slate-900 focus:border-slate-400'}`}>
-              <option value="">Select Entity...</option>
-              {inventory.products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+              <option value="" className={isDarkMode ? 'bg-[#0a0a0b] text-gold' : ''}>Select Entity...</option>
+              {inventory.products.map(p => <option key={p.id} value={p.id} className={isDarkMode ? 'bg-[#0a0a0b] text-gold' : ''}>{p.name}</option>)}
             </select>
 
             <div className="space-y-4">

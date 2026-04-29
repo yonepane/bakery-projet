@@ -34,7 +34,7 @@ const PurchasingPanel: React.FC<Props> = ({
                 </div>
                 <select value={selectedSupplierId ?? ''} onChange={(e) => setSelectedSupplierId(e.target.value ? Number(e.target.value) : null)}
                   className={`min-w-[220px] border-b py-3 px-2 outline-none text-[10px] font-black uppercase tracking-widest rounded-xl ${isDarkMode ? 'bg-black text-gold border-white/10' : 'bg-white text-slate-700 border-slate-200'}`}>
-                  {suppliers.length === 0 ? <option value="">Add supplier first</option> : suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  {suppliers.length === 0 ? <option value="" className={isDarkMode ? 'bg-[#0a0a0b] text-gold' : ''}>Add supplier first</option> : suppliers.map(s => <option key={s.id} value={s.id} className={isDarkMode ? 'bg-[#0a0a0b] text-gold' : ''}>{s.name}</option>)}
                 </select>
               </div>
               {purchasingSuggestions.map(s => (

@@ -50,10 +50,10 @@ const OrdersPanel: React.FC<Props> = ({
                   <select value={order.status}
                     onChange={async (e) => { await api.patch(`/orders/${order.id}/status?status=${e.target.value}`, null); addToast(`Order ${e.target.value.toUpperCase()}`, 'success'); fetchData(); }}
                     className={`bg-transparent font-black text-[10px] uppercase tracking-widest outline-none cursor-pointer ${order.status === 'picked_up' ? 'text-emerald-500' : order.status === 'ready' ? 'text-gold' : 'text-white/20 hover:text-white/40'}`}>
-                    <option value="pending" className="bg-slate-900">Pending</option>
-                    <option value="baking" className="bg-slate-900">Baking</option>
-                    <option value="ready" className="bg-slate-900">Ready</option>
-                    <option value="picked_up" className="bg-slate-900">Picked Up</option>
+                    <option value="pending" className={isDarkMode ? 'bg-[#0a0a0b] text-gold' : ''}>Pending</option>
+                    <option value="baking" className={isDarkMode ? 'bg-[#0a0a0b] text-gold' : ''}>Baking</option>
+                    <option value="ready" className={isDarkMode ? 'bg-[#0a0a0b] text-gold' : ''}>Ready</option>
+                    <option value="picked_up" className={isDarkMode ? 'bg-[#0a0a0b] text-gold' : ''}>Picked Up</option>
                   </select>
                 </td>
                 <td className="px-8 py-6 text-right">

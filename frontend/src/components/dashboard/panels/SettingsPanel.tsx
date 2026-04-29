@@ -71,10 +71,10 @@ const SettingsPanel: React.FC<Props & { settings: any }> = ({
             <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">Currency</label>
             <select value={form.currency} onChange={e => { setForm({ ...form, currency: e.target.value }); setActiveCurrency(e.target.value); }}
               className={`w-full bg-transparent border-b py-3 outline-none font-bold ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`}>
-              <option value="MAD">MAD (Dirham)</option>
-              <option value="EUR">EUR (Euro)</option>
-              <option value="USD">USD (Dollar)</option>
-              <option value="GBP">GBP (Pound)</option>
+              <option value="MAD" className={isDarkMode ? 'bg-[#0a0a0b] text-gold' : ''}>MAD (Dirham)</option>
+              <option value="EUR" className={isDarkMode ? 'bg-[#0a0a0b] text-gold' : ''}>EUR (Euro)</option>
+              <option value="USD" className={isDarkMode ? 'bg-[#0a0a0b] text-gold' : ''}>USD (Dollar)</option>
+              <option value="GBP" className={isDarkMode ? 'bg-[#0a0a0b] text-gold' : ''}>GBP (Pound)</option>
             </select>
           </div>
           <div>
@@ -94,9 +94,9 @@ const SettingsPanel: React.FC<Props & { settings: any }> = ({
             <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">Interface Language</label>
             <select value={lang} onChange={e => setLang(e.target.value)}
               className={`w-full bg-transparent border-b py-3 outline-none font-bold ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`}>
-              <option value="en">English</option>
-              <option value="fr">Français</option>
-              <option value="ar">العربية</option>
+              <option value="en" className={isDarkMode ? 'bg-[#0a0a0b] text-gold' : ''}>English</option>
+              <option value="fr" className={isDarkMode ? 'bg-[#0a0a0b] text-gold' : ''}>Français</option>
+              <option value="ar" className={isDarkMode ? 'bg-[#0a0a0b] text-gold' : ''}>العربية</option>
             </select>
           </div>
           <div>

@@ -1,84 +1,173 @@
-import React from 'react';
-import { Calendar, Plus, Trash2 } from 'lucide-react';
+import React, { useState } from 'react';
+import { Calendar, Plus, Trash2, Lock, X, CheckCircle } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { DashboardSharedProps } from '../types';
 
 type Props = Pick<DashboardSharedProps,
   'isDarkMode' | 'inventory' | 'cart' | 'setCart' | 'addToCart' | 'finalizeSale' |
   'formatPrice' | 'lastTransaction' | 'setShowReceiptModal' | 'setShowBookingModal' |
-  'setBookingForm' | 'bookingForm' | 'API_BASE'>;
+  'setBookingForm' | 'bookingForm' | 'API_BASE' | 'history' | 'api' | 'fetchData' | 'user'>;
 
 const POSPanel: React.FC<Props> = ({
   isDarkMode, inventory, cart, setCart, addToCart, finalizeSale, formatPrice,
   lastTransaction, setShowReceiptModal, setShowBookingModal, setBookingForm, bookingForm, API_BASE,
-}) => (
-  <div className="flex gap-8 h-[calc(100vh-250px)]">
-    <div className="flex-1 grid grid-cols-2 lg:grid-cols-3 gap-6 overflow-y-auto pr-4 custom-scrollbar">
-      {inventory.products.map(p => (
-        <div key={p.id} onClick={() => addToCart(p)}
-          className={`p-8 rounded-[2rem] border transition-all duration-300 cursor-pointer group active:scale-95 ${isDarkMode ? 'glass-panel hover:-translate-y-2' : 'border-slate-200 bg-white hover:border-slate-400 shadow-sm'}`}>
-          <div className="text-5xl mb-6 group-hover:scale-110 transition-transform">{p.icon}</div>
-          <h4 className={`text-xl font-bold mb-1 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{p.name}</h4>
-          <p className={`text-[10px] font-black uppercase tracking-widest mb-6 ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>{p.stock} in stock</p>
-          <div className={`flex justify-between items-center pt-6 border-t ${isDarkMode ? 'border-white/5' : 'border-slate-100'}`}>
-            <span className={`text-2xl font-bold ${isDarkMode ? 'text-gold' : 'text-slate-900'}`}>{formatPrice(p.price)}</span>
-            <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-500 ${isDarkMode ? 'bg-gold/10 text-gold group-hover:bg-gold group-hover:text-charcoal group-hover:shadow-gold-glow' : 'bg-slate-100 text-slate-900 group-hover:bg-slate-900 group-hover:text-white'}`}>
-              <Plus size={20} />
-            </div>
-          </div>
-        </div>
-      ))}
-    </div>
+  history, api, fetchData, user
+}) => {
+  const [showCloseShift, setShowCloseShift] = useState(false);
+  const [countedCash, setCountedCash] = useState<string>('');
+  const [shiftClosed, setShiftClosed] = useState(false);
+  const [shiftResult, setShiftResult] = useState<{ expected: number, counted: number, diff: number } | null>(null);
 
-    <div className={`w-96 rounded-[2.5rem] flex flex-col overflow-hidden transition-all duration-500 ${isDarkMode ? 'glass-panel border-gold/10 shadow-glass' : 'border border-slate-200 bg-white shadow-2xl'}`}>
-      <div className={`p-8 border-b backdrop-blur-md ${isDarkMode ? 'border-white/5 bg-white/5' : 'border-slate-100 bg-slate-50'}`}>
-        <h3 className={`text-xl font-bold luxury-font uppercase tracking-tighter ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Current Tray</h3>
-      </div>
-      <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar">
-        {cart.map(item => (
-          <div key={item.id} className={`flex justify-between items-center p-4 rounded-2xl border ${isDarkMode ? 'bg-white/5 border-white/5' : 'bg-slate-50 border-slate-100'}`}>
-            <div>
-              <p className={`font-bold text-sm ${isDarkMode ? 'text-cream' : 'text-slate-900'}`}>{item.name}</p>
-              <p className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>{item.qty} x {formatPrice(item.price)}</p>
-            </div>
-            <div className="flex items-center gap-4">
-              <span className={`font-bold ${isDarkMode ? 'text-gold' : 'text-slate-900'}`}>{formatPrice(item.qty * item.price)}</span>
-              <button onClick={() => setCart(cart.filter(i => i.id !== item.id))} className="text-rose-500/30 hover:text-rose-500 transition-colors"><Trash2 size={16} /></button>
+  const handleCloseShift = async () => {
+    // Calculate expected cash from today's sales
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const expectedCash = history
+      .filter(tx => tx.type === 'sale' && new Date(tx.timestamp) >= today)
+      .reduce((sum, tx) => sum + (tx.revenue || 0), 0);
+      
+    const counted = parseFloat(countedCash) || 0;
+    const diff = counted - expectedCash;
+    
+    // Log discrepancy to shift logs
+    const logContent = `[CLÔTURE DE CAISSE] Expected: ${expectedCash.toFixed(2)}, Counted: ${counted.toFixed(2)}, Écart: ${diff.toFixed(2)}`;
+    await api.post('/shift-logs', { author: user?.username || 'System', content: logContent });
+    
+    setShiftResult({ expected: expectedCash, counted, diff });
+    setShiftClosed(true);
+    fetchData();
+  };
+
+  return (
+    <div className="flex gap-8 h-[calc(100vh-250px)] relative">
+      <div className="flex-1 grid grid-cols-2 lg:grid-cols-3 gap-6 overflow-y-auto pr-4 custom-scrollbar">
+        {inventory.products.map(p => (
+          <div key={p.id} onClick={() => addToCart(p)}
+            className={`p-8 rounded-[2rem] border transition-all duration-300 cursor-pointer group active:scale-95 ${isDarkMode ? 'glass-panel hover:-translate-y-2' : 'border-slate-200 bg-white hover:border-slate-400 shadow-sm'}`}>
+            <div className="text-5xl mb-6 group-hover:scale-110 transition-transform">{p.icon}</div>
+            <h4 className={`text-xl font-bold mb-1 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{p.name}</h4>
+            <p className={`text-[10px] font-black uppercase tracking-widest mb-6 ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>{p.stock} in stock</p>
+            <div className={`flex justify-between items-center pt-6 border-t ${isDarkMode ? 'border-white/5' : 'border-slate-100'}`}>
+              <span className={`text-2xl font-bold ${isDarkMode ? 'text-gold' : 'text-slate-900'}`}>{formatPrice(p.price)}</span>
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-500 ${isDarkMode ? 'bg-gold/10 text-gold group-hover:bg-gold group-hover:text-charcoal group-hover:shadow-gold-glow' : 'bg-slate-100 text-slate-900 group-hover:bg-slate-900 group-hover:text-white'}`}>
+                <Plus size={20} />
+              </div>
             </div>
           </div>
         ))}
-        {cart.length === 0 && <div className="h-full flex items-center justify-center opacity-10 py-20 uppercase tracking-widest text-[10px] font-bold">Tray is Empty</div>}
       </div>
-      <div className={`p-8 border-t ${isDarkMode ? 'border-white/5 bg-black/40' : 'border-slate-100 bg-slate-50'}`}>
-        <div className="flex justify-between items-end mb-8">
-          <span className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-gold' : 'text-slate-400'}`}>Total Due</span>
-          <span className={`text-5xl font-bold tracking-tighter ${isDarkMode ? 'text-cream' : 'text-slate-900'}`}>
-            {formatPrice(cart.reduce((a, c) => a + (c.price * c.qty), 0)).split(' ')[0]}
-          </span>
-        </div>
-        <div className="flex gap-4">
-          <button onClick={finalizeSale} disabled={cart.length === 0}
-            className={`flex-1 py-6 font-black rounded-2xl uppercase tracking-widest active:scale-95 transition-all ${isDarkMode ? 'bg-gold text-charcoal shadow-gold-glow' : 'bg-slate-900 text-white shadow-xl'}`}>
-            Complete Sale
-          </button>
-          <button
-            onClick={() => { setBookingForm({ ...bookingForm, source: 'pos', date: new Date(Date.now() + 86400000).toISOString().slice(0, 16) }); setShowBookingModal(true); }}
-            disabled={cart.length === 0}
-            className={`p-6 rounded-2xl border transition-all ${isDarkMode ? 'border-white/10 bg-white/5 text-gold hover:bg-white/10' : 'border-slate-200 bg-white text-slate-900'}`}
-            title="Save as Pre-Order">
-            <Calendar size={24} />
+
+      <div className={`w-96 rounded-[2.5rem] flex flex-col overflow-hidden transition-all duration-500 ${isDarkMode ? 'glass-panel border-gold/10 shadow-glass' : 'border border-slate-200 bg-white shadow-2xl'}`}>
+        <div className={`p-8 border-b backdrop-blur-md flex justify-between items-center ${isDarkMode ? 'border-white/5 bg-white/5' : 'border-slate-100 bg-slate-50'}`}>
+          <h3 className={`text-xl font-bold luxury-font uppercase tracking-tighter ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Current Tray</h3>
+          <button onClick={() => setShowCloseShift(true)} className="p-2 rounded-full bg-rose-500/10 text-rose-500 hover:bg-rose-500 hover:text-white transition-colors" title="Close Shift">
+            <Lock size={16} />
           </button>
         </div>
-        {lastTransaction && (
-          <button onClick={() => setShowReceiptModal(true)}
-            className={`w-full mt-4 py-4 rounded-xl font-bold text-[10px] uppercase tracking-[0.2em] flex items-center justify-center gap-2 border transition-all ${isDarkMode ? 'border-gold/20 text-gold hover:bg-gold/5' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
-            <QRCodeSVG value={window.location.origin + API_BASE + '/transactions/' + lastTransaction.transaction_id + '/receipt?format=pdf&paper=80mm'} size={16} />
-            Show Last Receipt
-          </button>
-        )}
+        <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar">
+          {cart.map(item => (
+            <div key={item.id} className={`flex justify-between items-center p-4 rounded-2xl border ${isDarkMode ? 'bg-white/5 border-white/5' : 'bg-slate-50 border-slate-100'}`}>
+              <div>
+                <p className={`font-bold text-sm ${isDarkMode ? 'text-cream' : 'text-slate-900'}`}>{item.name}</p>
+                <p className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>{item.qty} x {formatPrice(item.price)}</p>
+              </div>
+              <div className="flex items-center gap-4">
+                <span className={`font-bold ${isDarkMode ? 'text-gold' : 'text-slate-900'}`}>{formatPrice(item.qty * item.price)}</span>
+                <button onClick={() => setCart(cart.filter(i => i.id !== item.id))} className="text-rose-500/30 hover:text-rose-500 transition-colors"><Trash2 size={16} /></button>
+              </div>
+            </div>
+          ))}
+          {cart.length === 0 && <div className="h-full flex items-center justify-center opacity-10 py-20 uppercase tracking-widest text-[10px] font-bold">Tray is Empty</div>}
+        </div>
+        <div className={`p-8 border-t ${isDarkMode ? 'border-white/5 bg-black/40' : 'border-slate-100 bg-slate-50'}`}>
+          <div className="flex justify-between items-end mb-8">
+            <span className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-gold' : 'text-slate-400'}`}>Total Due</span>
+            <span className={`text-5xl font-bold tracking-tighter ${isDarkMode ? 'text-cream' : 'text-slate-900'}`}>
+              {formatPrice(cart.reduce((a, c) => a + (c.price * c.qty), 0)).split(' ')[0]}
+            </span>
+          </div>
+          <div className="flex gap-4">
+            <button onClick={finalizeSale} disabled={cart.length === 0}
+              className={`flex-1 py-6 font-black rounded-2xl uppercase tracking-widest active:scale-95 transition-all ${isDarkMode ? 'bg-gold text-charcoal shadow-gold-glow' : 'bg-slate-900 text-white shadow-xl'}`}>
+              Complete Sale
+            </button>
+            <button
+              onClick={() => { setBookingForm({ ...bookingForm, source: 'pos', date: new Date(Date.now() + 86400000).toISOString().slice(0, 16) }); setShowBookingModal(true); }}
+              disabled={cart.length === 0}
+              className={`p-6 rounded-2xl border transition-all ${isDarkMode ? 'border-white/10 bg-white/5 text-gold hover:bg-white/10' : 'border-slate-200 bg-white text-slate-900'}`}
+              title="Save as Pre-Order">
+              <Calendar size={24} />
+            </button>
+          </div>
+          {lastTransaction && (
+            <button onClick={() => setShowReceiptModal(true)}
+              className={`w-full mt-4 py-4 rounded-xl font-bold text-[10px] uppercase tracking-[0.2em] flex items-center justify-center gap-2 border transition-all ${isDarkMode ? 'border-gold/20 text-gold hover:bg-gold/5' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
+              <QRCodeSVG value={window.location.origin + API_BASE + '/transactions/' + lastTransaction.transaction_id + '/receipt?format=pdf&paper=80mm'} size={16} />
+              Show Last Receipt
+            </button>
+          )}
+        </div>
       </div>
+
+      {/* Blind Cash Reconciliation Modal */}
+      {showCloseShift && (
+        <div className="absolute inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-xl animate-in fade-in rounded-[2rem]">
+          <div className={`w-full max-w-md p-10 rounded-[3rem] border shadow-2xl ${isDarkMode ? 'bg-[#0a0a0b] border-white/10 shadow-gold-glow' : 'bg-white border-slate-200'}`}>
+            <div className="flex justify-between items-center mb-8">
+              <h3 className={`text-2xl font-bold luxury-font uppercase tracking-tighter ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Clôture de Caisse</h3>
+              <button onClick={() => { setShowCloseShift(false); setShiftClosed(false); setShiftResult(null); }} className="text-white/20 hover:text-white"><X size={24} /></button>
+            </div>
+
+            {!shiftClosed ? (
+              <div className="space-y-8">
+                <p className="text-sm opacity-60">Please count the physical cash in the drawer and enter the total amount below. (Blind Count)</p>
+                <div>
+                  <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-4">Total Cash Counted</label>
+                  <input
+                    type="number"
+                    value={countedCash}
+                    onChange={(e) => setCountedCash(e.target.value)}
+                    className="w-full text-4xl bg-transparent border-b-2 border-white/10 outline-none pb-4 font-bold text-center"
+                    placeholder="0.00"
+                    autoFocus
+                  />
+                </div>
+                <button
+                  onClick={handleCloseShift}
+                  disabled={!countedCash}
+                  className={`w-full py-6 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${!countedCash ? 'opacity-50 cursor-not-allowed bg-white/5' : (isDarkMode ? 'bg-rose-500 text-white shadow-[0_0_20px_rgba(244,63,94,0.4)]' : 'bg-slate-900 text-white shadow-xl')}`}
+                >
+                  Lock Register
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-8 text-center animate-in zoom-in duration-300">
+                <CheckCircle size={64} className="mx-auto text-emerald-500 mb-6" />
+                <h4 className="text-xl font-bold luxury-font uppercase">Shift Closed</h4>
+                <div className="p-6 rounded-2xl bg-white/5 space-y-4">
+                  <div className="flex justify-between text-sm">
+                    <span className="opacity-60">Counted Cash</span>
+                    <span className="font-bold">{formatPrice(shiftResult?.counted || 0)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="opacity-60">System Expected</span>
+                    <span className="font-bold">{formatPrice(shiftResult?.expected || 0)}</span>
+                  </div>
+                  <div className="pt-4 border-t border-white/10 flex justify-between">
+                    <span className="text-[10px] font-black uppercase tracking-widest opacity-60 mt-1">Écart (Diff)</span>
+                    <span className={`text-xl font-bold ${(shiftResult?.diff || 0) < 0 ? 'text-rose-500' : 'text-emerald-500'}`}>
+                      {formatPrice(shiftResult?.diff || 0)}
+                    </span>
+                  </div>
+                </div>
+                <p className="text-[10px] uppercase tracking-widest opacity-40">Recorded to Shift Ledger</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
-  </div>
-);
+  );
+};
 
 export default POSPanel;

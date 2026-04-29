@@ -94,6 +94,8 @@ export interface DashboardSharedProps {
   // ─── Planner / simulation ─────────────────────────────────────────────────
   simPrices: Record<string, number>;
   setSimPrices: (p: Record<string, number>) => void;
+  simulatedInflations: Record<string, number>;
+  setSimulatedInflations: (p: Record<string, number>) => void;
   simulationResult: any[];
   runSimulation: () => void;
   saveSimulation: () => void;

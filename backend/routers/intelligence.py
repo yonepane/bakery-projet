@@ -137,12 +137,12 @@ async def get_alerts(
     for product in products:
         cost = calculate_product_cost(product)
         margin = ((product.price - cost) / product.price * 100) if product.price > 0 else 0
-        if margin < 30:
+        if margin < 65:
             alerts.append(
                 {
                     "type": "margin",
-                    "severity": "medium",
-                    "message": f"Low margin on {product.name}: {round(margin, 1)}%",
+                    "severity": "high",
+                    "message": f"WARNING: Low margin on {product.name} ({round(margin, 1)}%)",
                     "id": f"margin-{product.id}",
                 }
             )
