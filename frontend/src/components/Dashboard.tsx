@@ -624,15 +624,15 @@ const Dashboard: React.FC = () => {
             <form onSubmit={authMode === 'login' ? handleLogin : handleSignup} className="space-y-6">
                 <div className="relative group">
                   <input id="mobile-username" type="text" value={authMode === 'login' ? loginForm.username : signupForm.username} onChange={(e) => authMode === 'login' ? setLoginForm({ ...loginForm, username: e.target.value }) : setSignupForm({ ...signupForm, username: e.target.value })} className="monolith-input peer" placeholder=" " required />
-                  <label htmlFor="mobile-username" className="monolith-label">{authMode === 'login' ? 'Identity' : 'Identity'}</label>
+                  <label htmlFor="mobile-username" className="monolith-label">{authMode === 'login' ? 'Username' : 'Username'}</label>
                   <div className="monolith-input-highlight" />
                 </div>
                 <div className="relative group">
                   <input id="mobile-password" type={showPassword ? 'text' : 'password'} value={authMode === 'login' ? loginForm.password : signupForm.password} onChange={(e) => authMode === 'login' ? setLoginForm({ ...loginForm, password: e.target.value }) : setSignupForm({ ...signupForm, password: e.target.value })} className="monolith-input peer pr-10" placeholder=" " required />
-                  <label htmlFor="mobile-password" className="monolith-label">Cipher</label>
+                  <label htmlFor="mobile-password" className="monolith-label">Password</label>
                   <div className="monolith-input-highlight" />
                 </div>
-                <button type="submit" disabled={isAuthSubmitting} className="monolith-btn mt-8">{isAuthSubmitting ? <span className="login-spinner" /> : (authMode === 'login' ? 'Initiate Link' : 'Deploy System')}</button>
+                <button type="submit" disabled={isAuthSubmitting} className="monolith-btn mt-8">{isAuthSubmitting ? <span className="login-spinner" /> : (authMode === 'login' ? 'Login' : 'Sign Up')}</button>
             </form>
           </div>
         </div>
@@ -713,15 +713,17 @@ const Dashboard: React.FC = () => {
                 <button
                   onClick={() => setAuthMode('login')}
                   className={`flex-1 pb-4 text-[11px] font-bold tracking-widest uppercase transition-colors relative ${authMode === 'login' ? 'text-gold' : 'text-white/30 hover:text-white/60'}`}
+                  type="button"
                 >
-                  Authenticate
+                  Login
                   {authMode === 'login' && <div className="absolute bottom-[-1px] left-0 right-0 h-[2px] bg-gold shadow-[0_0_10px_rgba(212,175,55,0.8)]" />}
                 </button>
                 <button
                   onClick={() => setAuthMode('signup')}
                   className={`flex-1 pb-4 text-[11px] font-bold tracking-widest uppercase transition-colors relative ${authMode === 'signup' ? 'text-gold' : 'text-white/30 hover:text-white/60'}`}
+                  type="button"
                 >
-                  Initialize
+                  Sign Up
                   {authMode === 'signup' && <div className="absolute bottom-[-1px] left-0 right-0 h-[2px] bg-gold shadow-[0_0_10px_rgba(212,175,55,0.8)]" />}
                 </button>
               </div>
@@ -741,7 +743,7 @@ const Dashboard: React.FC = () => {
                     required
                   />
                   <label htmlFor="desktop-username" className="monolith-label text-sm">
-                    {authMode === 'login' ? 'Identity / Username' : 'Commander Identity'}
+                    {authMode === 'login' ? 'Username' : 'Username'}
                   </label>
                   <div className="monolith-input-highlight" />
                 </div>
@@ -758,7 +760,7 @@ const Dashboard: React.FC = () => {
                     placeholder=" "
                     required
                   />
-                  <label htmlFor="desktop-password" className="monolith-label text-sm">Access Cipher</label>
+                  <label htmlFor="desktop-password" className="monolith-label text-sm">Password</label>
                   <div className="monolith-input-highlight" />
                   
                   <button
@@ -782,7 +784,7 @@ const Dashboard: React.FC = () => {
                       placeholder=" "
                       required
                     />
-                    <label htmlFor="desktop-confirm-password" className="monolith-label text-sm">Verify Cipher</label>
+                    <label htmlFor="desktop-confirm-password" className="monolith-label text-sm">Confirm Password</label>
                     <div className="monolith-input-highlight" />
                   </div>
                 )}
@@ -793,8 +795,8 @@ const Dashboard: React.FC = () => {
                   className="monolith-btn mt-10 h-14 text-sm font-bold tracking-widest"
                 >
                   {isAuthSubmitting
-                    ? <span className="flex items-center justify-center gap-3"><span className="login-spinner" /> Establishing Link</span>
-                    : authMode === 'login' ? 'Initiate Link' : 'Deploy System'
+                    ? <span className="flex items-center justify-center gap-3"><span className="login-spinner" /> Authenticating</span>
+                    : authMode === 'login' ? 'Login' : 'Sign Up'
                   }
                 </button>
               </form>
