@@ -5,12 +5,14 @@ import { DashboardSharedProps } from '../types';
 type Props = Pick<DashboardSharedProps,
   'isDarkMode' | 'inventory' | 'editMode' | 'formatPrice' |
   'handleOpenEditProduct' | 'handleDeleteProduct' | 'handleCleanupProducts' |
-  'setShowAddProduct' | 'setSelectedProduct' | 'handleUpdateProductField'>;
+  'setShowAddProduct' | 'setSelectedProduct' | 'handleUpdateProductField' |
+  'simulatedInflations' | 'simPrices' | 'addToast' | 'settings'>;
 
 const FichePanel: React.FC<Props> = ({
   isDarkMode, inventory, editMode, formatPrice,
   handleOpenEditProduct, handleDeleteProduct, handleCleanupProducts,
-  setShowAddProduct, setSelectedProduct, handleUpdateProductField
+  setShowAddProduct, setSelectedProduct, handleUpdateProductField,
+  simulatedInflations, simPrices, addToast, settings
 }) => {
 
   // Extract all unique ingredients across all products to populate the quick-add dropdown
@@ -26,14 +28,23 @@ const FichePanel: React.FC<Props> = ({
     <div className="space-y-8">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
         {inventory.products.map(p => {
-          // Real-time Margin Logic
-          const realCost = p.ingredients.reduce((sum, ing) => {
+          // Real-time Margin Logic with Labor Cost Engine
+          const materialCost = p.ingredients.reduce((sum, ing) => {
             const mat = inventory.materials[ing.name];
-            const pricePerUnit = mat ? mat.price : 0;
-            return sum + ((ing.quantity / 1000) * pricePerUnit); // assuming grams
+            const basePrice = mat ? mat.price : 0;
+            const inflationMult = 1 + ((simulatedInflations[ing.name] || 0) / 100);
+            return sum + ((ing.quantity / 1000) * basePrice * inflationMult);
           }, 0) || p.live_cost || 0;
 
-          const margin = p.price > 0 ? (((p.price - realCost) / p.price) * 100).toFixed(1) : 0;
+          // Labor cost: (prep_time + cook_time) / 60 * hourly_wage / yield_qty
+          const hourlyWage = settings?.hourly_wage || 0;
+          const totalMinutes = (p.prep_time || 0) + (p.cook_time || 0);
+          const laborCostPerBatch = (totalMinutes / 60) * hourlyWage;
+          const laborCostPerUnit = p.yield_qty > 0 ? laborCostPerBatch / p.yield_qty : 0;
+          const realCost = materialCost + laborCostPerUnit;
+
+          const currentSimPrice = simPrices[p.id] ?? p.price;
+          const margin = currentSimPrice > 0 ? (((currentSimPrice - realCost) / currentSimPrice) * 100).toFixed(1) : 0;
           const isLowMargin = Number(margin) < 65;
 
           return (
@@ -42,7 +53,24 @@ const FichePanel: React.FC<Props> = ({
                 <div>
                   <span className="text-4xl mb-2 block">{p.icon}</span>
                   <h3 className={`text-xl font-bold luxury-font ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{p.name}</h3>
-                  {isLowMargin && <span className="text-[8px] uppercase tracking-widest font-black text-rose-500 bg-rose-500/10 px-2 py-1 rounded-md mt-2 inline-block">Low Margin Warning</span>}
+                  <div>
+                    {isLowMargin && <span className="text-[8px] uppercase tracking-widest font-black text-rose-500 bg-rose-500/10 px-2 py-1 rounded-md mt-2 inline-block">Low Margin Warning</span>}
+                    {isLowMargin && editMode && (
+                      <button onClick={() => {
+                        const sorted = [...p.ingredients].sort((a,b) => {
+                          const costA = (inventory.materials[a.name]?.price || 0) * (a.quantity/1000) * (1 + ((simulatedInflations[a.name] || 0) / 100));
+                          const costB = (inventory.materials[b.name]?.price || 0) * (b.quantity/1000) * (1 + ((simulatedInflations[b.name] || 0) / 100));
+                          return costB - costA;
+                        });
+                        if (sorted.length > 0) {
+                          const exp = sorted[0];
+                          addToast(`AI Suggests: Substitute ${exp.name} to recover margin!`, 'success');
+                        }
+                      }} className="ml-2 text-[8px] uppercase tracking-widest font-black text-gold bg-gold/10 px-2 py-1 rounded-md mt-2 inline-block hover:bg-gold hover:text-black transition-all">
+                        ✨ AI Optimize
+                      </button>
+                    )}
+                  </div>
                 </div>
                 <div className="text-right flex flex-col items-end gap-2">
                   {editMode && (
@@ -52,7 +80,12 @@ const FichePanel: React.FC<Props> = ({
                   )}
                   <div>
                     <p className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-gold' : 'text-slate-400'}`}>Unit Cost</p>
-                    <p className={`text-xl font-bold ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{formatPrice(realCost)}</p>
+                    <p className={`text-xl font-bold ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{formatPrice(materialCost)}</p>
+                    {hourlyWage > 0 && (
+                      <p className={`text-[9px] font-bold mt-1 ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>
+                        +{formatPrice(laborCostPerUnit)} labor
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -107,12 +140,19 @@ const FichePanel: React.FC<Props> = ({
                 </div>
               )}
 
-              <div className={`pt-6 border-t flex justify-between items-center ${isDarkMode ? 'border-white/5' : 'border-slate-100'}`}>
-                <div>
-                  <p className={`text-[10px] font-black uppercase tracking-widest ${isLowMargin ? 'text-rose-500' : (isDarkMode ? 'text-emerald-500/50' : 'text-emerald-600')}`}>Live Margin</p>
-                  <p className={`text-xl font-bold ${isLowMargin ? 'text-rose-500' : 'text-emerald-500'}`}>{margin}%</p>
+              <div className={`pt-6 border-t ${isDarkMode ? 'border-white/5' : 'border-slate-100'}`}>
+                <div className="flex justify-between items-start">
+                  <div>
+                    <p className={`text-[10px] font-black uppercase tracking-widest ${isLowMargin ? 'text-rose-500' : (isDarkMode ? 'text-emerald-500/50' : 'text-emerald-600')}`}>True Net Margin</p>
+                    <p className={`text-xl font-bold ${isLowMargin ? 'text-rose-500' : 'text-emerald-500'}`}>{margin}%</p>
+                    {hourlyWage > 0 && (
+                      <p className={`text-[9px] font-black uppercase tracking-widest mt-1 ${isDarkMode ? 'text-cream/30' : 'text-slate-400'}`}>
+                        incl. {formatPrice(laborCostPerUnit)} / unit labor
+                      </p>
+                    )}
+                  </div>
+                  {editMode && <button onClick={() => handleDeleteProduct(p.id)} className="text-rose-500/20 hover:text-rose-500 transition-colors"><Trash2 size={16} /></button>}
                 </div>
-                {editMode && <button onClick={() => handleDeleteProduct(p.id)} className="text-rose-500/20 hover:text-rose-500 transition-colors"><Trash2 size={16} /></button>}
               </div>
 
               <button onClick={() => setSelectedProduct(p)} className={`w-full mt-4 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest border transition-all ${isDarkMode ? 'border-gold/20 text-gold hover:bg-gold hover:text-charcoal' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}>

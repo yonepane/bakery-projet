@@ -1,5 +1,5 @@
 import React from 'react';
-import { CheckCircle, Edit2, FileText, Package, Plus, Trash2, Truck } from 'lucide-react';
+import { CheckCircle, Edit2, FileText, Package, Plus, Radio, Trash2, Truck } from 'lucide-react';
 import { DashboardSharedProps } from '../types';
 
 type Props = Pick<DashboardSharedProps,
@@ -20,7 +20,28 @@ const PurchasingPanel: React.FC<Props> = ({
       <div className={`lg:col-span-2 rounded-[2rem] border overflow-hidden transition-colors ${isDarkMode ? 'glass-panel' : 'bg-white border-slate-200 shadow-xl'}`}>
         <div className="p-8 border-b border-white/5 flex justify-between items-center">
           <h3 className={`text-xl font-bold luxury-font uppercase ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Procurement Intelligence</h3>
-          <p className="text-[10px] font-black uppercase tracking-widest text-gold bg-gold/10 px-3 py-1 rounded-full">Auto-Suggestions</p>
+          <div className="flex items-center gap-3">
+            {suppliers.length > 0 && purchasingSuggestions.length > 0 && (
+              <button
+                onClick={() => {
+                  const items = purchasingSuggestions.map(s => `• ${s.name}: +${s.suggested_buy}${s.unit}`).join('\n');
+                  const msg = encodeURIComponent(`🥖 BakeryOS RFQ Request\n\nBonjour, nous recherchons des offres pour les ingrédients suivants:\n\n${items}\n\nMerci de nous envoyer vos meilleurs prix dès que possible.`);
+                  suppliers.forEach(s => {
+                    const phone = (s.contact_info || '').replace(/\D/g, '');
+                    if (phone.length >= 8) window.open(`https://wa.me/${phone}?text=${msg}`, '_blank');
+                  });
+                  addToast(`RFQ broadcast sent to ${suppliers.length} suppliers!`, 'success');
+                }}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                  isDarkMode ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500 hover:text-black' : 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-600 hover:text-white'
+                }`}
+              >
+                <Radio size={12} />
+                Broadcast RFQ
+              </button>
+            )}
+            <p className="text-[10px] font-black uppercase tracking-widest text-gold bg-gold/10 px-3 py-1 rounded-full">Auto-Suggestions</p>
+          </div>
         </div>
         <div className="p-8 space-y-6">
           {purchasingSuggestions.length > 0 ? (

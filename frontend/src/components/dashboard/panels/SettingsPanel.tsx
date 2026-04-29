@@ -10,6 +10,7 @@ interface SettingsFormState {
   currency: string;
   tax_rate: number;
   receipt_footer: string;
+  hourly_wage: number;
 }
 
 const SettingsPanel: React.FC<Props & { settings: any }> = ({
@@ -21,6 +22,7 @@ const SettingsPanel: React.FC<Props & { settings: any }> = ({
     currency: settings?.currency || 'MAD',
     tax_rate: settings?.tax_rate || 0,
     receipt_footer: settings?.receipt_footer || '',
+    hourly_wage: settings?.hourly_wage || 0,
   });
 
   React.useEffect(() => {
@@ -29,6 +31,7 @@ const SettingsPanel: React.FC<Props & { settings: any }> = ({
       currency: settings?.currency || 'MAD',
       tax_rate: settings?.tax_rate || 0,
       receipt_footer: settings?.receipt_footer || '',
+      hourly_wage: settings?.hourly_wage || 0,
     });
   }, [settings]);
 
@@ -70,7 +73,7 @@ const SettingsPanel: React.FC<Props & { settings: any }> = ({
           <div>
             <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">Currency</label>
             <select value={form.currency} onChange={e => { setForm({ ...form, currency: e.target.value }); setActiveCurrency(e.target.value); }}
-              className={`w-full bg-transparent border-b py-3 outline-none font-bold ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`}>
+              className={`appearance-none cursor-pointer pl-6 pr-12 py-4 text-[10px] font-black uppercase tracking-widest rounded-2xl border transition-all outline-none ${isDarkMode ? 'bg-black/80 border-gold/20 text-gold hover:bg-gold hover:text-charcoal' : 'bg-slate-50 border-slate-200 text-slate-900 hover:bg-slate-900 hover:text-white'}`}>
               <option value="MAD" className={isDarkMode ? 'bg-[#0a0a0b] text-gold' : ''}>MAD (Dirham)</option>
               <option value="EUR" className={isDarkMode ? 'bg-[#0a0a0b] text-gold' : ''}>EUR (Euro)</option>
               <option value="USD" className={isDarkMode ? 'bg-[#0a0a0b] text-gold' : ''}>USD (Dollar)</option>
@@ -83,6 +86,13 @@ const SettingsPanel: React.FC<Props & { settings: any }> = ({
               onChange={e => setForm({ ...form, tax_rate: parseFloat(e.target.value) || 0 })}
               className={`w-full bg-transparent border-b py-3 outline-none font-bold ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`} />
           </div>
+          <div className="col-span-2">
+            <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">⏱ Baseline Hourly Wage (per hour)</label>
+            <p className={`text-[9px] uppercase tracking-widest mb-3 ${isDarkMode ? 'text-cream/30' : 'text-slate-400'}`}>Used by the Labor Cost Engine to compute True Net Profit on each recipe.</p>
+            <input type="number" step="0.01" min="0" value={form.hourly_wage}
+              onChange={e => setForm({ ...form, hourly_wage: parseFloat(e.target.value) || 0 })}
+              className={`w-full bg-transparent border-b py-3 outline-none font-bold ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`} />
+          </div>
         </div>
       </div>
 
@@ -93,7 +103,7 @@ const SettingsPanel: React.FC<Props & { settings: any }> = ({
           <div>
             <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">Interface Language</label>
             <select value={lang} onChange={e => setLang(e.target.value)}
-              className={`w-full bg-transparent border-b py-3 outline-none font-bold ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`}>
+              className={`appearance-none cursor-pointer pl-6 pr-12 py-4 text-[10px] font-black uppercase tracking-widest rounded-2xl border transition-all outline-none ${isDarkMode ? 'bg-black/80 border-gold/20 text-gold hover:bg-gold hover:text-charcoal' : 'bg-slate-50 border-slate-200 text-slate-900 hover:bg-slate-900 hover:text-white'}`}>
               <option value="en" className={isDarkMode ? 'bg-[#0a0a0b] text-gold' : ''}>English</option>
               <option value="fr" className={isDarkMode ? 'bg-[#0a0a0b] text-gold' : ''}>Français</option>
               <option value="ar" className={isDarkMode ? 'bg-[#0a0a0b] text-gold' : ''}>العربية</option>

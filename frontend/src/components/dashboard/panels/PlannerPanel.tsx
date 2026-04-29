@@ -5,11 +5,12 @@ import { DashboardSharedProps } from '../types';
 type Props = Pick<DashboardSharedProps,
   'isDarkMode' | 'inventory' | 'planner' | 'setPlanner' | 'formatPrice' |
   'isForecasting' | 'handleSmartForecast' | 'handleProduce' | 'displayUnit' |
-  'openSelector' | 'API_BASE'>;
+  'openSelector' | 'API_BASE' | 'wasteRecords'>;
 
 const PlannerPanel: React.FC<Props> = ({
   isDarkMode, inventory, planner, setPlanner, formatPrice,
   isForecasting, handleSmartForecast, handleProduce, displayUnit, openSelector, API_BASE,
+  wasteRecords,
 }) => {
   const resourceForecast = Object.entries(
     planner.filter(p => p.status === 'pending').reduce((acc, item) => {
@@ -52,30 +53,58 @@ const PlannerPanel: React.FC<Props> = ({
             <select onChange={(e) => {
               const p = inventory.products.find(x => x.id === e.target.value);
               if (p) setPlanner([...planner, { id: Math.random().toString(36).substr(2, 9), date: new Date().toISOString(), product_id: p.id, quantity: 10, status: 'pending' }]);
-            }} className={`p-4 rounded-2xl border outline-none font-bold text-sm ${isDarkMode ? 'bg-white/5 border-white/10 text-cream focus:border-gold/40' : 'bg-slate-50 border-slate-200 text-slate-900 focus:border-slate-400'}`}>
-              <option value="" className={isDarkMode ? 'bg-[#0a0a0b] text-gold' : ''}>Select Entity...</option>
+            }} className={`appearance-none cursor-pointer pl-6 pr-12 py-4 text-[10px] font-black uppercase tracking-widest rounded-2xl border transition-all outline-none ${isDarkMode ? 'bg-black/80 border-gold/20 text-gold hover:bg-gold hover:text-charcoal' : 'bg-slate-50 border-slate-200 text-slate-900 hover:bg-slate-900 hover:text-white'}`}>
+              <option value="" disabled className={isDarkMode ? 'bg-[#0a0a0b] text-gold/50' : ''}>Select Entity...</option>
               {inventory.products.map(p => <option key={p.id} value={p.id} className={isDarkMode ? 'bg-[#0a0a0b] text-gold' : ''}>{p.name}</option>)}
             </select>
 
             <div className="space-y-4">
-              {planner.filter(p => p.status === 'pending').map(item => (
-                <div key={item.id} className={`p-6 rounded-2xl border flex items-center justify-between ${isDarkMode ? 'bg-white/5 border-white/10' : 'bg-white border-slate-100'}`}>
-                  <div className="flex items-center gap-4">
-                    <div className="text-2xl">{inventory.products.find(p => p.id === item.product_id)?.icon}</div>
-                    <div>
-                      <p className={`font-bold text-sm ${isDarkMode ? 'text-cream' : 'text-slate-900'}`}>{inventory.products.find(p => p.id === item.product_id)?.name}</p>
-                      <p className="text-[10px] text-gold font-black uppercase tracking-widest">Pending Execution</p>
+              {planner.filter(p => p.status === 'pending').map(item => {
+                // Predictive Wastage Engine: check last 7 days of waste for this product
+                const recentWaste = wasteRecords.filter(w => {
+                  const daysAgo = (Date.now() - new Date(w.date).getTime()) / (1000 * 60 * 60 * 24);
+                  return w.product_id === item.product_id && daysAgo <= 7;
+                });
+                const totalWasted = recentWaste.reduce((sum, w) => sum + w.quantity, 0);
+                const isHighWasteRisk = totalWasted > 0;
+
+                return (
+                <div key={item.id} className={`p-6 rounded-2xl border transition-all ${isDarkMode ? 'bg-white/5 border-white/10' : 'bg-white border-slate-100'} ${isHighWasteRisk ? 'border-amber-500/40 shadow-[0_0_20px_rgba(245,158,11,0.1)]' : ''}`}>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className="text-2xl">{inventory.products.find(p => p.id === item.product_id)?.icon}</div>
+                      <div>
+                        <p className={`font-bold text-sm ${isDarkMode ? 'text-cream' : 'text-slate-900'}`}>{inventory.products.find(p => p.id === item.product_id)?.name}</p>
+                        {isHighWasteRisk ? (
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className="text-[8px] font-black uppercase tracking-widest bg-amber-500/10 text-amber-500 px-2 py-0.5 rounded-full">⚠️ High Waste Risk</span>
+                            <span className={`text-[8px] font-bold ${isDarkMode ? 'text-cream/30' : 'text-slate-400'}`}>{totalWasted} units wasted last 7 days</span>
+                          </div>
+                        ) : (
+                          <p className="text-[10px] text-gold font-black uppercase tracking-widest">Pending Execution</p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      {isHighWasteRisk && (
+                        <button
+                          onClick={() => setPlanner(planner.map(p => p.id === item.id ? { ...p, quantity: Math.max(1, Math.round(item.quantity * 0.7)) } : p))}
+                          className="px-3 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest bg-amber-500/10 text-amber-500 hover:bg-amber-500 hover:text-black transition-all"
+                          title="Auto-scale down by 30%"
+                        >
+                          ↓ Auto-Scale Down
+                        </button>
+                      )}
+                      <input type="number" value={item.quantity}
+                        onChange={(e) => setPlanner(planner.map(p => p.id === item.id ? { ...p, quantity: parseInt(e.target.value) || 0 } : p))}
+                        className="w-16 bg-transparent border-b border-gold/20 text-center font-bold text-gold outline-none" />
+                      <button onClick={() => handleProduce(item.product_id, item.quantity)} className="p-3 bg-gold/10 text-gold rounded-xl hover:bg-gold hover:text-charcoal transition-all"><Zap size={18} /></button>
+                      <button onClick={() => setPlanner(planner.filter(p => p.id !== item.id))} className="text-white/10 hover:text-red-500 transition-colors"><Trash2 size={18} /></button>
                     </div>
                   </div>
-                  <div className="flex items-center gap-6">
-                    <input type="number" value={item.quantity}
-                      onChange={(e) => setPlanner(planner.map(p => p.id === item.id ? { ...p, quantity: parseInt(e.target.value) || 0 } : p))}
-                      className="w-16 bg-transparent border-b border-gold/20 text-center font-bold text-gold outline-none" />
-                    <button onClick={() => handleProduce(item.product_id, item.quantity)} className="p-3 bg-gold/10 text-gold rounded-xl hover:bg-gold hover:text-charcoal transition-all"><Zap size={18} /></button>
-                    <button onClick={() => setPlanner(planner.filter(p => p.id !== item.id))} className="text-white/10 hover:text-red-500 transition-colors"><Trash2 size={18} /></button>
-                  </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 

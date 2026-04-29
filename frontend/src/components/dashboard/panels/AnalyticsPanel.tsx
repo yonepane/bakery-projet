@@ -8,11 +8,13 @@ const PIE_COLORS = ['#d4af37', '#b8860b', '#f3e5ab', '#10b981', '#f43f5e'];
 
 type Props = Pick<DashboardSharedProps,
   'isDarkMode' | 'analytics' | 'inventory' | 'simPrices' | 'setSimPrices' |
-  'simulatedInflations' | 'setSimulatedInflations' | 'formatPrice'>;
+  'simulatedInflations' | 'setSimulatedInflations' | 'formatPrice' |
+  'handleUpdateProductField' | 'api' | 'fetchData' | 'addToast'>;
 
 const AnalyticsPanel: React.FC<Props> = ({
   isDarkMode, analytics, inventory, simPrices, setSimPrices,
   simulatedInflations, setSimulatedInflations, formatPrice,
+  handleUpdateProductField, api, fetchData, addToast
 }) => {
 
   const allIngredients = useMemo(() => {
@@ -37,6 +39,29 @@ const AnalyticsPanel: React.FC<Props> = ({
     setSimulatedInflations({ ...simulatedInflations, [ingredientName]: value });
   };
 
+  const handleCommitStrategy = async () => {
+    try {
+      let committedAny = false;
+      for (const p of inventory.products) {
+        if (simPrices[p.id] !== undefined && simPrices[p.id] !== p.price) {
+          handleUpdateProductField(p.id, 'price', simPrices[p.id]);
+          committedAny = true;
+        }
+      }
+      
+      if (committedAny) {
+        addToast('Pricing Strategy Committed successfully!', 'success');
+        setSimPrices({});
+        setSimulatedInflations({});
+        fetchData();
+      } else {
+        addToast('No price changes to commit.', 'info');
+      }
+    } catch (e) {
+      addToast('Failed to commit pricing strategy', 'error');
+    }
+  };
+
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
       
@@ -53,19 +78,26 @@ const AnalyticsPanel: React.FC<Props> = ({
             <p className="text-[10px] uppercase tracking-widest opacity-40 mt-2 ml-14">Simulate simultaneous ingredient cost hikes and product selling price adjustments</p>
           </div>
           
-          <div className="relative group">
-            <select 
-              onChange={(e) => { addSimulation(e.target.value); e.target.value = ''; }}
-              className={`appearance-none cursor-pointer pl-6 pr-12 py-4 text-[10px] font-black uppercase tracking-widest rounded-2xl border transition-all outline-none ${isDarkMode ? 'bg-black/80 border-gold/20 text-gold hover:bg-gold hover:text-charcoal' : 'bg-slate-50 border-slate-200 text-slate-900 hover:bg-slate-900 hover:text-white'}`}
-              defaultValue=""
-            >
-              <option value="" disabled className={isDarkMode ? 'bg-[#0a0a0b] text-gold/50' : ''}>+ Inflate Ingredient Cost...</option>
-              {allIngredients.filter(ing => !(ing in simulatedInflations)).map(ing => (
-                <option key={ing} value={ing} className={isDarkMode ? 'bg-[#0a0a0b] text-gold' : ''}>{ing}</option>
-              ))}
-            </select>
-            <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none transition-transform group-hover:rotate-180 duration-500">
-              <Plus size={16} className={isDarkMode ? 'group-hover:text-charcoal' : 'group-hover:text-white'} />
+          <div className="flex items-center gap-4">
+            {Object.keys(simPrices).length > 0 && (
+              <button onClick={handleCommitStrategy} className={`px-6 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-xl ${isDarkMode ? 'bg-gold text-charcoal hover:scale-105 shadow-[0_0_20px_rgba(212,175,55,0.4)]' : 'bg-slate-900 text-white hover:bg-slate-800'}`}>
+                Commit Strategy
+              </button>
+            )}
+            <div className="relative group">
+              <select 
+                onChange={(e) => { addSimulation(e.target.value); e.target.value = ''; }}
+                className={`appearance-none cursor-pointer pl-6 pr-12 py-4 text-[10px] font-black uppercase tracking-widest rounded-2xl border transition-all outline-none ${isDarkMode ? 'bg-black/80 border-gold/20 text-gold hover:bg-gold hover:text-charcoal' : 'bg-slate-50 border-slate-200 text-slate-900 hover:bg-slate-900 hover:text-white'}`}
+                defaultValue=""
+              >
+                <option value="" disabled className={isDarkMode ? 'bg-[#0a0a0b] text-gold/50' : ''}>+ Inflate Ingredient Cost...</option>
+                {allIngredients.filter(ing => !(ing in simulatedInflations)).map(ing => (
+                  <option key={ing} value={ing} className={isDarkMode ? 'bg-[#0a0a0b] text-gold' : ''}>{ing}</option>
+                ))}
+              </select>
+              <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none transition-transform group-hover:rotate-180 duration-500">
+                <Plus size={16} className={isDarkMode ? 'group-hover:text-charcoal' : 'group-hover:text-white'} />
+              </div>
             </div>
           </div>
         </div>

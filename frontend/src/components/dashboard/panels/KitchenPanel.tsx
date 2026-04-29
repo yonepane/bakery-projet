@@ -138,7 +138,7 @@ const KitchenPanel: React.FC<Props> = ({
                     }
                     fetchData();
                   }}
-                  className={`bg-transparent text-[10px] font-black uppercase tracking-widest outline-none ${order.status === 'baking' ? 'text-gold' : 'text-cream/40'}`}
+                  className={`appearance-none cursor-pointer px-4 py-2 text-[10px] font-black uppercase tracking-widest rounded-xl border transition-all outline-none ${isDarkMode ? 'bg-black/80 border-gold/20 text-gold hover:bg-gold hover:text-charcoal' : 'bg-slate-50 border-slate-200 text-slate-900 hover:bg-slate-900 hover:text-white'}`}
                 >
                   <option value="pending" className={isDarkMode ? 'bg-[#0a0a0b] text-gold' : ''}>Queued</option>
                   <option value="baking" className={isDarkMode ? 'bg-[#0a0a0b] text-gold' : ''}>In Oven</option>
