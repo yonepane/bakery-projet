@@ -604,21 +604,13 @@ const Dashboard: React.FC = () => {
 
   if (!user) {
     return (
-      <main className="min-h-screen bg-[#0a0a0b] text-white flex items-center justify-center relative overflow-hidden" role="main">
-        {/* Sleek, static CSS-only background (No high-CPU framer motion) */}
-        <div className="absolute inset-0 z-0">
-          <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(ellipse_at_top_left,_var(--tw-gradient-stops))] from-gold/10 via-[#0a0a0b] to-[#0a0a0b] opacity-60"></div>
-          <div className="absolute bottom-0 right-0 w-[800px] h-[800px] bg-gold/5 rounded-full blur-[120px] mix-blend-screen opacity-50"></div>
-          <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/stardust.png')] opacity-10"></div>
-        </div>
-
-        {/* ── UNIFIED RESPONSIVE LOGIN CARD ───────────────────────────────── */}
-        <div className="relative z-10 w-full max-w-md px-6">
-          <div className="rounded-[2rem] border border-white/10 bg-black/40 backdrop-blur-xl shadow-[0_0_50px_rgba(212,175,55,0.05)] p-10 lg:p-12">
-            
-            {/* Header */}
+      <main className="min-h-screen bg-[#060606] text-white overflow-hidden font-sans" role="main">
+        {/* Mobile View (Hidden on Desktop) */}
+        <div className="lg:hidden flex flex-col items-center justify-center min-h-screen p-6 relative">
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-gold/10 via-[#060606] to-[#060606] opacity-60"></div>
+          <div className="relative z-10 w-full max-w-sm rounded-[2rem] border border-white/10 bg-black/60 backdrop-blur-xl p-8">
             <div className="flex flex-col items-center mb-10 text-center">
-              <div className="h-20 w-20 rounded-full overflow-hidden border border-gold/40 relative shadow-[0_0_20px_rgba(212,175,55,0.2)] mb-6">
+              <div className="h-16 w-16 rounded-full overflow-hidden border border-gold/40 shadow-[0_0_20px_rgba(212,175,55,0.2)] mb-6">
                 <picture>
                   <source type="image/webp" srcSet="/columbina-login-1x.webp 1x, /columbina-login.webp 2x" />
                   <img src="/columbina-login.jpg" alt="Crest" className="w-full h-full object-cover" />
@@ -627,31 +619,115 @@ const Dashboard: React.FC = () => {
               <h1 className="text-3xl font-light tracking-[0.2em] uppercase text-white font-serif leading-none">
                 Bakery<span className="font-bold text-gold">OS</span>
               </h1>
-              <p className="text-[10px] tracking-[0.4em] uppercase text-gold/60 mt-3 font-semibold">Enterprise Terminal</p>
+            </div>
+            {/* Mobile Form omitted for brevity, reusing the desktop form logic below but in single column */}
+            <form onSubmit={authMode === 'login' ? handleLogin : handleSignup} className="space-y-6">
+                <div className="relative group">
+                  <input id="mobile-username" type="text" value={authMode === 'login' ? loginForm.username : signupForm.username} onChange={(e) => authMode === 'login' ? setLoginForm({ ...loginForm, username: e.target.value }) : setSignupForm({ ...signupForm, username: e.target.value })} className="monolith-input peer" placeholder=" " required />
+                  <label htmlFor="mobile-username" className="monolith-label">{authMode === 'login' ? 'Identity' : 'Identity'}</label>
+                  <div className="monolith-input-highlight" />
+                </div>
+                <div className="relative group">
+                  <input id="mobile-password" type={showPassword ? 'text' : 'password'} value={authMode === 'login' ? loginForm.password : signupForm.password} onChange={(e) => authMode === 'login' ? setLoginForm({ ...loginForm, password: e.target.value }) : setSignupForm({ ...signupForm, password: e.target.value })} className="monolith-input peer pr-10" placeholder=" " required />
+                  <label htmlFor="mobile-password" className="monolith-label">Cipher</label>
+                  <div className="monolith-input-highlight" />
+                </div>
+                <button type="submit" disabled={isAuthSubmitting} className="monolith-btn mt-8">{isAuthSubmitting ? <span className="login-spinner" /> : (authMode === 'login' ? 'Initiate Link' : 'Deploy System')}</button>
+            </form>
+          </div>
+        </div>
+
+        {/* Desktop PC View (Hidden on Mobile) */}
+        <div className="hidden lg:grid h-screen grid-cols-12 grid-rows-1 p-6 gap-6 w-full max-w-[1920px] mx-auto">
+          
+          {/* Left Column: Hero Panel */}
+          <div className="col-span-8 relative rounded-[2rem] overflow-hidden border border-white/10 bg-[#0a0a0b] shadow-2xl flex flex-col justify-between p-16">
+            {/* Sleek CSS Abstract Background */}
+            <div className="absolute inset-0 z-0 opacity-80 mix-blend-screen pointer-events-none">
+               <div className="absolute top-[-10%] left-[-10%] w-[60%] h-[60%] bg-[radial-gradient(circle,rgba(212,175,55,0.15)_0%,transparent_70%)] blur-3xl"></div>
+               <div className="absolute bottom-[-20%] right-[-10%] w-[80%] h-[80%] bg-[radial-gradient(circle,rgba(212,175,55,0.08)_0%,transparent_60%)] blur-3xl"></div>
+               <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/stardust.png')] opacity-20"></div>
             </div>
 
+            {/* Top Bar */}
+            <div className="relative z-10 flex justify-between items-start">
+              <div className="flex items-center gap-6">
+                <div className="h-16 w-16 rounded-full overflow-hidden border border-gold/40 shadow-[0_0_30px_rgba(212,175,55,0.3)]">
+                  <picture>
+                    <source type="image/webp" srcSet="/columbina-login-1x.webp 1x, /columbina-login.webp 2x" />
+                    <img src="/columbina-login.jpg" alt="Crest" className="w-full h-full object-cover" />
+                  </picture>
+                </div>
+                <div>
+                  <h1 className="text-4xl font-light tracking-[0.2em] uppercase text-white font-serif leading-none">
+                    Bakery<span className="font-bold text-gold">OS</span>
+                  </h1>
+                  <p className="text-[10px] tracking-[0.4em] uppercase text-gold/60 mt-2 font-semibold">Enterprise Terminal</p>
+                </div>
+              </div>
+              <div className="text-right flex gap-8">
+                 <div>
+                    <div className="text-[9px] uppercase tracking-[0.2em] text-white/30 mb-2">Mainframe</div>
+                    <div className="flex items-center gap-2 text-sm font-light text-white/70">
+                      <div className="w-2 h-2 bg-green-500 rounded-full shadow-[0_0_10px_rgba(34,197,94,0.5)]" /> Active
+                    </div>
+                 </div>
+                 <div>
+                    <div className="text-[9px] uppercase tracking-[0.2em] text-white/30 mb-2">Protocol</div>
+                    <div className="text-sm font-light text-white/70">AES-256</div>
+                 </div>
+              </div>
+            </div>
 
+            {/* Bottom Hero Text */}
+            <div className="relative z-10 max-w-3xl mt-auto">
+              <p className="text-[5rem] xl:text-[6rem] font-bold luxury-font tracking-tighter leading-[0.9] text-white mb-8">
+                The Intelligence <br/>
+                Behind the <br/>
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-gold via-[#ffd700] to-gold drop-shadow-[0_0_15px_rgba(212,175,55,0.3)]">Craft.</span>
+              </p>
+              <div className="flex gap-12 border-t border-white/10 pt-8 mt-12 w-fit pr-12">
+                <div>
+                  <div className="text-[10px] uppercase tracking-[0.2em] text-white/40 mb-1">Architecture</div>
+                  <div className="text-white/80 font-light text-sm">Multi-tenant Edge</div>
+                </div>
+                <div>
+                  <div className="text-[10px] uppercase tracking-[0.2em] text-white/40 mb-1">Precision</div>
+                  <div className="text-white/80 font-light text-sm">Real-time Yield</div>
+                </div>
+                <div>
+                  <div className="text-[10px] uppercase tracking-[0.2em] text-white/40 mb-1">Scale</div>
+                  <div className="text-white/80 font-light text-sm">Infinite POS Nodes</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Right Column: Login Panel */}
+          <div className="col-span-4 relative rounded-[2rem] overflow-hidden border border-white/10 bg-[#0d0d0f] shadow-2xl flex flex-col items-center justify-center p-12 lg:p-16">
+            <div className="absolute top-0 right-0 w-full h-full bg-[radial-gradient(circle_at_top_right,rgba(212,175,55,0.05)_0%,transparent_50%)] pointer-events-none"></div>
+            
+            <div className="relative z-10 w-full max-w-[340px]">
               {/* Mode Toggle */}
-              <div className="flex w-full mb-10 border-b border-white/10">
+              <div className="flex w-full mb-12 border-b border-white/10">
                 <button
                   onClick={() => setAuthMode('login')}
-                  className={`flex-1 pb-4 text-[10px] font-bold tracking-widest uppercase transition-colors relative ${authMode === 'login' ? 'text-gold' : 'text-white/30 hover:text-white/60'}`}
+                  className={`flex-1 pb-4 text-[11px] font-bold tracking-widest uppercase transition-colors relative ${authMode === 'login' ? 'text-gold' : 'text-white/30 hover:text-white/60'}`}
                 >
                   Authenticate
-                  {authMode === 'login' && <motion.div layoutId="mode-indicator" className="absolute bottom-[-1px] left-0 right-0 h-[2px] bg-gold shadow-[0_0_10px_rgba(212,175,55,0.8)]" />}
+                  {authMode === 'login' && <div className="absolute bottom-[-1px] left-0 right-0 h-[2px] bg-gold shadow-[0_0_10px_rgba(212,175,55,0.8)]" />}
                 </button>
                 <button
                   onClick={() => setAuthMode('signup')}
-                  className={`flex-1 pb-4 text-[10px] font-bold tracking-widest uppercase transition-colors relative ${authMode === 'signup' ? 'text-gold' : 'text-white/30 hover:text-white/60'}`}
+                  className={`flex-1 pb-4 text-[11px] font-bold tracking-widest uppercase transition-colors relative ${authMode === 'signup' ? 'text-gold' : 'text-white/30 hover:text-white/60'}`}
                 >
                   Initialize
-                  {authMode === 'signup' && <motion.div layoutId="mode-indicator" className="absolute bottom-[-1px] left-0 right-0 h-[2px] bg-gold shadow-[0_0_10px_rgba(212,175,55,0.8)]" />}
+                  {authMode === 'signup' && <div className="absolute bottom-[-1px] left-0 right-0 h-[2px] bg-gold shadow-[0_0_10px_rgba(212,175,55,0.8)]" />}
                 </button>
               </div>
 
               {/* Form */}
               <form onSubmit={authMode === 'login' ? handleLogin : handleSignup} className="w-full space-y-8">
-                
                 <div className="relative group">
                   <input
                     id="desktop-username"
@@ -660,11 +736,11 @@ const Dashboard: React.FC = () => {
                     onChange={(e) => authMode === 'login'
                       ? setLoginForm({ ...loginForm, username: e.target.value })
                       : setSignupForm({ ...signupForm, username: e.target.value })}
-                    className="monolith-input peer"
+                    className="monolith-input peer text-lg"
                     placeholder=" "
                     required
                   />
-                  <label htmlFor="desktop-username" className="monolith-label">
+                  <label htmlFor="desktop-username" className="monolith-label text-sm">
                     {authMode === 'login' ? 'Identity / Username' : 'Commander Identity'}
                   </label>
                   <div className="monolith-input-highlight" />
@@ -678,20 +754,20 @@ const Dashboard: React.FC = () => {
                     onChange={(e) => authMode === 'login'
                       ? setLoginForm({ ...loginForm, password: e.target.value })
                       : setSignupForm({ ...signupForm, password: e.target.value })}
-                    className="monolith-input peer pr-10"
+                    className="monolith-input peer pr-10 text-lg"
                     placeholder=" "
                     required
                   />
-                  <label htmlFor="desktop-password" className="monolith-label">Access Cipher</label>
+                  <label htmlFor="desktop-password" className="monolith-label text-sm">Access Cipher</label>
                   <div className="monolith-input-highlight" />
                   
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-0 bottom-3 text-white/20 hover:text-gold transition-colors p-2"
+                    className="absolute right-0 bottom-3 text-white/30 hover:text-gold transition-colors p-2"
                     aria-label={showPassword ? 'Hide password' : 'Show password'}
                   >
-                    {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
+                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                   </button>
                 </div>
 
@@ -702,11 +778,11 @@ const Dashboard: React.FC = () => {
                       type={showPassword ? 'text' : 'password'}
                       value={signupForm.confirmPassword}
                       onChange={(e) => setSignupForm({ ...signupForm, confirmPassword: e.target.value })}
-                      className="monolith-input peer"
+                      className="monolith-input peer text-lg"
                       placeholder=" "
                       required
                     />
-                    <label htmlFor="desktop-confirm-password" className="monolith-label">Verify Cipher</label>
+                    <label htmlFor="desktop-confirm-password" className="monolith-label text-sm">Verify Cipher</label>
                     <div className="monolith-input-highlight" />
                   </div>
                 )}
@@ -714,7 +790,7 @@ const Dashboard: React.FC = () => {
                 <button
                   type="submit"
                   disabled={isAuthSubmitting}
-                  className="monolith-btn mt-8"
+                  className="monolith-btn mt-10 h-14 text-sm font-bold tracking-widest"
                 >
                   {isAuthSubmitting
                     ? <span className="flex items-center justify-center gap-3"><span className="login-spinner" /> Establishing Link</span>
@@ -724,21 +800,22 @@ const Dashboard: React.FC = () => {
               </form>
 
               {/* GSI Integration */}
-              <div className="w-full mt-12">
-                <div className="flex items-center gap-4 mb-6 opacity-30">
-                  <div className="h-px flex-1 bg-white" />
-                  <span className="text-[8px] tracking-[0.2em] uppercase">External Auth</span>
-                  <div className="h-px flex-1 bg-white" />
+              <div className="w-full mt-14">
+                <div className="flex items-center gap-4 mb-8 opacity-40">
+                  <div className="h-px flex-1 bg-gradient-to-r from-transparent to-white" />
+                  <span className="text-[9px] tracking-[0.2em] uppercase font-bold">External Protocol</span>
+                  <div className="h-px flex-1 bg-gradient-to-l from-transparent to-white" />
                 </div>
 
-                <div className="h-[44px] w-full max-w-[240px] mx-auto overflow-hidden rounded-full border border-white/10 hover:border-gold/30 transition-colors">
+                <div className="h-[48px] w-full mx-auto overflow-hidden rounded-[1rem] border border-white/10 hover:border-gold/40 transition-colors bg-white/[0.02]">
                   {gsiReady ? (
                     <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
                       <GoogleLogin
                         onSuccess={handleGoogleSuccess}
                         onError={() => addToast('Link Failed', 'error')}
                         theme="filled_black"
-                        shape="pill"
+                        shape="rectangular"
+                        width="100%"
                         use_fedcm={false}
                       />
                     </GoogleOAuthProvider>
@@ -747,10 +824,9 @@ const Dashboard: React.FC = () => {
                   )}
                 </div>
               </div>
-
+            </div>
           </div>
         </div>
-
       </main>
     );
   }
