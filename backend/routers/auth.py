@@ -6,8 +6,6 @@ import sqlalchemy.orm
 from fastapi import APIRouter, Depends, HTTPException, Request
 from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token
-from slowapi import Limiter
-from slowapi.util import get_remote_address
 
 try:
     from .. import models
@@ -22,15 +20,10 @@ except ImportError:
 
 router = APIRouter()
 
-# Re-use the same limiter key function — the limiter itself is registered on
-# the app in main.py; here we just need the decorator factory.
-limiter = Limiter(key_func=get_remote_address)
-
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
 
 
 @router.post("/api/auth/google")
-@limiter.limit("10/minute")
 async def google_login(request: Request, req: GoogleLoginRequest, db: sqlalchemy.orm.Session = Depends(get_db)):
     if not GOOGLE_CLIENT_ID:
         raise HTTPException(status_code=503, detail="Google OAuth is not configured on this server")
@@ -66,7 +59,6 @@ async def google_login(request: Request, req: GoogleLoginRequest, db: sqlalchemy
 
 
 @router.post("/api/auth/signup")
-@limiter.limit("5/minute")
 async def signup(request: Request, req: LoginRequest, db: sqlalchemy.orm.Session = Depends(get_db)):
     existing = db.query(models.User).filter(models.User.username == req.username).first()
     if existing:
@@ -85,7 +77,6 @@ async def signup(request: Request, req: LoginRequest, db: sqlalchemy.orm.Session
 
 
 @router.post("/api/auth/login", response_model=Token)
-@limiter.limit("5/minute")
 async def login(request: Request, req: LoginRequest, db: sqlalchemy.orm.Session = Depends(get_db)):
     user = db.query(models.User).filter(models.User.username == req.username).first()
     if not user or not verify_password(req.password, user.password):

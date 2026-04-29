@@ -14,9 +14,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.errors import RateLimitExceeded
-from slowapi.util import get_remote_address
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 if CURRENT_DIR not in sys.path:
@@ -91,14 +88,6 @@ app = FastAPI(title="BakeryOS API", lifespan=lifespan)
 handler = app
 
 # ---------------------------------------------------------------------------
-# Rate Limiter
-# ---------------------------------------------------------------------------
-
-limiter = Limiter(key_func=get_remote_address, default_limits=[])
-app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
-
-# ---------------------------------------------------------------------------
 # CORS
 # ---------------------------------------------------------------------------
 
@@ -137,7 +126,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
         # Only set HSTS in production (when not running on localhost)
-        if request.url.hostname not in ("localhost", "127.0.0.1"):
+        if request.url.hostname and request.url.hostname not in ("localhost", "127.0.0.1"):
             response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
         return response
 
