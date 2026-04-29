@@ -15,14 +15,14 @@ from fastapi.responses import FileResponse, HTMLResponse, Response
 
 try:
     from .. import models
-    from ..auth import get_current_user, get_effective_owner_id
+    from ..auth import get_current_user, get_effective_owner_id, requires_roles
     from ..database import get_db
     from ..schemas import ProductionBatch, SaleRequest
     from ..services.core import calculate_product_cost, get_settings
     from ..services.pdf import build_monthly_report_pdf, build_receipt_pdf
 except ImportError:
     import models
-    from auth import get_current_user, get_effective_owner_id
+    from auth import get_current_user, get_effective_owner_id, requires_roles
     from database import get_db
     from schemas import ProductionBatch, SaleRequest
     from services.core import calculate_product_cost, get_settings
@@ -51,7 +51,7 @@ def _pdf_response(buffer, filename: str) -> Response:
 # Production
 # ---------------------------------------------------------------------------
 
-@router.post("/api/produce")
+@router.post("/api/produce", dependencies=[Depends(requires_roles(["owner"]))])
 async def produce(
     batch: ProductionBatch,
     db: sqlalchemy.orm.Session = Depends(get_db),

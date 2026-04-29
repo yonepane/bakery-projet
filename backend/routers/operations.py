@@ -24,7 +24,7 @@ except ImportError:
 router = APIRouter()
 
 
-@router.post("/api/waste")
+@router.post("/api/waste", dependencies=[Depends(requires_roles(["owner", "cashier"]))])
 async def record_waste(
     waste: WasteCreate,
     db: sqlalchemy.orm.Session = Depends(get_db),

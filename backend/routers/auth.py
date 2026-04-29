@@ -3,9 +3,11 @@
 import os
 
 import sqlalchemy.orm
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 try:
     from .. import models
@@ -20,14 +22,18 @@ except ImportError:
 
 router = APIRouter()
 
-GOOGLE_CLIENT_ID = os.getenv(
-    "GOOGLE_CLIENT_ID",
-    "183197193874-qhf5nd87o77oo86jhksat53ncq3ahjp8.apps.googleusercontent.com",
-)
+# Re-use the same limiter key function — the limiter itself is registered on
+# the app in main.py; here we just need the decorator factory.
+limiter = Limiter(key_func=get_remote_address)
+
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
 
 
 @router.post("/api/auth/google")
-async def google_login(req: GoogleLoginRequest, db: sqlalchemy.orm.Session = Depends(get_db)):
+@limiter.limit("10/minute")
+async def google_login(request: Request, req: GoogleLoginRequest, db: sqlalchemy.orm.Session = Depends(get_db)):
+    if not GOOGLE_CLIENT_ID:
+        raise HTTPException(status_code=503, detail="Google OAuth is not configured on this server")
     try:
         idinfo = id_token.verify_oauth2_token(req.credential, google_requests.Request(), GOOGLE_CLIENT_ID)
         email = idinfo["email"]
@@ -60,7 +66,8 @@ async def google_login(req: GoogleLoginRequest, db: sqlalchemy.orm.Session = Dep
 
 
 @router.post("/api/auth/signup")
-async def signup(req: LoginRequest, db: sqlalchemy.orm.Session = Depends(get_db)):
+@limiter.limit("5/minute")
+async def signup(request: Request, req: LoginRequest, db: sqlalchemy.orm.Session = Depends(get_db)):
     existing = db.query(models.User).filter(models.User.username == req.username).first()
     if existing:
         raise HTTPException(status_code=400, detail="Username already taken")
@@ -78,7 +85,8 @@ async def signup(req: LoginRequest, db: sqlalchemy.orm.Session = Depends(get_db)
 
 
 @router.post("/api/auth/login", response_model=Token)
-async def login(req: LoginRequest, db: sqlalchemy.orm.Session = Depends(get_db)):
+@limiter.limit("5/minute")
+async def login(request: Request, req: LoginRequest, db: sqlalchemy.orm.Session = Depends(get_db)):
     user = db.query(models.User).filter(models.User.username == req.username).first()
     if not user or not verify_password(req.password, user.password):
         raise HTTPException(status_code=401, detail="Invalid username or password")

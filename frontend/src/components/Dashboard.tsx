@@ -603,176 +603,34 @@ const Dashboard: React.FC = () => {
   }, [user]);
 
   if (!user) {
-    // Generate random positions for gold dust particles only once
-    const particles = Array.from({ length: 30 }).map((_, i) => ({
-      id: i,
-      size: Math.random() * 3 + 1,
-      x: Math.random() * 100,
-      y: Math.random() * 100,
-      duration: Math.random() * 20 + 15,
-      delay: Math.random() * 10,
-    }));
-
     return (
-      <main className="bento-shell min-h-screen p-4 lg:p-6 bg-black text-white" role="main">
-        {/* Mobile Fallback: just center the login form, since this is desktop focused */}
-        <div className="lg:hidden flex items-center justify-center min-h-screen">
-          <div className="w-full max-w-sm px-6">
-            <h1 className="text-3xl font-light tracking-[0.2em] uppercase text-white mb-8 font-serif text-center">
-              Bakery<span className="font-bold text-gold">OS</span>
-            </h1>
-            {/* We duplicate the form logic here for the mobile view, but keep it simple */}
-            <form onSubmit={authMode === 'login' ? handleLogin : handleSignup} className="space-y-6">
-                <div className="relative group">
-                  <input
-                    id="mobile-username"
-                    type="text"
-                    value={authMode === 'login' ? loginForm.username : signupForm.username}
-                    onChange={(e) => authMode === 'login'
-                      ? setLoginForm({ ...loginForm, username: e.target.value })
-                      : setSignupForm({ ...signupForm, username: e.target.value })}
-                    className="monolith-input peer"
-                    placeholder=" "
-                    required
-                  />
-                  <label htmlFor="mobile-username" className="monolith-label">
-                    {authMode === 'login' ? 'Identity / Username' : 'Commander Identity'}
-                  </label>
-                  <div className="monolith-input-highlight" />
-                </div>
-
-                <div className="relative group">
-                  <input
-                    id="mobile-password"
-                    type={showPassword ? 'text' : 'password'}
-                    value={authMode === 'login' ? loginForm.password : signupForm.password}
-                    onChange={(e) => authMode === 'login'
-                      ? setLoginForm({ ...loginForm, password: e.target.value })
-                      : setSignupForm({ ...signupForm, password: e.target.value })}
-                    className="monolith-input peer pr-10"
-                    placeholder=" "
-                    required
-                  />
-                  <label htmlFor="mobile-password" className="monolith-label">Access Cipher</label>
-                  <div className="monolith-input-highlight" />
-                  
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-0 bottom-3 text-white/20 hover:text-gold transition-colors p-2"
-                    aria-label={showPassword ? 'Hide password' : 'Show password'}
-                  >
-                    {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
-                  </button>
-                </div>
-
-                <button type="submit" disabled={isAuthSubmitting} className="monolith-btn mt-8">
-                  {isAuthSubmitting ? <span className="login-spinner" /> : (authMode === 'login' ? 'Initiate Link' : 'Deploy System')}
-                </button>
-            </form>
-          </div>
+      <main className="min-h-screen bg-[#0a0a0b] text-white flex items-center justify-center relative overflow-hidden" role="main">
+        {/* Sleek, static CSS-only background (No high-CPU framer motion) */}
+        <div className="absolute inset-0 z-0">
+          <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(ellipse_at_top_left,_var(--tw-gradient-stops))] from-gold/10 via-[#0a0a0b] to-[#0a0a0b] opacity-60"></div>
+          <div className="absolute bottom-0 right-0 w-[800px] h-[800px] bg-gold/5 rounded-full blur-[120px] mix-blend-screen opacity-50"></div>
+          <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/stardust.png')] opacity-10"></div>
         </div>
 
-        {/* ── DESKTOP BENTO GRID ───────────────────────────────── */}
-        <div className="hidden lg:grid h-[calc(100vh-3rem)] grid-cols-12 grid-rows-12 gap-4 lg:gap-6 w-full max-w-[1800px] mx-auto">
-          
-          {/* Main Hero Panel (Left 8 columns) */}
-          <div className="col-span-8 row-span-12 relative rounded-[2rem] overflow-hidden bento-panel border border-white/5">
-            {/* Deep background for hero */}
-            <div className="absolute inset-0 bg-black">
-              {/* Aurora effect */}
-              <motion.div
-                animate={{ rotate: [0, 360], scale: [1, 1.1, 1] }}
-                transition={{ duration: 60, repeat: Infinity, ease: "linear" }}
-                className="absolute -top-[50%] -left-[50%] w-[200%] h-[200%] opacity-[0.15]"
-                style={{
-                  background: 'conic-gradient(from 90deg at 50% 50%, #000000 0%, rgba(212, 175, 55, 0.1) 25%, #000000 50%, rgba(184, 134, 11, 0.1) 75%, #000000 100%)',
-                  filter: 'blur(100px)'
-                }}
-              />
-              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] rounded-full bg-gold/5 blur-[120px]" />
-              {/* Floating dust */}
-              {particles.map(p => (
-                <motion.div
-                  key={p.id}
-                  animate={{ y: ['0vh', '-100vh'], opacity: [0, 0.6, 0], x: `${p.x + (Math.random() * 10 - 5)}vw` }}
-                  transition={{ duration: p.duration, repeat: Infinity, delay: p.delay, ease: "linear" }}
-                  className="absolute rounded-full bg-gold"
-                  style={{ left: `${p.x}vw`, top: `${p.y}vh`, width: p.size, height: p.size, boxShadow: '0 0 10px 1px rgba(212, 175, 55, 0.3)' }}
-                />
-              ))}
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,#000_100%)] opacity-80" />
+        {/* ── UNIFIED RESPONSIVE LOGIN CARD ───────────────────────────────── */}
+        <div className="relative z-10 w-full max-w-md px-6">
+          <div className="rounded-[2rem] border border-white/10 bg-black/40 backdrop-blur-xl shadow-[0_0_50px_rgba(212,175,55,0.05)] p-10 lg:p-12">
+            
+            {/* Header */}
+            <div className="flex flex-col items-center mb-10 text-center">
+              <div className="h-20 w-20 rounded-full overflow-hidden border border-gold/40 relative shadow-[0_0_20px_rgba(212,175,55,0.2)] mb-6">
+                <picture>
+                  <source type="image/webp" srcSet="/columbina-login-1x.webp 1x, /columbina-login.webp 2x" />
+                  <img src="/columbina-login.jpg" alt="Crest" className="w-full h-full object-cover" />
+                </picture>
+              </div>
+              <h1 className="text-3xl font-light tracking-[0.2em] uppercase text-white font-serif leading-none">
+                Bakery<span className="font-bold text-gold">OS</span>
+              </h1>
+              <p className="text-[10px] tracking-[0.4em] uppercase text-gold/60 mt-3 font-semibold">Enterprise Terminal</p>
             </div>
 
-            {/* Content overlay */}
-            <div className="relative z-10 h-full p-16 flex flex-col justify-between">
-              <div className="flex items-center gap-6">
-                <div className="h-16 w-16 rounded-full overflow-hidden border border-gold/40 relative monolith-badge shrink-0">
-                  <picture>
-                    <source type="image/webp" srcSet="/columbina-login-1x.webp 1x, /columbina-login.webp 2x" />
-                    <img src="/columbina-login.jpg" alt="Crest" className="w-full h-full object-cover" />
-                  </picture>
-                </div>
-                <div>
-                  <h1 className="text-4xl font-light tracking-[0.2em] uppercase text-white font-serif leading-none">
-                    Bakery<span className="font-bold text-gold">OS</span>
-                  </h1>
-                  <p className="text-[10px] tracking-[0.4em] uppercase text-white/40 mt-2">Enterprise Terminal</p>
-                </div>
-              </div>
 
-              <div className="max-w-2xl mt-auto">
-                <motion.p 
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.2, duration: 1 }}
-                  className="text-7xl font-bold luxury-font tracking-tighter leading-[0.9] text-white"
-                >
-                  The Intelligence <br/>
-                  Behind the <br/>
-                  <span className="text-transparent bg-clip-text bg-gradient-to-r from-gold via-[#ffd700] to-gold">Craft.</span>
-                </motion.p>
-                
-                {/* System Readouts to fill the empty space with an OS vibe */}
-                <motion.div 
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.6, duration: 1 }}
-                  className="mt-16 grid grid-cols-3 gap-8 border-t border-white/10 pt-8"
-                >
-                  <div>
-                    <div className="text-[9px] uppercase tracking-[0.2em] text-white/30 mb-2">Core Modules</div>
-                    <div className="text-sm font-light text-white/70 space-y-1">
-                      <div className="flex items-center gap-2"><div className="w-1 h-1 bg-gold rounded-full" /> Predictive Ordering</div>
-                      <div className="flex items-center gap-2"><div className="w-1 h-1 bg-gold rounded-full" /> Yield Analytics</div>
-                      <div className="flex items-center gap-2"><div className="w-1 h-1 bg-gold rounded-full" /> Multi-node POS</div>
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-[9px] uppercase tracking-[0.2em] text-white/30 mb-2">Network Status</div>
-                    <div className="text-sm font-light text-white/70 space-y-1">
-                      <div className="flex items-center gap-2"><div className="w-1 h-1 bg-green-500 rounded-full animate-pulse" /> Mainframe Active</div>
-                      <div className="flex items-center gap-2 text-white/40"><div className="w-1 h-1 bg-white/20 rounded-full" /> Encrypted AES-256</div>
-                      <div className="flex items-center gap-2 text-white/40"><div className="w-1 h-1 bg-white/20 rounded-full" /> Latency: 12ms</div>
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-[9px] uppercase tracking-[0.2em] text-white/30 mb-2">Authorization</div>
-                    <div className="text-sm font-light text-white/70">
-                      Biometric & Cipher keys required for Level 4 access.
-                    </div>
-                  </div>
-                </motion.div>
-              </div>
-            </div>
-          </div>
-
-          {/* Right Column (4 columns) - Login Panel */}
-          <div className="col-span-4 row-span-12 rounded-[2rem] overflow-hidden bento-panel border border-white/5 relative flex flex-col items-center justify-center p-10">
-            <div className="absolute inset-0 bg-white/[0.01]" />
-            {/* Form container */}
-            <div className="relative z-10 w-full max-w-[320px]">
-              
               {/* Mode Toggle */}
               <div className="flex w-full mb-10 border-b border-white/10">
                 <button
@@ -890,10 +748,9 @@ const Dashboard: React.FC = () => {
                 </div>
               </div>
 
-            </div>
           </div>
-
         </div>
+
       </main>
     );
   }
