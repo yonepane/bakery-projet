@@ -95,6 +95,7 @@ class Order(Base):
     deposit_paid = Column(Float, default=0)
     pickup_date = Column(DateTime)
     status = Column(String, default="pending") # Current order state.
+    notes = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
 class WasteRecord(Base):

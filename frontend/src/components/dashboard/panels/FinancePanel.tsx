@@ -6,7 +6,7 @@
  */
 import React, { useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { FileText, TrendingDown, TrendingUp, Briefcase, FileClock } from 'lucide-react';
+import { FileText, TrendingDown, TrendingUp, Briefcase, FileClock, Table } from 'lucide-react';
 import { DashboardSharedProps } from '../types';
 
 type Props = Pick<DashboardSharedProps,
@@ -110,11 +110,18 @@ const FinancePanel: React.FC<Props> = ({
           </div>
         </div>
 
-        <button
-          onClick={() => { const year = new Date().getFullYear(); const month = new Date().getMonth() + 1; const token = localStorage.getItem('bakery_token'); openDocument(`${API_BASE}/reports/monthly?month=${month}&year=${year}&format=pdf&token=${token}`, `monthly-report.pdf`); }}
-          className={`flex items-center gap-3 px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${isDarkMode ? 'bg-gold text-charcoal shadow-gold-glow' : 'bg-slate-900 text-white'}`}>
-          <FileText size={16} /> Export PDF
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => { const year = new Date().getFullYear(); const month = new Date().getMonth() + 1; const token = localStorage.getItem('bakery_token'); openDocument(`${API_BASE}/reports/monthly?month=${month}&year=${year}&format=pdf&token=${token}`, `monthly-report.pdf`); }}
+            className={`flex items-center gap-3 px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${isDarkMode ? 'bg-gold text-charcoal shadow-gold-glow' : 'bg-slate-900 text-white'}`}>
+            <FileText size={16} /> Export PDF
+          </button>
+          <button
+            onClick={() => { const year = new Date().getFullYear(); const month = new Date().getMonth() + 1; const token = localStorage.getItem('bakery_token'); openDocument(`${API_BASE}/reports/monthly?month=${month}&year=${year}&format=excel&token=${token}`, `monthly-report.xlsx`); }}
+            className={`flex items-center gap-3 px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${isDarkMode ? 'bg-emerald-500 text-white shadow-[0_0_15px_rgba(16,185,129,0.3)]' : 'bg-emerald-600 text-white'}`}>
+            <Table size={16} /> Export Excel
+          </button>
+        </div>
       </div>
 
       {/* Primary KPI Cards */}

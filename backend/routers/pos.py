@@ -20,6 +20,7 @@ try:
     from ..schemas import ProductionBatch, SaleRequest
     from ..services.core import calculate_product_cost, get_settings
     from ..services.pdf import build_monthly_report_pdf, build_receipt_pdf
+    from ..services.excel import build_monthly_report_excel
 except ImportError:
     import models
     from auth import get_current_user, get_effective_owner_id, requires_roles
@@ -27,6 +28,7 @@ except ImportError:
     from schemas import ProductionBatch, SaleRequest
     from services.core import calculate_product_cost, get_settings
     from services.pdf import build_monthly_report_pdf, build_receipt_pdf
+    from services.excel import build_monthly_report_excel
 
 router = APIRouter()
 
@@ -44,6 +46,15 @@ def _pdf_response(buffer, filename: str) -> Response:
         content=buffer.getvalue(),
         media_type="application/pdf",
         headers={"Content-Disposition": f'inline; filename="{filename}"'},
+    )
+
+
+def _excel_response(buffer, filename: str) -> Response:
+    """Return an Excel file response."""
+    return Response(
+        content=buffer.getvalue(),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 
@@ -320,6 +331,24 @@ async def get_monthly_report(
                 currency=currency,
             ),
             f"monthly-report-{year:04d}-{month:02d}.pdf",
+        )
+
+    if format.lower() == "excel":
+        return _excel_response(
+            build_monthly_report_excel(
+                start_date=start_date,
+                transactions=transactions,
+                expenses=expenses,
+                waste_records=waste_records,
+                total_revenue=total_revenue,
+                total_cogs=total_cogs,
+                total_waste=total_waste,
+                total_overhead=total_overhead,
+                net_profit=net_profit,
+                margin=margin,
+                currency=currency,
+            ),
+            f"monthly-report-{year:04d}-{month:02d}.xlsx",
         )
 
     # HTML fallback for browser-based printing.

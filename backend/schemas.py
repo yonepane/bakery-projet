@@ -119,6 +119,7 @@ class OrderCreate(BaseModel):
     items: List[SaleItem]
     deposit_paid: float = 0
     pickup_date: str
+    notes: Optional[str] = None
 
 
 class WasteCreate(BaseModel):

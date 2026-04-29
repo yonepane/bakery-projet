@@ -67,7 +67,7 @@ export interface DashboardSharedProps {
   // ─── Modals ───────────────────────────────────────────────────────────────
   setShowReceiptModal: (v: boolean) => void;
   setShowBookingModal: (v: boolean) => void;
-  bookingForm: { name: string; phone: string; date: string; source: 'pos' | 'ledger' };
+  bookingForm: { name: string; phone: string; date: string; source: 'pos' | 'ledger'; notes?: string };
   setBookingForm: (f: any) => void;
   setShowAddProduct: (v: boolean) => void;
   setShowAddMaterial: (v: boolean) => void;

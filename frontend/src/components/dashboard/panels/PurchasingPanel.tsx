@@ -86,8 +86,8 @@ const PurchasingPanel: React.FC<Props> = ({
               </button>
             </div>
           ) : (
-            <div className="py-20 flex flex-col items-center opacity-20">
-              <CheckCircle size={48} className="mb-4" />
+            <div className={`py-20 flex flex-col items-center rounded-3xl border border-dashed ${isDarkMode ? 'border-white/10 text-cream/40 bg-white/5' : 'border-slate-300 text-slate-500 bg-slate-100/50'}`}>
+              <CheckCircle size={48} className="mb-4 opacity-50" />
               <p className="font-black text-xs uppercase tracking-widest text-center">Stock Levels Optimal<br /><span className="text-[10px] lowercase font-bold tracking-normal opacity-60">No procurement suggested</span></p>
             </div>
           )}
@@ -98,7 +98,7 @@ const PurchasingPanel: React.FC<Props> = ({
       <div className="space-y-8">
         {/* Recent Orders */}
         <div className={`rounded-[2rem] border overflow-hidden transition-colors ${isDarkMode ? 'glass-panel' : 'bg-white border-slate-200 shadow-xl'}`}>
-          <div className="p-8 border-b border-white/5 flex justify-between items-center">
+          <div className={`p-8 border-b flex justify-between items-center ${isDarkMode ? 'border-white/5' : 'border-slate-100'}`}>
             <h3 className={`text-xl font-bold luxury-font uppercase ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Recent Orders</h3>
             <div className="flex items-center gap-3">
               <p className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-cream/30' : 'text-slate-400'}`}>{purchaseOrders.length} orders</p>
@@ -114,7 +114,7 @@ const PurchasingPanel: React.FC<Props> = ({
                     <p className="font-bold font-mono text-sm">{po.id}</p>
                   </div>
                   <div className="flex flex-col items-end gap-2">
-                    <span className={`text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full ${po.status === 'received' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-gold/10 text-gold'}`}>{po.status}</span>
+                    <span className={`text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full ${po.status === 'received' ? (isDarkMode ? 'bg-emerald-500/10 text-emerald-500' : 'bg-emerald-100 text-emerald-700') : (isDarkMode ? 'bg-gold/10 text-gold' : 'bg-amber-100 text-amber-700')}`}>{po.status}</span>
                     <button onClick={() => handleDeletePO(po.id)} className="p-1.5 rounded-lg text-rose-500/30 hover:text-rose-500 hover:bg-rose-500/10"><Trash2 size={14} /></button>
                   </div>
                 </div>
@@ -124,13 +124,13 @@ const PurchasingPanel: React.FC<Props> = ({
                 </div>
               </div>
             ))}
-            {purchaseOrders.filter(po => !po.archived).length === 0 && <div className="py-10 text-center opacity-20"><FileText size={32} className="mx-auto mb-4" /><p className="text-[10px] font-black uppercase tracking-widest">No Recent Orders</p></div>}
+            {purchaseOrders.filter(po => !po.archived).length === 0 && <div className={`py-10 text-center rounded-3xl border border-dashed ${isDarkMode ? 'border-white/10 text-cream/40 bg-white/5' : 'border-slate-300 text-slate-500 bg-slate-100/50'}`}><FileText size={32} className="mx-auto mb-4 opacity-50" /><p className="text-[10px] font-black uppercase tracking-widest">No Recent Orders</p></div>}
           </div>
         </div>
 
         {/* Suppliers */}
         <div className={`rounded-[2rem] border overflow-hidden transition-colors ${isDarkMode ? 'glass-panel' : 'bg-white border-slate-200 shadow-xl'}`}>
-          <div className="p-8 border-b border-white/5 flex justify-between items-center">
+          <div className={`p-8 border-b flex justify-between items-center ${isDarkMode ? 'border-white/5' : 'border-slate-100'}`}>
             <h3 className={`text-xl font-bold luxury-font uppercase ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Suppliers</h3>
             <button onClick={() => setShowAddSupplier(true)} className="text-gold p-2 hover:bg-gold/10 rounded-lg transition-all"><Plus size={16} /></button>
           </div>
@@ -139,7 +139,7 @@ const PurchasingPanel: React.FC<Props> = ({
               <div key={supp.id} className={`p-4 rounded-2xl border flex items-center justify-between gap-4 ${isDarkMode ? 'bg-white/5 border-white/5' : 'bg-slate-50 border-slate-100'}`}>
                 <div className="min-w-0">
                   <p className="font-bold text-sm truncate">{supp.name}</p>
-                  <p className={`text-[10px] opacity-40 uppercase tracking-widest font-black truncate ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>{supp.contact_info || 'No contact info'}</p>
+                  <p className={`text-[10px] uppercase tracking-widest font-black truncate ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>{supp.contact_info || 'No contact info'}</p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   <button onClick={() => { setEditingSupplier(supp); setNewSupplier({ name: supp.name || '', contact_info: supp.contact_info || '' }); setShowAddSupplier(true); }} className={`p-2 rounded-xl ${isDarkMode ? 'bg-white/5 hover:bg-white/10 text-gold' : 'bg-white hover:bg-slate-100 text-slate-700'}`}><Edit2 size={14} /></button>
@@ -147,7 +147,7 @@ const PurchasingPanel: React.FC<Props> = ({
                 </div>
               </div>
             ))}
-            {suppliers.length === 0 && <div className="py-10 text-center opacity-20"><Truck size={32} className="mx-auto mb-4" /><p className="text-[10px] font-black uppercase tracking-widest">No Registered Suppliers</p></div>}
+            {suppliers.length === 0 && <div className={`py-10 text-center rounded-3xl border border-dashed ${isDarkMode ? 'border-white/10 text-cream/40 bg-white/5' : 'border-slate-300 text-slate-500 bg-slate-100/50'}`}><Truck size={32} className="mx-auto mb-4 opacity-50" /><p className="text-[10px] font-black uppercase tracking-widest">No Registered Suppliers</p></div>}
           </div>
         </div>
       </div>

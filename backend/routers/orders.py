@@ -68,6 +68,7 @@ async def create_order(
         deposit_paid=order_data.deposit_paid,
         pickup_date=datetime.fromisoformat(order_data.pickup_date),
         status="pending",
+        notes=order_data.notes,
     )
     db.add(new_order)
     db.commit()

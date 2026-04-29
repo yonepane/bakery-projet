@@ -92,7 +92,7 @@ const POSPanel: React.FC<Props> = ({
               Complete Sale
             </button>
             <button
-              onClick={() => { setBookingForm({ ...bookingForm, source: 'pos', date: new Date(Date.now() + 86400000).toISOString().slice(0, 16) }); setShowBookingModal(true); }}
+              onClick={() => { setBookingForm({ ...bookingForm, source: 'pos', date: new Date(Date.now() + 86400000).toISOString().slice(0, 16), notes: '' }); setShowBookingModal(true); }}
               disabled={cart.length === 0}
               className={`p-6 rounded-2xl border transition-all ${isDarkMode ? 'border-white/10 bg-white/5 text-gold hover:bg-white/10' : 'border-slate-200 bg-white text-slate-900'}`}
               title="Save as Pre-Order">

@@ -40,7 +40,7 @@ const OrdersPanel: React.FC<Props> = ({
               )}
             </div>
           </div>
-          <button onClick={() => { setBookingForm({ name: '', phone: '', date: new Date(Date.now() + 86400000).toISOString().slice(0, 16), source: 'ledger' }); setShowBookingModal(true); }}
+          <button onClick={() => { setBookingForm({ name: '', phone: '', date: new Date(Date.now() + 86400000).toISOString().slice(0, 16), source: 'ledger', notes: '' }); setShowBookingModal(true); }}
             className={`px-8 py-4 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] transition-all active:scale-95 ${isDarkMode ? 'bg-gold text-charcoal shadow-gold-glow' : 'bg-slate-900 text-white shadow-xl'}`}>
             Create Booking
           </button>
@@ -77,6 +77,11 @@ const OrdersPanel: React.FC<Props> = ({
                             )}
                           </div>
                           <p className={`text-[10px] uppercase font-black tracking-widest ${isDarkMode ? 'text-gold' : 'text-slate-500'}`}>Order Ref: {order.id}</p>
+                          {order.notes && (
+                              <p className={`text-xs mt-2 italic ${isDarkMode ? 'text-cream/60' : 'text-slate-500'}`}>
+                                  " {order.notes} "
+                              </p>
+                          )}
                         </div>
                       </div>
                     </td>

@@ -112,7 +112,8 @@ const Dashboard: React.FC = () => {
       name: '',
       phone: '',
       date: getDefaultBookingDate(),
-      source: 'pos' as 'pos' | 'ledger'
+      source: 'pos' as 'pos' | 'ledger',
+      notes: ''
   });
 
   const [selectorConfig, setSelectorConfig] = useState<{
@@ -2373,7 +2374,7 @@ const Dashboard: React.FC = () => {
                                   setEditingSupplier(null);
                                   setNewSupplier({ name: '', contact_info: '' });
                               }}
-                              className="flex-1 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest border border-white/5 opacity-40 hover:opacity-100 transition-all"
+                              className={`flex-1 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest border opacity-40 hover:opacity-100 transition-all ${isDarkMode ? 'border-white/5' : 'border-slate-200'}`}
                           >
                               Cancel
                           </button>
@@ -2591,6 +2592,17 @@ const Dashboard: React.FC = () => {
                               value={bookingForm.phone}
                               onChange={e => setBookingForm({...bookingForm, phone: e.target.value})}
                               className={`w-full bg-transparent border-b py-3 outline-none font-bold ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`}
+                          />
+                      </div>
+
+                      <div>
+                          <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">Order Details / Notes</label>
+                          <textarea 
+                              placeholder="Custom cakes, text on cake, special instructions..."
+                              value={bookingForm.notes || ''}
+                              onChange={e => setBookingForm({...bookingForm, notes: e.target.value})}
+                              className={`w-full bg-transparent border-b py-3 outline-none font-bold resize-none ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`}
+                              rows={2}
                           />
                       </div>
 
