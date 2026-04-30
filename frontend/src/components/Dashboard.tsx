@@ -1330,7 +1330,7 @@ const Dashboard: React.FC = () => {
   );
 
   return (
-    <div dir={isRTL ? 'rtl' : 'ltr'} className={`flex min-h-screen selection:bg-gold/30 transition-colors duration-500 ${isDarkMode ? 'bg-[#0a0a0b] text-cream' : 'bg-[#f8f9fa] text-slate-900'} ${isRTL ? 'font-arabic' : 'font-sans'}`}>
+    <div dir={isRTL ? 'rtl' : 'ltr'} className={`flex min-h-screen w-full overflow-x-hidden selection:bg-gold/30 transition-colors duration-500 ${isDarkMode ? 'bg-[#0a0a0b] text-cream' : 'bg-[#f8f9fa] text-slate-900'} ${isRTL ? 'font-arabic' : 'font-sans'}`}>
       {/* Sidebar */}
       <motion.aside 
         initial={false}
@@ -1533,7 +1533,7 @@ const Dashboard: React.FC = () => {
       {/* Main Content */}
       <motion.main 
         animate={{ marginLeft: isSidebarCollapsed ? 112 : 320 }}
-        className={`flex-1 p-10 min-h-screen transition-colors duration-500 bg-transparent`}
+        className={`flex-1 p-10 min-h-screen min-w-0 transition-colors duration-500 bg-transparent`}
       >
         <header className="flex justify-between items-end mb-12">
           <div>
@@ -2395,7 +2395,7 @@ const Dashboard: React.FC = () => {
                   initial={{ y: 20, opacity: 0 }}
                   animate={{ y: 0, opacity: 1 }}
                   exit={{ y: 20, opacity: 0 }}
-                  className={`w-full max-w-4xl max-h-[90vh] overflow-hidden rounded-[2.5rem] border shadow-2xl ${isDarkMode ? 'bg-[#0a0a0b] border-white/10' : 'bg-white border-slate-200'}`}
+                  className={`w-full max-w-5xl max-h-[90vh] overflow-hidden rounded-[2.5rem] border shadow-2xl ${isDarkMode ? 'bg-[#0a0a0b] border-white/10' : 'bg-white border-slate-200'}`}
               >
                   <div className={`p-8 border-b flex items-start justify-between gap-4 ${isDarkMode ? 'border-white/10' : 'border-slate-200'}`}>
                       <div>
@@ -2463,12 +2463,12 @@ const Dashboard: React.FC = () => {
                               value={selectedPO.notes || ''}
                               onChange={(e) => setSelectedPO((prev: any) => ({ ...prev, notes: e.target.value }))}
                               placeholder="Delivery window, substitutions, vendor instructions..."
-                              className={`w-full resize-none rounded-2xl border px-4 py-4 outline-none text-sm ${isDarkMode ? 'bg-black/40 border-white/10 text-cream placeholder:text-cream/20' : 'bg-white border-slate-200 text-slate-900 placeholder:text-slate-400'}`}
+                              className={`w-full resize-none rounded-2xl border px-4 py-4 outline-none text-sm ${isDarkMode ? 'bg-white/5 border-white/10 focus:bg-white/10 text-cream placeholder:text-cream/20' : 'bg-white border-slate-200 text-slate-900 placeholder:text-slate-400'}`}
                           />
                       </div>
 
                       <div className={`rounded-3xl border overflow-hidden ${isDarkMode ? 'border-white/5 bg-white/5' : 'border-slate-200 bg-slate-50'}`}>
-                          <div className={`grid grid-cols-[minmax(0,1.6fr)_110px_110px_120px_120px] gap-4 px-5 py-4 text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-cream/40 border-b border-white/10' : 'text-slate-400 border-b border-slate-200'}`}>
+                          <div className={`grid grid-cols-[minmax(0,2fr)_100px_100px_160px_160px] gap-4 px-5 py-4 text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-cream/40 border-b border-white/10' : 'text-slate-400 border-b border-slate-200'}`}>
                               <span>Item</span>
                               <span>Ordered</span>
                               <span>Received</span>
@@ -2480,7 +2480,7 @@ const Dashboard: React.FC = () => {
                                   const remaining = Math.max(0, (Number(item.qty) || 0) - (Number(item.received_qty) || 0));
                                   const draft = poReceiveDraft[item.name] || { qty: 0, price: Number(item.price) || 0 };
                                   return (
-                                      <div key={`${item.name}-${idx}`} className="grid grid-cols-[minmax(0,1.6fr)_110px_110px_120px_120px] gap-4 px-5 py-4 items-center">
+                                      <div key={`${item.name}-${idx}`} className="grid grid-cols-[minmax(0,2fr)_100px_100px_160px_160px] gap-4 px-5 py-4 items-center">
                                           <div className="min-w-0">
                                               <p className={`font-bold text-sm truncate ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{item.name}</p>
                                               <p className={`text-[10px] font-black uppercase tracking-widest mt-1 ${remaining > 0 ? 'text-amber-500' : 'text-emerald-500'}`}>
@@ -2505,7 +2505,7 @@ const Dashboard: React.FC = () => {
                                                       }
                                                   }));
                                               }}
-                                              className={`w-full rounded-xl border px-3 py-2 outline-none text-sm font-bold ${isDarkMode ? 'bg-black/40 border-white/10 text-cream' : 'bg-white border-slate-200 text-slate-900'}`}
+                                              className={`w-full rounded-xl border px-3 py-2 outline-none text-sm font-bold ${isDarkMode ? 'bg-white/5 border-white/10 focus:bg-white/10 text-cream' : 'bg-white border-slate-200 text-slate-900'}`}
                                           />
                                           <input
                                               type="number"
@@ -2522,7 +2522,7 @@ const Dashboard: React.FC = () => {
                                                       }
                                                   }));
                                               }}
-                                              className={`w-full rounded-xl border px-3 py-2 outline-none text-sm font-bold ${isDarkMode ? 'bg-black/40 border-white/10 text-cream' : 'bg-white border-slate-200 text-slate-900'}`}
+                                              className={`w-full rounded-xl border px-3 py-2 outline-none text-sm font-bold ${isDarkMode ? 'bg-white/5 border-white/10 focus:bg-white/10 text-cream' : 'bg-white border-slate-200 text-slate-900'}`}
                                           />
                                       </div>
                                   );

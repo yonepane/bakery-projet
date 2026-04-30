@@ -86,8 +86,8 @@ const PurchasingPanel: React.FC<Props> = ({
               </button>
             </div>
           ) : (
-            <div className={`py-20 flex flex-col items-center rounded-3xl border border-dashed ${isDarkMode ? 'border-white/10 text-cream/40 bg-white/5' : 'border-slate-300 text-slate-500 bg-slate-100/50'}`}>
-              <CheckCircle size={48} className="mb-4 opacity-50" />
+            <div className="py-20 flex flex-col items-center opacity-20">
+              <CheckCircle size={48} className="mb-4" />
               <p className="font-black text-xs uppercase tracking-widest text-center">Stock Levels Optimal<br /><span className="text-[10px] lowercase font-bold tracking-normal opacity-60">No procurement suggested</span></p>
             </div>
           )}
@@ -124,7 +124,7 @@ const PurchasingPanel: React.FC<Props> = ({
                 </div>
               </div>
             ))}
-            {purchaseOrders.filter(po => !po.archived).length === 0 && <div className={`py-10 text-center rounded-3xl border border-dashed ${isDarkMode ? 'border-white/10 text-cream/40 bg-white/5' : 'border-slate-300 text-slate-500 bg-slate-100/50'}`}><FileText size={32} className="mx-auto mb-4 opacity-50" /><p className="text-[10px] font-black uppercase tracking-widest">No Recent Orders</p></div>}
+            {purchaseOrders.filter(po => !po.archived).length === 0 && <div className="py-10 text-center opacity-20"><FileText size={32} className="mx-auto mb-4" /><p className="text-[10px] font-black uppercase tracking-widest">No Recent Orders</p></div>}
           </div>
         </div>
 
@@ -147,7 +147,7 @@ const PurchasingPanel: React.FC<Props> = ({
                 </div>
               </div>
             ))}
-            {suppliers.length === 0 && <div className={`py-10 text-center rounded-3xl border border-dashed ${isDarkMode ? 'border-white/10 text-cream/40 bg-white/5' : 'border-slate-300 text-slate-500 bg-slate-100/50'}`}><Truck size={32} className="mx-auto mb-4 opacity-50" /><p className="text-[10px] font-black uppercase tracking-widest">No Registered Suppliers</p></div>}
+            {suppliers.length === 0 && <div className="py-10 text-center opacity-20"><Truck size={32} className="mx-auto mb-4" /><p className="text-[10px] font-black uppercase tracking-widest">No Registered Suppliers</p></div>}
           </div>
         </div>
       </div>

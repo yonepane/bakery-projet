@@ -59,21 +59,22 @@
   }
 
   .custom-scrollbar::-webkit-scrollbar {
-    width: 6px;
+    width: 12px;
   }
   .custom-scrollbar::-webkit-scrollbar-track {
-    background: transparent;
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 10px;
   }
   .custom-scrollbar::-webkit-scrollbar-thumb {
-    background: rgba(212, 175, 55, 0.2);
-    border-radius: 20px;
-    border: 2px solid transparent;
-    background-clip: content-box;
+    background: rgba(212, 175, 55, 0.4);
+    border-radius: 10px;
+    border: 3px solid transparent;
+    background-clip: padding-box;
   }
   .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    background: rgba(212, 175, 55, 0.5);
-    border: 1px solid transparent;
-    background-clip: content-box;
+    background: rgba(212, 175, 55, 0.8);
+    border: 3px solid transparent;
+    background-clip: padding-box;
   }
 
   .brand-title {
@@ -924,15 +925,18 @@
   }
 }
 
-body {
+html, body {
   margin: 0;
+  padding: 0;
+  width: 100%;
   min-height: 100vh;
-  background-color: theme('colors.charcoal.dark');
+  background-color: #0a0a0b;
   background-image: theme('backgroundImage.mesh-dark');
   background-attachment: fixed;
   color: theme('colors.slate.100');
   font-family: theme('fontFamily.sans');
   -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
 }
 
 /* Base custom classes to match the new luxury design */
