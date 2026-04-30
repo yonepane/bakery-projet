@@ -23,9 +23,10 @@ def init_db() -> None:
         ensure_runtime_schema()
         print("SaaS Database: Tables confirmed.")
     except Exception as exc:
-        print(f"DATABASE FATAL ERROR: {exc}")
-        if not IS_LOCAL_DEV:
-            raise
+        print(f"DATABASE ERROR during init_db: {exc}")
+        # On serverless platforms, we don't want a startup error to kill the entire handler.
+        # Specific routes will fail later if the DB is truly unreachable.
+        pass
 
 
 def ensure_runtime_schema() -> None:

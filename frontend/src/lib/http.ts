@@ -3,7 +3,8 @@ import axios from 'axios';
 // When the app runs locally, requests go straight to the FastAPI server.
 // When the app runs in production, requests use `/api` on the same domain.
 const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-const API_BASE = import.meta.env.VITE_API_URL || (isLocal ? 'http://localhost:8000/api' : '/api');
+const API_BASE = import.meta.env.VITE_API_URL || '/api';
+console.log('[API] Base URL configured as:', API_BASE);
 
 const http = axios.create({
   baseURL: API_BASE

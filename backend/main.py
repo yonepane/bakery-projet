@@ -148,6 +148,10 @@ app.include_router(pos_router)
 app.include_router(purchasing_router)
 app.include_router(shift_logs_router)
 
+@app.get("/api/health")
+async def health_check():
+    return {"status": "ok", "environment": os.getenv("VERCEL_ENV", "local")}
+
 # ---------------------------------------------------------------------------
 # Utility routes
 # ---------------------------------------------------------------------------
