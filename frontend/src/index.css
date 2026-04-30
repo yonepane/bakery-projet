@@ -58,6 +58,27 @@
     box-shadow: 0 0 15px rgba(212, 175, 55, 0.4);
   }
 
+  /* ── Modern thin gold scrollbar — applied globally ── */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(212, 175, 55, 0.35) transparent;
+  }
+  *::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  *::-webkit-scrollbar-thumb {
+    background: rgba(212, 175, 55, 0.35);
+    border-radius: 20px;
+  }
+  *::-webkit-scrollbar-thumb:hover {
+    background: rgba(212, 175, 55, 0.65);
+  }
+
+  /* .custom-scrollbar keeps the same style (explicit override for named elements) */
   .custom-scrollbar::-webkit-scrollbar {
     width: 4px;
   }
@@ -65,11 +86,11 @@
     background: transparent;
   }
   .custom-scrollbar::-webkit-scrollbar-thumb {
-    background: rgba(212, 175, 55, 0.3);
+    background: rgba(212, 175, 55, 0.35);
     border-radius: 20px;
   }
   .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    background: rgba(212, 175, 55, 0.6);
+    background: rgba(212, 175, 55, 0.65);
   }
 
   .brand-title {
