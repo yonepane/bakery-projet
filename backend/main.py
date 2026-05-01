@@ -40,7 +40,7 @@ try:
     from .routers.purchasing import router as purchasing_router
     from .routers.shift_logs import router as shift_logs_router
     from .routers.staff import router as staff_router
-    from .schemas import SettingsUpdate
+
     from .services.core import get_settings
 except ImportError:
     import models
@@ -63,7 +63,7 @@ except ImportError:
     from routers.purchasing import router as purchasing_router
     from routers.shift_logs import router as shift_logs_router
     from routers.staff import router as staff_router
-    from schemas import SettingsUpdate
+
     from services.core import get_settings
 
 

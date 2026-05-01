@@ -42,13 +42,20 @@ const FinancePanel: React.FC<Props> = ({
   const TAX_RATE = 1.20; // 20% standard TVA assumed
 
   const applyTaxMode = (val: number) => isHT ? val / TAX_RATE : val;
+  const noTaxKeywords = ['labor', 'payroll', 'salary', 'salaire', 'wage', 'rent', 'loyer', 'insurance', 'assurance', 'tax', 'impot', 'taxes'];
+  const applyExpenseTaxMode = (val: number, category: string) => {
+    const isNoTax = noTaxKeywords.some(kw => (category || '').toLowerCase().includes(kw));
+    return (isHT && !isNoTax) ? val / TAX_RATE : val;
+  };
 
   const totalWasteLossRaw = filteredWaste.reduce((a: number, w: any) => a + (w.loss_cost || 0), 0);
   const totalCOGSRaw = filteredSales.reduce((a: number, s: any) => a + (s.total_cost || 0), 0);
   
   const displayRevenue = applyTaxMode(monthlySales);
   const displayCOGS = applyTaxMode(totalCOGSRaw);
-  const displayExpenses = applyTaxMode(monthlyExpensesTotal);
+  const displayExpenses = filteredExpenses.reduce((sum: number, exp: any) => {
+    return sum + applyExpenseTaxMode(Number(exp.amount) || 0, exp.category || '');
+  }, 0);
   const displayWaste = applyTaxMode(totalWasteLossRaw);
   
   const displayNetProfit = displayRevenue - displayCOGS - displayWaste - displayExpenses;
@@ -60,9 +67,9 @@ const FinancePanel: React.FC<Props> = ({
   // Labor Costs Calculation
   const laborKeywords = ['labor', 'payroll', 'salary', 'salaire', 'wage'];
   const laborCostsRaw = filteredExpenses
-    .filter(exp => laborKeywords.some(kw => (exp.category || '').toLowerCase().includes(kw)))
-    .reduce((sum, exp) => sum + (Number(exp.amount) || 0), 0);
-  const displayLaborCosts = applyTaxMode(laborCostsRaw);
+    .filter((exp: any) => laborKeywords.some(kw => (exp.category || '').toLowerCase().includes(kw)))
+    .reduce((sum: number, exp: any) => sum + (Number(exp.amount) || 0), 0);
+  const displayLaborCosts = laborCostsRaw;
 
   // Accounts Receivable (Pending B2B Debt) from Orders
   const pendingDebtRaw = (orders || [])
@@ -199,11 +206,11 @@ const FinancePanel: React.FC<Props> = ({
           <h3 className={`text-xl font-bold luxury-font uppercase mb-6 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Expense Breakdown</h3>
           <div className="space-y-4">
             {expenseBreakdown.map(([cat, amount]) => (
-              <div key={cat} className="flex justify-between items-center">
-                <span className="text-[10px] font-black uppercase tracking-widest opacity-40">{cat}</span>
+              <div key={cat as string} className="flex justify-between items-center">
+                <span className="text-[10px] font-black uppercase tracking-widest opacity-40">{cat as string}</span>
                 <div className="flex items-center gap-3">
-                  <div className={`h-1 rounded-full bg-rose-500/40 transition-all`} style={{ width: `${monthlyExpensesTotal > 0 ? (amount / monthlyExpensesTotal * 120) : 0}px` }} />
-                  <span className="font-bold text-sm text-rose-400">-{formatPrice(applyTaxMode(amount))}</span>
+                  <div className={`h-1 rounded-full bg-rose-500/40 transition-all`} style={{ width: `${monthlyExpensesTotal > 0 ? ((amount as number) / monthlyExpensesTotal * 120) : 0}px` }} />
+                  <span className="font-bold text-sm text-rose-400">-{formatPrice(applyExpenseTaxMode(amount as number, cat as string))}</span>
                 </div>
               </div>
             ))}

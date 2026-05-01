@@ -31,9 +31,10 @@ const FichePanel: React.FC<Props> = ({
           // Real-time Margin Logic with Labor Cost Engine
           const materialCost = p.ingredients.reduce((sum, ing) => {
             const mat = inventory.materials[ing.name];
+            const factor = mat && ['kg', 'L', 'l'].includes(mat.unit) ? 1000 : 1;
             const basePrice = mat ? mat.price : 0;
             const inflationMult = 1 + ((simulatedInflations[ing.name] || 0) / 100);
-            return sum + ((ing.quantity / 1000) * basePrice * inflationMult);
+            return sum + ((ing.quantity / factor) * basePrice * inflationMult);
           }, 0) || p.live_cost || 0;
 
           // Labor cost: (prep_time + cook_time) / 60 * hourly_wage / yield_qty
@@ -58,8 +59,13 @@ const FichePanel: React.FC<Props> = ({
                     {isLowMargin && editMode && (
                       <button onClick={() => {
                         const sorted = [...p.ingredients].sort((a,b) => {
-                          const costA = (inventory.materials[a.name]?.price || 0) * (a.quantity/1000) * (1 + ((simulatedInflations[a.name] || 0) / 100));
-                          const costB = (inventory.materials[b.name]?.price || 0) * (b.quantity/1000) * (1 + ((simulatedInflations[b.name] || 0) / 100));
+                          const matA = inventory.materials[a.name];
+                          const factorA = matA && ['kg', 'L', 'l'].includes(matA.unit) ? 1000 : 1;
+                          const costA = (matA?.price || 0) * (a.quantity/factorA) * (1 + ((simulatedInflations[a.name] || 0) / 100));
+                          
+                          const matB = inventory.materials[b.name];
+                          const factorB = matB && ['kg', 'L', 'l'].includes(matB.unit) ? 1000 : 1;
+                          const costB = (matB?.price || 0) * (b.quantity/factorB) * (1 + ((simulatedInflations[b.name] || 0) / 100));
                           return costB - costA;
                         });
                         if (sorted.length > 0) {
@@ -103,7 +109,7 @@ const FichePanel: React.FC<Props> = ({
                       {ing.name}
                     </span>
                     <div className="flex items-center gap-3">
-                      <span className="font-bold opacity-60">{ing.quantity}g</span>
+                      <span className="font-bold opacity-60">{ing.quantity}{inventory.materials[ing.name] && ['kg', 'g'].includes(inventory.materials[ing.name].unit) ? 'g' : (inventory.materials[ing.name] && ['L', 'l', 'ml'].includes(inventory.materials[ing.name].unit) ? 'ml' : ' units')}</span>
                       {editMode && (
                         <button onClick={() => {
                           const newIngredients = p.ingredients.filter((_, i) => i !== idx);
@@ -122,7 +128,9 @@ const FichePanel: React.FC<Props> = ({
                   <select 
                     onChange={(e) => {
                       if (!e.target.value) return;
-                      const qty = prompt(`Enter quantity for ${e.target.value} in grams:`, "100");
+                      const mat = inventory.materials[e.target.value];
+                      const promptUnit = mat && ['kg', 'g'].includes(mat.unit) ? 'grams' : (mat && ['L', 'l', 'ml'].includes(mat.unit) ? 'ml' : 'units');
+                      const qty = prompt(`Enter quantity for ${e.target.value} in ${promptUnit}:`, "100");
                       if (qty && !isNaN(Number(qty))) {
                         const newIngredients = [...p.ingredients, { name: e.target.value, quantity: Number(qty) }];
                         handleUpdateProductField(p.id, 'ingredients', newIngredients);

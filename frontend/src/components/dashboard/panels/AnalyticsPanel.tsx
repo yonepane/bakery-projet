@@ -146,14 +146,16 @@ const AnalyticsPanel: React.FC<Props> = ({
               // 1. Calculate Old vs New Cost
               const oldCost = p.ingredients.reduce((sum, ing) => {
                 const mat = inventory.materials[ing.name];
-                return sum + ((ing.quantity / 1000) * (mat ? mat.price : 0));
+                const factor = mat && ['kg', 'L', 'l'].includes(mat.unit) ? 1000 : 1;
+                return sum + ((ing.quantity / factor) * (mat ? mat.price : 0));
               }, 0) || p.live_cost || 0;
 
               const newCost = p.ingredients.reduce((sum, ing) => {
                 const mat = inventory.materials[ing.name];
+                const factor = mat && ['kg', 'L', 'l'].includes(mat.unit) ? 1000 : 1;
                 const basePrice = mat ? mat.price : 0;
                 const inflationMult = 1 + ((simulatedInflations[ing.name] || 0) / 100);
-                return sum + ((ing.quantity / 1000) * basePrice * inflationMult);
+                return sum + ((ing.quantity / factor) * basePrice * inflationMult);
               }, 0) || p.live_cost || 0;
 
               const costDelta = newCost - oldCost;

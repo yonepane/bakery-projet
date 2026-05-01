@@ -46,9 +46,6 @@ class POReceive(BaseModel):
     items: List[POReceiveItem]
 
 
-class SettingsUpdate(BaseModel):
-    updates: Dict[str, str]
-
 
 class POCreate(BaseModel):
     supplier_id: int

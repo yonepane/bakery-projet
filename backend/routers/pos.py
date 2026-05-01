@@ -18,7 +18,7 @@ try:
     from ..auth import get_current_user, get_effective_owner_id, requires_roles
     from ..database import get_db
     from ..schemas import ProductionBatch, SaleRequest
-    from ..services.core import calculate_product_cost, get_settings
+    from ..services.core import calculate_product_cost
     from ..services.pdf import build_monthly_report_pdf, build_receipt_pdf
     from ..services.excel import build_monthly_report_excel
 except ImportError:
@@ -26,7 +26,7 @@ except ImportError:
     from auth import get_current_user, get_effective_owner_id, requires_roles
     from database import get_db
     from schemas import ProductionBatch, SaleRequest
-    from services.core import calculate_product_cost, get_settings
+    from services.core import calculate_product_cost
     from services.pdf import build_monthly_report_pdf, build_receipt_pdf
     from services.excel import build_monthly_report_excel
 
@@ -36,8 +36,11 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__fil
 DATA_DIR = os.path.join(BASE_DIR, "data")
 
 
-def _load_settings() -> dict:
-    return get_settings(DATA_DIR)
+def get_user_settings(db: sqlalchemy.orm.Session, owner_id: int) -> dict:
+    settings_records = db.query(models.SystemSetting).filter(models.SystemSetting.owner_id == owner_id).all()
+    if not settings_records:
+        return {"currency": "MAD", "tax_rate": 0.2, "bakery_name": "BakeryOS"}
+    return {s.key: s.value for s in settings_records}
 
 
 def _pdf_response(buffer, filename: str) -> Response:
@@ -82,7 +85,8 @@ async def produce(
             models.Ingredient.id == item.ingredient_id,
             models.Ingredient.owner_id == owner_id,
         ).first()
-        required = item.quantity * batch.quantity
+        factor = 1000.0 if ing and ing.unit in ['kg', 'L', 'l'] else 1.0
+        required = (item.quantity / factor) * batch.quantity
         if not ing or ing.stock < required:
             raise HTTPException(
                 status_code=400,
@@ -124,7 +128,7 @@ async def complete_sale(
     total_revenue = 0
     total_cost = 0
     items_snapshot = []
-    settings = _load_settings()
+    settings = get_user_settings(db, owner_id)
 
     for item in req.cart:
         product = db.query(models.Product).filter(
@@ -193,7 +197,7 @@ async def get_receipt(
     if not tx:
         raise HTTPException(status_code=404, detail="Transaction not found")
 
-    settings = _load_settings()
+    settings = get_user_settings(db, owner_id)
     currency = settings.get("currency", "MAD")
     # Use the tenant's bakery name so every receipt is personalised.
     bakery_name = settings.get("bakery_name", "BakeryOS")
@@ -312,7 +316,7 @@ async def get_monthly_report(
     net_profit = total_revenue - total_cogs - total_waste - total_overhead
     margin = (net_profit / total_revenue * 100) if total_revenue > 0 else 0
 
-    settings = _load_settings()
+    settings = get_user_settings(db, owner_id)
     currency = settings.get("currency", "MAD")
 
     if format.lower() == "pdf":

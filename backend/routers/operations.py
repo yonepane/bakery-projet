@@ -12,14 +12,14 @@ try:
     from .. import models
     from ..auth import get_effective_owner_id, requires_roles
     from ..database import get_db
-    from ..schemas import SettingsUpdate, WasteCreate
-    from ..services.core import calculate_product_cost, get_settings
+    from ..schemas import WasteCreate
+    from ..services.core import calculate_product_cost
 except ImportError:
     import models
     from auth import get_effective_owner_id, requires_roles
     from database import get_db
-    from schemas import SettingsUpdate, WasteCreate
-    from services.core import calculate_product_cost, get_settings
+    from schemas import WasteCreate
+    from services.core import calculate_product_cost
 
 router = APIRouter()
 
@@ -296,20 +296,20 @@ async def get_settings_api(
     return {setting.key: setting.value for setting in settings}
 
 
-@router.patch("/api/settings", dependencies=[Depends(requires_roles(["owner"]))])
+@router.put("/api/settings", dependencies=[Depends(requires_roles(["owner"]))])
 async def update_settings(
-    payload: SettingsUpdate,
+    payload: Dict,
     db: sqlalchemy.orm.Session = Depends(get_db),
     owner_id: int = Depends(get_effective_owner_id),
 ):
-    for key, value in payload.updates.items():
+    for key, value in payload.items():
         setting = db.query(models.SystemSetting).filter(
             models.SystemSetting.key == key,
             models.SystemSetting.owner_id == owner_id,
         ).first()
         if setting:
-            setting.value = value
+            setting.value = str(value)
         else:
-            db.add(models.SystemSetting(key=key, owner_id=owner_id, value=value))
+            db.add(models.SystemSetting(key=key, owner_id=owner_id, value=str(value)))
     db.commit()
     return {"success": True}

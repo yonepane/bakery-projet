@@ -10,12 +10,12 @@ try:
     from .. import models
     from ..auth import get_effective_owner_id, requires_roles
     from ..database import get_db
-    from ..services.core import calculate_product_cost, get_settings
+    from ..services.core import calculate_product_cost
 except ImportError:
     import models
     from auth import get_effective_owner_id, requires_roles
     from database import get_db
-    from services.core import calculate_product_cost, get_settings
+    from services.core import calculate_product_cost
 
 router = APIRouter()
 
@@ -23,8 +23,11 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__fil
 DATA_DIR = os.path.join(BASE_DIR, "data")
 
 
-def load_settings():
-    return get_settings(DATA_DIR)
+def get_user_settings(db: sqlalchemy.orm.Session, owner_id: int) -> dict:
+    settings_records = db.query(models.SystemSetting).filter(models.SystemSetting.owner_id == owner_id).all()
+    if not settings_records:
+        return {"currency": "MAD", "tax_rate": 0.2, "bakery_name": "BakeryOS"}
+    return {s.key: s.value for s in settings_records}
 
 
 @router.get("/api/analytics", dependencies=[Depends(requires_roles(["owner"]))])
@@ -34,7 +37,7 @@ async def analytics(
 ):
     transactions = db.query(models.Transaction).filter(models.Transaction.owner_id == owner_id).all()
     waste_records = db.query(models.WasteRecord).filter(models.WasteRecord.owner_id == owner_id).all()
-    settings_data = load_settings()
+    settings_data = get_user_settings(db, owner_id)
 
     reset_setting = db.query(models.SystemSetting).filter(
         models.SystemSetting.key == "last_reset_at",
@@ -188,11 +191,12 @@ async def simulate_price(
         old_cost = calculate_product_cost(product)
         new_cost = 0
         for item in product.recipe_items:
+            factor = 1000.0 if item.ingredient and item.ingredient.unit in ['kg', 'L', 'l'] else 1.0
             price = materials_update.get(
                 item.ingredient.name if item.ingredient else "",
                 item.ingredient.price if item.ingredient else 0,
             )
-            new_cost += item.quantity * price
+            new_cost += (item.quantity / factor) * price
 
         impact.append(
             {
