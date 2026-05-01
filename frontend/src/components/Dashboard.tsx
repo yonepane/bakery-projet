@@ -148,12 +148,22 @@ const Dashboard: React.FC = () => {
     }
     
     try {
+        const orderItems = bookingForm.source === 'pos' 
+            ? cart.map(i => ({id: i.id, qty: i.qty})) 
+            : (bookingForm.items || []);
+
+        if (orderItems.length === 0) {
+            addToast("Order must contain at least one product. Use POS to select items first.", "error");
+            return;
+        }
+
         await api.post('/orders', {
             customer_name: bookingForm.name,
             customer_phone: bookingForm.phone,
             pickup_date: bookingForm.date.replace(' ', 'T'),
-            items: bookingForm.source === 'pos' ? cart.map(i => ({id: i.id, qty: i.qty})) : [],
-            deposit_paid: 0
+            items: orderItems,
+            deposit_paid: 0,
+            notes: bookingForm.notes
         });
         
         if (bookingForm.source === 'pos') setCart([]);

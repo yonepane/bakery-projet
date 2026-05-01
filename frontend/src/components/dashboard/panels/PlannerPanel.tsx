@@ -5,12 +5,12 @@ import { DashboardSharedProps } from '../types';
 type Props = Pick<DashboardSharedProps,
   'isDarkMode' | 'inventory' | 'planner' | 'setPlanner' | 'formatPrice' |
   'isForecasting' | 'handleSmartForecast' | 'handleProduce' | 'displayUnit' |
-  'openSelector' | 'getDownloadToken' | 'API_BASE' | 'wasteRecords'>;
+  'openSelector' | 'getDownloadToken' | 'API_BASE' | 'wasteRecords' | 'api' | 'addToast'>;
 
 const PlannerPanel: React.FC<Props> = ({
   isDarkMode, inventory, planner, setPlanner, formatPrice,
   isForecasting, handleSmartForecast, handleProduce, displayUnit, openSelector, getDownloadToken, API_BASE,
-  wasteRecords,
+  wasteRecords, api, addToast,
 }) => {
   const resourceForecast = Object.entries(
     planner.filter(p => p.status === 'pending').reduce((acc, item) => {
@@ -35,6 +35,18 @@ const PlannerPanel: React.FC<Props> = ({
               className={`flex items-center gap-3 px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${isDarkMode ? 'bg-white/5 text-gold border border-white/10 hover:bg-gold hover:text-charcoal' : 'bg-slate-100 text-slate-900 border border-slate-200 hover:bg-slate-200 shadow-sm'}`}>
               <Zap size={16} className={isForecasting ? 'animate-pulse' : ''} />
               {isForecasting ? 'Analyzing...' : 'Smart Suggest'}
+            </button>
+            <button
+              onClick={async () => {
+                try {
+                  await api.post('/planner', planner);
+                  addToast("Plan Saved to Cloud", "success");
+                } catch (e) {
+                  addToast("Failed to save plan", "error");
+                }
+              }}
+              className={`flex items-center gap-3 px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${isDarkMode ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 hover:bg-emerald-500 hover:text-white' : 'bg-emerald-50 text-emerald-600 border border-emerald-100 hover:bg-emerald-100 shadow-sm'}`}>
+              Save Plan
             </button>
             <button
               onClick={() => openSelector({ title: 'Production Sheet', label: 'Sheet Date', value: new Date().toISOString().split('T')[0], type: 'date',
