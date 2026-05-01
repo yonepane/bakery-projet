@@ -41,7 +41,7 @@ try:
     from .routers.shift_logs import router as shift_logs_router
     from .routers.staff import router as staff_router
 
-    from .services.core import get_settings
+
 except ImportError:
     import models
     from database import get_db
@@ -64,7 +64,7 @@ except ImportError:
     from routers.shift_logs import router as shift_logs_router
     from routers.staff import router as staff_router
 
-    from services.core import get_settings
+
 
 
 # ---------------------------------------------------------------------------
