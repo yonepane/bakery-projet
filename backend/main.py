@@ -10,6 +10,14 @@ import secrets
 import sys
 from contextlib import asynccontextmanager
 
+# Load .env file early so SECRET_KEY and other env vars are available
+# before any module (auth.py) reads them via os.getenv().
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass  # python-dotenv not installed; rely on shell environment
+
 import sqlalchemy.orm
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware

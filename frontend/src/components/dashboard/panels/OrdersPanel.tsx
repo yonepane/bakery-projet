@@ -100,7 +100,7 @@ const OrdersPanel: React.FC<Props> = ({
                         <option value="pending" className={isDarkMode ? 'bg-[#0a0a0b] text-gold' : ''}>Pending</option>
                         <option value="baking" className={isDarkMode ? 'bg-[#0a0a0b] text-gold' : ''}>Baking</option>
                         <option value="ready" className={isDarkMode ? 'bg-[#0a0a0b] text-gold' : ''}>Ready</option>
-                        <option value="completed" className={isDarkMode ? 'bg-[#0a0a0b] text-gold' : ''}>Completed</option>
+                        <option value="picked_up" className={isDarkMode ? 'bg-[#0a0a0b] text-gold' : ''}>Picked Up</option>
                       </select>
                     </td>
                     <td className="px-8 py-6 text-right">

@@ -5,12 +5,12 @@ import { DashboardSharedProps } from '../types';
 type Props = Pick<DashboardSharedProps,
   'isDarkMode' | 'inventory' | 'planner' | 'setPlanner' | 'formatPrice' |
   'isForecasting' | 'handleSmartForecast' | 'handleProduce' | 'displayUnit' |
-  'openSelector' | 'getDownloadToken' | 'API_BASE' | 'wasteRecords' | 'api' | 'addToast'>;
+  'openSelector' | 'getDownloadToken' | 'API_BASE' | 'wasteRecords' | 'api' | 'addToast' | 'fetchData'>;
 
 const PlannerPanel: React.FC<Props> = ({
   isDarkMode, inventory, planner, setPlanner, formatPrice,
   isForecasting, handleSmartForecast, handleProduce, displayUnit, openSelector, getDownloadToken, API_BASE,
-  wasteRecords, api, addToast,
+  wasteRecords, api, addToast, fetchData,
 }) => {
   const resourceForecast = Object.entries(
     planner.filter(p => p.status === 'pending').reduce((acc, item) => {
@@ -41,6 +41,7 @@ const PlannerPanel: React.FC<Props> = ({
                 try {
                   await api.post('/planner', planner);
                   addToast("Plan Saved to Cloud", "success");
+                  fetchData();
                 } catch (e) {
                   addToast("Failed to save plan", "error");
                 }

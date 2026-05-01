@@ -33,6 +33,7 @@ PyJWT==2.12.1
 python-dateutil==2.9.0.post0
 python-jose==3.5.0
 python-multipart==0.0.26
+python-dotenv>=1.0.0
 requests==2.33.1
 reportlab==4.4.10
 rsa==4.9.1

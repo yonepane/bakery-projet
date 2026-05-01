@@ -2,6 +2,9 @@
 
 import logging
 import os
+import time
+from collections import defaultdict
+from threading import Lock
 
 import sqlalchemy.orm
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -40,6 +43,62 @@ router = APIRouter()
 limiter = Limiter(key_func=get_remote_address)
 
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
+
+# ---------------------------------------------------------------------------
+# Brute-force lockout (per username)
+# ---------------------------------------------------------------------------
+# After MAX_ATTEMPTS consecutive failures the account is locked for
+# LOCKOUT_SECONDS. A successful login resets the counter immediately.
+
+MAX_ATTEMPTS   = 7
+LOCKOUT_SECONDS = 15 * 60  # 15 minutes
+
+# { username_lower: {"count": int, "locked_until": float | None} }
+_login_attempts: dict = defaultdict(lambda: {"count": 0, "locked_until": None})
+_lock = Lock()
+
+
+def _check_lockout(username: str) -> None:
+    """Raise 429 if the account is currently locked out."""
+    key = username.lower()
+    with _lock:
+        record = _login_attempts[key]
+        locked_until = record["locked_until"]
+        if locked_until and time.time() < locked_until:
+            remaining = int(locked_until - time.time())
+            raise HTTPException(
+                status_code=429,
+                detail=(
+                    f"Account temporarily locked after {MAX_ATTEMPTS} failed attempts. "
+                    f"Try again in {remaining // 60}m {remaining % 60}s."
+                ),
+                headers={"Retry-After": str(remaining)},
+            )
+        # Lock has expired — reset so the user gets a fresh window
+        if locked_until and time.time() >= locked_until:
+            _login_attempts[key] = {"count": 0, "locked_until": None}
+
+
+def _record_failure(username: str) -> None:
+    """Increment failure counter; lock the account if MAX_ATTEMPTS reached."""
+    key = username.lower()
+    with _lock:
+        record = _login_attempts[key]
+        record["count"] += 1
+        if record["count"] >= MAX_ATTEMPTS:
+            record["locked_until"] = time.time() + LOCKOUT_SECONDS
+            logger.warning(
+                "🔒 Account '%s' locked after %d failed login attempts.",
+                username, record["count"],
+            )
+
+
+def _reset_counter(username: str) -> None:
+    """Clear the failure counter on a successful login."""
+    key = username.lower()
+    with _lock:
+        _login_attempts[key] = {"count": 0, "locked_until": None}
+
 
 # Optional: comma-separated list of allowed Google email domains.
 # Leave empty to allow any verified Google account (open registration).
@@ -135,15 +194,34 @@ async def signup(
 
 
 @router.post("/api/auth/login", response_model=Token)
-@limiter.limit("15/minute")
+@limiter.limit("20/minute")  # IP-level guard — second layer after per-user lockout
 async def login(
     request: Request,
     req: LoginRequest,
     db: sqlalchemy.orm.Session = Depends(get_db),
 ):
+    # 1. Check if this username is currently locked out BEFORE hitting the DB.
+    _check_lockout(req.username)
+
     user = db.query(models.User).filter(models.User.username == req.username).first()
     if not user or not verify_password(req.password, user.password):
-        raise HTTPException(status_code=401, detail="Invalid username or password")
+        # Record the failure regardless of whether the user exists
+        # (avoids leaking which usernames are registered).
+        _record_failure(req.username)
+        attempts_left = MAX_ATTEMPTS - _login_attempts[req.username.lower()]["count"]
+        if attempts_left > 0:
+            raise HTTPException(
+                status_code=401,
+                detail=f"Invalid username or password. {attempts_left} attempt(s) remaining before lockout.",
+            )
+        # Counter just hit MAX_ATTEMPTS — lockout was applied inside _record_failure.
+        raise HTTPException(
+            status_code=429,
+            detail=f"Account locked after {MAX_ATTEMPTS} failed attempts. Try again in {LOCKOUT_SECONDS // 60} minutes.",
+        )
+
+    # 2. Successful login — reset the failure counter.
+    _reset_counter(req.username)
 
     access_token = create_access_token(data={"sub": user.username})
     return {

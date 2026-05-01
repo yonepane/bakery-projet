@@ -20,7 +20,7 @@ except ImportError:
 router = APIRouter()
 
 # Allowed order status values — reject anything outside this set
-VALID_ORDER_STATUSES = {"pending", "baking", "ready", "completed", "cancelled"}
+VALID_ORDER_STATUSES = {"pending", "baking", "ready", "picked_up", "completed", "cancelled"}
 
 
 @router.get("/api/orders")
