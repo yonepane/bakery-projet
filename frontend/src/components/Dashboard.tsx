@@ -38,7 +38,8 @@ import {
   EyeOff,
   BarChart2,
   Users,
-  Clock
+  Clock,
+  Bell
 } from 'lucide-react';
 
 // axios is consumed internally by api.ts and http.ts — no direct import needed here.
@@ -106,6 +107,7 @@ const Dashboard: React.FC = () => {
   const isRTL = lang === 'ar';
   
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [showAlertsPopover, setShowAlertsPopover] = useState(false);
   const [isOperationsOpen, setIsOperationsOpen] = useState(false);
 
   // State used by the booking modal.
@@ -892,7 +894,8 @@ const Dashboard: React.FC = () => {
       fetchData();
       addToast("Sale Completed", "success");
     } catch (error: any) {
-      addToast("Sale Failed", "error");
+      const msg = error.response?.data?.detail || "Sale Failed";
+      addToast(msg, "error");
     }
   };
 
@@ -1387,7 +1390,6 @@ const Dashboard: React.FC = () => {
               { id: 'dashboard', icon: LayoutDashboard, label: t.dashboard },
               { id: 'intelligence', icon: Brain, label: 'Intelligence' },
               { id: 'pos', icon: ShoppingCart, label: t.pos },
-              { id: 'customers', icon: Users, label: 'Customers' },
               { id: 'kitchen', icon: ChefHat, label: t.kitchen },
               { id: 'inventory', icon: Package, label: t.inventory },
               { id: 'fiche', icon: FileText, label: t.fiche },
@@ -1445,6 +1447,7 @@ const Dashboard: React.FC = () => {
                                 { id: 'comptabilite', icon: Coins, label: t.comptabilite },
                                 { id: 'planner', icon: Calendar, label: t.planner },
                                 { id: 'orders', icon: FileText, label: t.orders },
+                                { id: 'customers', icon: Users, label: 'Customers' },
                                 { id: 'staff', icon: Settings, label: t.staff },
                             ].filter(sub => {
                                 if (sub.id === 'staff' && user?.role !== 'owner') return false;
@@ -1602,6 +1605,60 @@ const Dashboard: React.FC = () => {
                 </p>
               </div>
               <div className={`w-3 h-3 rounded-full ${isOnline ? 'bg-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.8)]' : 'bg-rose-500 shadow-[0_0_15px_rgba(244,63,94,0.8)] animate-pulse'}`} />
+            </div>
+
+            {/* Notifications Bell */}
+            <div className="relative">
+              <button 
+                onClick={() => setShowAlertsPopover(!showAlertsPopover)}
+                className={`p-3 rounded-2xl border transition-all relative ${isDarkMode ? 'glass-panel hover:bg-white/5 border-gold/10 text-gold' : 'border-slate-200 bg-white shadow-sm text-slate-600 hover:bg-slate-50'}`}
+              >
+                <Bell size={20} />
+                {alerts.length > 0 && (
+                  <span className="absolute top-2 right-2 w-4 h-4 bg-rose-500 text-white text-[8px] font-black flex items-center justify-center rounded-full border-2 border-[#0a0a0b] animate-pulse">
+                    {alerts.length}
+                  </span>
+                )}
+              </button>
+
+              <AnimatePresence>
+                {showAlertsPopover && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                    className={`absolute right-0 mt-4 w-80 rounded-3xl border shadow-2xl z-[150] overflow-hidden ${isDarkMode ? 'bg-[#0a0a0b] border-white/10' : 'bg-white border-slate-200'}`}
+                  >
+                    <div className={`p-6 border-b ${isDarkMode ? 'border-white/5' : 'border-slate-100'}`}>
+                      <h4 className={`text-xs font-black uppercase tracking-widest ${isDarkMode ? 'text-gold' : 'text-slate-900'}`}>Live Alerts</h4>
+                    </div>
+                    <div className="max-h-[400px] overflow-y-auto custom-scrollbar">
+                      {alerts.length === 0 ? (
+                        <div className="p-10 text-center">
+                          <CheckCircle className="mx-auto mb-4 opacity-20" size={32} />
+                          <p className={`text-[10px] font-bold uppercase tracking-widest ${isDarkMode ? 'text-cream/30' : 'text-slate-400'}`}>System clear</p>
+                        </div>
+                      ) : (
+                        <div className="divide-y divide-white/5">
+                          {alerts.map(alert => (
+                            <div key={alert.id} className="p-5 hover:bg-white/5 transition-colors group">
+                              <div className="flex gap-4">
+                                <div className={`shrink-0 w-8 h-8 rounded-xl flex items-center justify-center ${alert.severity === 'high' ? 'bg-rose-500/10 text-rose-500' : 'bg-gold/10 text-gold'}`}>
+                                  <AlertTriangle size={16} />
+                                </div>
+                                <div>
+                                  <p className={`text-[10px] font-black uppercase tracking-widest mb-1 ${alert.severity === 'high' ? 'text-rose-400' : 'text-gold/60'}`}>{alert.type}</p>
+                                  <p className={`text-xs font-bold leading-relaxed ${isDarkMode ? 'text-cream' : 'text-slate-900'}`}>{alert.message}</p>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
 
             {user?.role === 'owner' && (

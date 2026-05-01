@@ -163,14 +163,15 @@ async def complete_sale(
         total_revenue=total_revenue,
         total_cost=total_cost,
         items=items_snapshot,
-        customer_id=req.customer_id,
+        customer_id=req.customer_id if req.customer_id and req.customer_id.strip() else None,
     )
     db.add(transaction)
     
     # Award loyalty points (1 point per 1 unit of currency spent)
-    if req.customer_id:
+    cid = req.customer_id
+    if cid and cid.strip():
         customer = db.query(models.Customer).filter(
-            models.Customer.id == req.customer_id,
+            models.Customer.id == cid,
             models.Customer.owner_id == owner_id,
         ).first()
         if customer:

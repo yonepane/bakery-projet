@@ -17,6 +17,7 @@ export class BakeryDatabase extends Dexie {
   planner!: Table<any>;
   settings!: Table<any>;
   alerts!: Table<any>;
+  customers!: Table<any>;
   syncQueue!: Table<SyncOperation>;
 
   constructor() {
@@ -31,6 +32,7 @@ export class BakeryDatabase extends Dexie {
       planner: 'id',
       settings: 'id',
       alerts: 'id',
+      customers: 'id',
       syncQueue: '++id, endpoint, timestamp'
     });
   }

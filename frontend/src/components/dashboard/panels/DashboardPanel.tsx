@@ -29,7 +29,6 @@ type Props = Pick<
   | 'isSavingGeneralNote'
   | 'handleSaveGeneralNote'
   | 'handleDeleteShiftLog'
-  | 'alerts'
   | 'openDocument'
   | 'getDownloadToken'
   | 'handleResetSession'
@@ -46,7 +45,6 @@ const DashboardPanel: React.FC<Props> = ({
   isSavingGeneralNote,
   handleSaveGeneralNote,
   handleDeleteShiftLog,
-  alerts,
   openDocument,
   getDownloadToken,
   handleResetSession,
@@ -167,40 +165,6 @@ const DashboardPanel: React.FC<Props> = ({
           </div>
         </div>
 
-        {/* Live Alerts */}
-        <div className={`p-8 rounded-[2.5rem] border transition-colors ${isDarkMode ? 'glass-panel shadow-gold-glow border-gold/10' : 'bg-white border-slate-200 shadow-xl'}`}>
-          <h3 className={`text-xl font-bold luxury-font uppercase mb-8 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Live Alerts</h3>
-          <div className="space-y-4">
-            {alerts.map((alert) => (
-              <motion.div
-                key={alert.id}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className={`p-5 rounded-3xl border flex items-center justify-between group transition-all ${
-                  alert.severity === 'high'
-                    ? (isDarkMode ? 'bg-rose-500/10 border-rose-500/20 text-rose-500 shadow-[0_0_20px_rgba(244,63,94,0.1)]' : 'bg-rose-50 border-rose-100 text-rose-600')
-                    : (isDarkMode ? 'bg-gold/10 border-gold/20 text-gold shadow-[0_0_20px_rgba(212,175,55,0.1)]' : 'bg-amber-50 border-amber-100 text-amber-700')
-                }`}
-              >
-                <div className="flex items-center gap-4">
-                  <div className={`p-3 rounded-2xl ${alert.severity === 'high' ? 'bg-rose-500/20' : 'bg-gold/20'}`}>
-                    <AlertTriangle size={20} className={alert.severity === 'high' ? 'animate-pulse' : ''} />
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-40 mb-1">{alert.type} Alert</p>
-                    <p className="text-sm font-bold tracking-tight">{alert.message}</p>
-                  </div>
-                </div>
-                <ChevronRight size={16} className="opacity-0 group-hover:opacity-40 transition-opacity" />
-              </motion.div>
-            ))}
-            {alerts.length === 0 && (
-              <div className="py-20 opacity-10 flex flex-col items-center">
-                <Zap size={48} />
-                <p className="mt-4 font-bold uppercase tracking-widest text-[10px]">System Nominal</p>
-              </div>
-            )}
-          </div>
         </div>
       </div>
     </div>
