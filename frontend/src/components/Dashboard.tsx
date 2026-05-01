@@ -639,9 +639,9 @@ const Dashboard: React.FC = () => {
 
   if (!user) {
     return (
-      <main className="min-h-screen bg-[#060606] text-white overflow-hidden font-sans" role="main">
+      <main className="min-h-screen min-h-[100dvh] w-full bg-[#060606] text-white overflow-hidden font-sans" role="main">
         {/* Mobile View (Hidden on Desktop) */}
-        <div className="lg:hidden flex flex-col items-center justify-center min-h-screen p-6 relative">
+        <div className="lg:hidden flex w-full flex-col items-center justify-center min-h-screen min-h-[100dvh] p-6 relative">
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-gold/10 via-[#060606] to-[#060606] opacity-60"></div>
           <div className="relative z-10 w-full max-w-sm rounded-[2rem] border border-white/10 bg-black/60 backdrop-blur-xl p-8">
             <div className="flex flex-col items-center mb-10 text-center">
@@ -673,7 +673,7 @@ const Dashboard: React.FC = () => {
         </div>
 
         {/* Desktop PC View (Hidden on Mobile) */}
-        <div className="hidden lg:grid h-screen grid-cols-12 grid-rows-1 p-6 gap-6 w-full max-w-[1920px] mx-auto">
+        <div className="hidden lg:grid min-h-screen min-h-[100dvh] w-full grid-cols-12 grid-rows-1 p-6 gap-6">
           
           {/* Left Column: Hero Panel */}
           <div className="col-span-8 relative rounded-[2rem] overflow-hidden border border-white/10 bg-[#0a0a0b] shadow-2xl flex flex-col justify-between p-16">
