@@ -167,7 +167,6 @@ const DashboardPanel: React.FC<Props> = ({
 
         </div>
       </div>
-    </div>
   );
 };
 
