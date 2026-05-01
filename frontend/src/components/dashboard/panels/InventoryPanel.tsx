@@ -27,12 +27,12 @@ const InventoryPanel: React.FC<Props> = ({
             <tr className={`border-b text-[10px] font-black uppercase tracking-[0.2em] ${isDarkMode ? 'border-white/5 text-cream/40' : 'border-slate-100 text-slate-400'}`}>
               <th className="px-8 py-6">Entity</th>
               <th className="px-8 py-6">Stock</th>
-              <th className="px-8 py-6 text-right">Margin</th>
+              <th className="px-8 py-6 text-right">Price & Value</th>
             </tr>
           </thead>
           <tbody className={`divide-y ${isDarkMode ? 'divide-white/5' : 'divide-slate-100'}`}>
             {inventory.products.map(p => {
-              const margin = p.price > 0 ? ((p.price - (p.live_cost || 0)) / p.price * 100) : 0;
+              const totalValue = p.stock * p.price;
               return (
                 <tr key={p.id} className="group hover:bg-white/[0.02] transition-colors">
                   <td className="px-8 py-6">
@@ -51,16 +51,16 @@ const InventoryPanel: React.FC<Props> = ({
                     </div>
                   </td>
                   <td className="px-8 py-6 text-right">
-                    <div className="flex flex-col items-end gap-1">
-                      <div className="flex items-center gap-2">
+                    <div className="flex flex-col items-end gap-2">
+                      <div className="flex items-center gap-3">
                         <span className={`text-sm font-bold ${isDarkMode ? 'text-gold' : 'text-slate-900'}`}>{formatPrice(p.price)}</span>
                         {editMode && (
-                          <button onClick={() => openSelector({ title: 'Update Price', label: 'New Selling Price', value: p.price.toString(), type: 'text', onConfirm: (val) => handleUpdateProductPrice(p.id, parseFloat(val)) })} className="text-gold/40 hover:text-gold transition-colors">
-                            <Edit2 size={12} />
+                          <button onClick={() => openSelector({ title: 'Update Price', label: 'New Selling Price', value: p.price.toString(), type: 'text', onConfirm: (val) => handleUpdateProductPrice(p.id, parseFloat(val)) })} className="text-[8px] font-black uppercase tracking-widest px-2 py-1 rounded bg-gold/10 text-gold hover:bg-gold hover:text-black transition-all">
+                            Edit
                           </button>
                         )}
                       </div>
-                      <span className={`text-[10px] font-bold ${margin > 30 ? 'text-emerald-500' : 'text-rose-500'}`}>{margin.toFixed(1)}% Margin</span>
+                      <span className={`text-[9px] uppercase tracking-widest font-bold ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>Total Value: <span className={isDarkMode ? 'text-cream' : 'text-slate-900'}>{formatPrice(totalValue)}</span></span>
                     </div>
                   </td>
                 </tr>

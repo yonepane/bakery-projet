@@ -42,7 +42,7 @@ const FinancePanel: React.FC<Props> = ({
   const TAX_RATE = 1.20; // 20% standard TVA assumed
 
   const applyTaxMode = (val: number) => isHT ? val / TAX_RATE : val;
-  const noTaxKeywords = ['labor', 'payroll', 'salary', 'salaire', 'wage', 'rent', 'loyer', 'insurance', 'assurance', 'tax', 'impot', 'taxes'];
+  const noTaxKeywords = ['labor', 'payroll', 'salary', 'salaire', 'wage', 'rent', 'loyer', 'insurance', 'assurance', 'tax', 'impot', 'taxes', 'other', 'others', 'autre', 'autres'];
   const applyExpenseTaxMode = (val: number, category: string) => {
     const isNoTax = noTaxKeywords.some(kw => (category || '').toLowerCase().includes(kw));
     return (isHT && !isNoTax) ? val / TAX_RATE : val;
