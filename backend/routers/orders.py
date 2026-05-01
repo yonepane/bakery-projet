@@ -66,6 +66,7 @@ async def create_order(
         owner_id=owner_id,
         customer_name=order_data.customer_name,
         customer_phone=order_data.customer_phone,
+        customer_id=order_data.customer_id,
         items=items_snapshot,
         total_price=total_price,
         deposit_paid=order_data.deposit_paid,

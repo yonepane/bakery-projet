@@ -163,8 +163,19 @@ async def complete_sale(
         total_revenue=total_revenue,
         total_cost=total_cost,
         items=items_snapshot,
+        customer_id=req.customer_id,
     )
     db.add(transaction)
+    
+    # Award loyalty points (1 point per 1 unit of currency spent)
+    if req.customer_id:
+        customer = db.query(models.Customer).filter(
+            models.Customer.id == req.customer_id,
+            models.Customer.owner_id == owner_id,
+        ).first()
+        if customer:
+            customer.points += int(total_revenue)
+
     db.commit()
 
     # Build a WhatsApp-friendly text receipt the frontend can share directly.

@@ -1,18 +1,19 @@
 import React, { useState } from 'react';
-import { Calendar, Plus, Trash2, Lock, X, CheckCircle } from 'lucide-react';
+import { Calendar, Plus, Trash2, Lock, X, CheckCircle, Users } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { DashboardSharedProps } from '../types';
 
 type Props = Pick<DashboardSharedProps,
   'isDarkMode' | 'inventory' | 'cart' | 'setCart' | 'addToCart' | 'finalizeSale' |
   'formatPrice' | 'lastTransaction' | 'setShowReceiptModal' | 'setShowBookingModal' |
-  'setBookingForm' | 'bookingForm' | 'API_BASE' | 'history' | 'api' | 'fetchData' | 'user'>;
+  'setBookingForm' | 'bookingForm' | 'API_BASE' | 'history' | 'api' | 'fetchData' | 'user' | 'customers'>;
 
 const POSPanel: React.FC<Props> = ({
   isDarkMode, inventory, cart, setCart, addToCart, finalizeSale, formatPrice,
   lastTransaction, setShowReceiptModal, setShowBookingModal, setBookingForm, bookingForm, API_BASE,
-  history, api, fetchData, user
+  history, api, fetchData, user, customers
 }) => {
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
   const [showCloseShift, setShowCloseShift] = useState(false);
   const [countedCash, setCountedCash] = useState<string>('');
   const [shiftClosed, setShiftClosed] = useState(false);
@@ -86,8 +87,28 @@ const POSPanel: React.FC<Props> = ({
               {formatPrice(cart.reduce((a, c) => a + (c.price * c.qty), 0)).split(' ')[0]}
             </span>
           </div>
+          
+          {/* Customer Selection for Loyalty Points */}
+          <div className="mb-6 relative">
+            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+              <Users size={16} className={isDarkMode ? 'text-gold' : 'text-slate-400'} />
+            </div>
+            <select
+              value={selectedCustomerId}
+              onChange={(e) => setSelectedCustomerId(e.target.value)}
+              className={`w-full pl-12 pr-4 py-3 rounded-2xl border appearance-none outline-none font-bold text-sm transition-all ${isDarkMode ? 'bg-black/50 border-white/10 text-cream focus:border-gold/40' : 'bg-white border-slate-200 text-slate-900 focus:border-slate-400'}`}
+            >
+              <option value="" className={isDarkMode ? 'bg-[#0a0a0b] text-cream/50' : 'text-slate-500'}>Walk-in Customer</option>
+              {customers.map(c => (
+                <option key={c.id} value={c.id} className={isDarkMode ? 'bg-[#0a0a0b] text-gold' : 'text-slate-900'}>
+                  {c.name} ({c.points} pts)
+                </option>
+              ))}
+            </select>
+          </div>
+
           <div className="flex gap-4">
-            <button onClick={finalizeSale} disabled={cart.length === 0}
+            <button onClick={() => finalizeSale(selectedCustomerId || null)} disabled={cart.length === 0}
               className={`flex-1 py-6 font-black rounded-2xl uppercase tracking-widest active:scale-95 transition-all ${isDarkMode ? 'bg-gold text-charcoal shadow-gold-glow' : 'bg-slate-900 text-white shadow-xl'}`}>
               Complete Sale
             </button>

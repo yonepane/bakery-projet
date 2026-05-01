@@ -24,6 +24,7 @@ export interface DashboardSharedProps {
   // ─── Data ─────────────────────────────────────────────────────────────────
   inventory: { materials: Record<string, Ingredient>; products: Product[] };
   analytics: Analytics;
+  customers: Customer[];
   history: Transaction[];
   planner: PlanItem[];
   orders: any[];
@@ -61,7 +62,7 @@ export interface DashboardSharedProps {
   cart: CartItem[];
   setCart: (cart: CartItem[]) => void;
   addToCart: (product: Product) => void;
-  finalizeSale: () => void;
+  finalizeSale: (customerId?: string | null) => void;
   lastTransaction: any;
 
   // ─── Modals ───────────────────────────────────────────────────────────────
@@ -243,4 +244,13 @@ export interface Analytics {
     average_margin: string;
     products_count: number;
   };
+}
+
+export interface Customer {
+  id: string;
+  name: string;
+  phone?: string;
+  email?: string;
+  points: number;
+  created_at: string;
 }

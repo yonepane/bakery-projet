@@ -59,6 +59,7 @@ import {
   Toast,
   Transaction,
   UserSession,
+  Customer,
 } from './dashboard/types';
 // PERF: Lazy load all panels so code for hidden tabs is not downloaded/parsed on mount.
 // This directly addresses the "Reduce unused JavaScript" audit (~250KB savings).
@@ -77,6 +78,7 @@ const SettingsPanel = React.lazy(() => import('./dashboard/panels/SettingsPanel'
 const StaffPanel = React.lazy(() => import('./dashboard/panels/StaffPanel'));
 const IntelligencePanel = React.lazy(() => import('./dashboard/panels/IntelligencePanel'));
 const KitchenPanel = React.lazy(() => import('./dashboard/panels/KitchenPanel'));
+const CustomersPanel = React.lazy(() => import('./dashboard/panels/CustomersPanel'));
 import { DashboardSharedProps } from './dashboard/types';
 
 import {
@@ -279,6 +281,7 @@ const Dashboard: React.FC = () => {
   const [selectedSupplierId, setSelectedSupplierId] = useState<number | null>(null);
   const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
   const [shiftLogs, setShiftLogs] = useState<any[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
   const [expenses, setExpenses] = useState<any[]>([]);
   const [wasteRecords, setWasteRecords] = useState<any[]>([]);
   const [staff, setStaff] = useState<any[]>([]);
@@ -445,7 +448,7 @@ const Dashboard: React.FC = () => {
       };
 
       // Load the main dashboard data in parallel for better speed.
-      const [invData, anaData, aleData, histData, planData, settData, ordData, purData, suppData, posData, expData, staffData, profData, wasteData, logData] = await Promise.all([
+      const [invData, anaData, aleData, histData, planData, settData, ordData, purData, suppData, posData, expData, staffData, profData, wasteData, logData, custData] = await Promise.all([
         safeGet('/inventory'),
         isOwner ? safeGet('/analytics') : Promise.resolve({ ...analytics }),
         safeGet('/alerts', []),
@@ -460,7 +463,8 @@ const Dashboard: React.FC = () => {
         isOwner ? safeGet('/staff', []) : Promise.resolve([]),
         isOwner ? safeGet('/intelligence/profit-report', []) : Promise.resolve([]),
         isOwner ? safeGet('/waste', []) : Promise.resolve([]),
-        safeGet('/shift-logs', [])
+        safeGet('/shift-logs', []),
+        safeGet('/customers', [])
       ]);
       console.log("Data sync completed");
       if (invData) {
@@ -503,6 +507,7 @@ const Dashboard: React.FC = () => {
       if (profData) setProfitReport(profData);
       if (wasteData) setWasteRecords(wasteData);
       if (logData) setShiftLogs(logData);
+      if (custData) setCustomers(custData);
       
       if (invData && invData.materials) {
         // Fill the simulator with the latest saved ingredient prices.
@@ -874,11 +879,14 @@ const Dashboard: React.FC = () => {
     });
   };
 
-  const finalizeSale = async () => {
+  const finalizeSale = async (customerId?: string | null) => {
     // Completing a sale creates a transaction in the backend and empties the cart.
     if (cart.length === 0) return;
     try {
-      const data = await api.post('/complete', { cart: cart.map(item => ({ id: item.id, qty: item.qty })) });
+      const data = await api.post('/complete', { 
+        cart: cart.map(item => ({ id: item.id, qty: item.qty })),
+        customer_id: customerId || undefined
+      });
       setLastTransaction(data);
       setCart([]);
       fetchData();
@@ -1304,7 +1312,7 @@ const Dashboard: React.FC = () => {
     editMode, setEditMode, t, lang, setLang,
     inventory, analytics, history, planner, orders, expenses, suppliers,
     purchaseOrders, purchasingSuggestions, selectedSupplierId, setSelectedSupplierId,
-    staff, shiftLogs, alerts, profitReport, wasteRecords,
+    staff, shiftLogs, alerts, profitReport, wasteRecords, customers,
     accountingRange, setAccountingRange, monthStart, monthEnd,
     accountingFeed, draftPurchaseCommitment, expenseBreakdown,
     filteredExpenses, filteredPurchaseOrders, filteredSales, filteredWaste,
@@ -1347,7 +1355,7 @@ const Dashboard: React.FC = () => {
   );
 
   return (
-    <div dir={isRTL ? 'rtl' : 'ltr'} className={`flex min-h-screen w-full overflow-x-hidden selection:bg-gold/30 transition-colors duration-500 ${isDarkMode ? 'bg-[#0a0a0b] text-cream' : 'bg-[#f8f9fa] text-slate-900'} ${isRTL ? 'font-arabic' : 'font-sans'}`}>
+    <div dir={isRTL ? 'rtl' : 'ltr'} className={`flex min-h-screen w-full overflow-x-hidden selection:bg-gold/30 transition-colors duration-500 ${isDarkMode ? 'dark bg-[#0a0a0b] text-cream' : 'light bg-[#f8f9fa] text-slate-900'} ${isRTL ? 'font-arabic' : 'font-sans'}`}>
       {/* Sidebar */}
       <motion.aside 
         initial={false}
@@ -1379,6 +1387,7 @@ const Dashboard: React.FC = () => {
               { id: 'dashboard', icon: LayoutDashboard, label: t.dashboard },
               { id: 'intelligence', icon: Brain, label: 'Intelligence' },
               { id: 'pos', icon: ShoppingCart, label: t.pos },
+              { id: 'customers', icon: Users, label: 'Customers' },
               { id: 'kitchen', icon: ChefHat, label: t.kitchen },
               { id: 'inventory', icon: Package, label: t.inventory },
               { id: 'fiche', icon: FileText, label: t.fiche },
@@ -1673,7 +1682,19 @@ const Dashboard: React.FC = () => {
             exit={{ opacity: 0, y: -10 }}
             transition={{ duration: 0.3 }}
           >
-            <React.Suspense fallback={<div className="h-40 flex items-center justify-center text-gold animate-pulse">Engaging {activeTab}...</div>}>
+            <React.Suspense fallback={
+              <div className="h-40 flex flex-col items-center justify-center gap-4 text-gold">
+                <div className="pinwheel pinwheel--sm" aria-hidden="true">
+                  <div className="pinwheel__line"></div>
+                  <div className="pinwheel__line"></div>
+                  <div className="pinwheel__line"></div>
+                  <div className="pinwheel__line"></div>
+                  <div className="pinwheel__line"></div>
+                  <div className="pinwheel__line"></div>
+                </div>
+                <div className="text-[11px] font-black uppercase tracking-widest opacity-60">Engaging {activeTab}...</div>
+              </div>
+            }>
               {activeTab === 'dashboard' && <DashboardPanel {...panelProps} />}
               {activeTab === 'pos' && <POSPanel {...panelProps} />}
               {activeTab === 'inventory' && <InventoryPanel {...panelProps} />}
@@ -1689,6 +1710,7 @@ const Dashboard: React.FC = () => {
               {activeTab === 'comptabilite' && <FinancePanel {...panelProps} />}
               {activeTab === 'staff' && <StaffPanel {...panelProps} />}
               {activeTab === 'settings' && <SettingsPanel {...panelProps} />}
+              {activeTab === 'customers' && <CustomersPanel {...panelProps} />}
             </React.Suspense>
           </motion.div>
         </AnimatePresence>
@@ -1699,7 +1721,7 @@ const Dashboard: React.FC = () => {
             <motion.div 
                 initial={{ scale: 0.9, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
-                className={`w-full max-w-md p-10 rounded-[3rem] border shadow-2xl ${isDarkMode ? 'bg-[#0a0a0b] border-white/10 shadow-gold-glow' : 'bg-white border-slate-200'}`}
+                className="w-full max-w-md p-10 luxury-panel"
             >
                 <div className="flex justify-between items-center mb-10">
                     <h3 className={`text-2xl font-bold luxury-font uppercase tracking-tighter ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Waste Log</h3>
@@ -1759,7 +1781,7 @@ const Dashboard: React.FC = () => {
             <motion.div 
                 initial={{ y: 20, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
-                className={`w-full max-w-md p-10 rounded-[3.5rem] border shadow-2xl ${isDarkMode ? 'bg-[#0a0a0b] border-white/10' : 'bg-white border-slate-200'}`}
+                className="w-full max-w-md p-10 luxury-panel"
             >
                 <div className="flex justify-between items-start mb-10">
                     <h3 className={`text-2xl font-bold luxury-font uppercase tracking-tighter ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{t.add_staff}</h3>
@@ -1805,7 +1827,7 @@ const Dashboard: React.FC = () => {
             <motion.div 
                 initial={{ y: 20, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
-                className={`w-full max-w-lg p-10 rounded-[3.5rem] border shadow-2xl ${isDarkMode ? 'bg-[#0a0a0b] border-white/10' : 'bg-white border-slate-200'}`}
+                className="w-full max-w-lg p-10 luxury-panel"
             >
                 <div className="flex justify-between items-start mb-10">
                     <h3 className={`text-2xl font-bold luxury-font uppercase tracking-tighter ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Log Expenditure</h3>
@@ -1865,7 +1887,7 @@ const Dashboard: React.FC = () => {
             <motion.div 
                 initial={{ y: 20, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
-                className={`w-full max-w-4xl max-h-[85vh] overflow-hidden flex flex-col rounded-[3.5rem] border shadow-2xl ${isDarkMode ? 'bg-[#0a0a0b] border-white/10' : 'bg-white border-slate-200'}`}
+                className="w-full max-w-4xl max-h-[85vh] overflow-hidden flex flex-col luxury-panel"
             >
                 <div className="p-10 flex justify-between items-start border-b border-white/5">
                     <div className="flex gap-6 items-center">
@@ -1938,7 +1960,7 @@ const Dashboard: React.FC = () => {
 
       {showAddProduct && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
-            <div className={`w-full max-w-2xl p-8 rounded-[2.5rem] border shadow-2xl flex flex-col max-h-[90vh] ${isDarkMode ? 'bg-[#121214] border-white/10' : 'bg-white border-slate-200'}`}>
+            <div className="w-full max-w-2xl p-8 flex flex-col max-h-[90vh] luxury-panel">
                 <div className="flex justify-between items-start mb-8">
                     <h3 className={`text-2xl font-bold luxury-font ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{editingProductId ? 'Update Entity' : 'Register Entity'}</h3>
                     <button onClick={() => { setShowAddProduct(false); setEditingProductId(null); }} className="text-white/20 hover:text-white"><X size={24}/></button>

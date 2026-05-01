@@ -22,6 +22,7 @@ class SaleItem(BaseModel):
 
 class SaleRequest(BaseModel):
     cart: List[SaleItem]
+    customer_id: Optional[str] = None
 
 
 class MaterialCreate(BaseModel):
@@ -113,6 +114,7 @@ class Token(BaseModel):
 class OrderCreate(BaseModel):
     customer_name: str
     customer_phone: Optional[str] = None
+    customer_id: Optional[str] = None
     items: List[SaleItem]
     deposit_paid: float = 0
     pickup_date: str
@@ -127,3 +129,16 @@ class WasteCreate(BaseModel):
 class StaffCreate(BaseModel):
     username: str
     password: str
+
+
+class CustomerCreate(BaseModel):
+    name: str
+    phone: Optional[str] = None
+    email: Optional[str] = None
+
+
+class CustomerUpdate(BaseModel):
+    name: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    points: Optional[int] = None

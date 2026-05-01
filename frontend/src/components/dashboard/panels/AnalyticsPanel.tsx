@@ -6,6 +6,20 @@ import { DashboardSharedProps } from '../types';
 
 const PIE_COLORS = ['#d4af37', '#b8860b', '#f3e5ab', '#10b981', '#f43f5e'];
 
+const CustomTooltip = ({ active, payload, label, isDarkMode }: any) => {
+  if (active && payload && payload.length) {
+    return (
+      <div className={`p-4 luxury-card ${isDarkMode ? 'shadow-gold-glow' : 'shadow-xl'}`}>
+        <p className={`text-[11px] font-bold uppercase tracking-widest mb-2 ${isDarkMode ? 'text-cream' : 'text-slate-900'}`}>{label}</p>
+        <p className="text-xl font-black text-gold">
+          {payload[0].value}
+        </p>
+      </div>
+    );
+  }
+  return null;
+};
+
 type Props = Pick<DashboardSharedProps,
   'isDarkMode' | 'analytics' | 'inventory' | 'simPrices' | 'setSimPrices' |
   'simulatedInflations' | 'setSimulatedInflations' | 'formatPrice' |
@@ -66,7 +80,7 @@ const AnalyticsPanel: React.FC<Props> = ({
     <div className="space-y-8 animate-in fade-in duration-500">
       
       {/* Master Elite Pricing Engine */}
-      <div className={`p-10 rounded-[3rem] border transition-all duration-500 ${isDarkMode ? 'glass-panel border-gold/20 shadow-[0_0_40px_rgba(212,175,55,0.05)]' : 'bg-white border-slate-200 shadow-2xl'}`}>
+      <div className={`p-10 luxury-panel ${isDarkMode ? 'border-gold/20' : ''}`}>
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-10">
           <div>
             <h3 className={`text-2xl font-bold luxury-font uppercase flex items-center gap-3 tracking-tighter ${isDarkMode ? 'text-gold' : 'text-slate-900'}`}>
@@ -75,19 +89,19 @@ const AnalyticsPanel: React.FC<Props> = ({
               </div>
               Elite Master Pricing Engine
             </h3>
-            <p className="text-[10px] uppercase tracking-widest opacity-40 mt-2 ml-14">Simulate simultaneous ingredient cost hikes and product selling price adjustments</p>
+            <p className="text-[11px] uppercase tracking-widest opacity-60 mt-2 ml-14">Simulate simultaneous ingredient cost hikes and product selling price adjustments</p>
           </div>
           
           <div className="flex items-center gap-4">
             {Object.keys(simPrices).length > 0 && (
-              <button onClick={handleCommitStrategy} className={`px-6 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-xl ${isDarkMode ? 'bg-gold text-charcoal hover:scale-105 shadow-[0_0_20px_rgba(212,175,55,0.4)]' : 'bg-slate-900 text-white hover:bg-slate-800'}`}>
+              <button onClick={handleCommitStrategy} className={`px-6 py-4 rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all shadow-xl ${isDarkMode ? 'bg-gold text-charcoal hover:scale-105 shadow-[0_0_20px_rgba(212,175,55,0.4)]' : 'bg-slate-900 text-white hover:bg-slate-800'}`}>
                 Commit Strategy
               </button>
             )}
             <div className="relative group">
               <select 
                 onChange={(e) => { addSimulation(e.target.value); e.target.value = ''; }}
-                className={`appearance-none cursor-pointer pl-6 pr-12 py-4 text-[10px] font-black uppercase tracking-widest rounded-2xl border transition-all outline-none ${isDarkMode ? 'bg-black/80 border-gold/20 text-gold hover:bg-gold hover:text-charcoal' : 'bg-slate-50 border-slate-200 text-slate-900 hover:bg-slate-900 hover:text-white'}`}
+                className={`appearance-none cursor-pointer pl-6 pr-12 py-4 text-[11px] font-black uppercase tracking-widest rounded-2xl border transition-all outline-none ${isDarkMode ? 'bg-black/80 border-gold/20 text-gold hover:bg-gold hover:text-charcoal' : 'bg-slate-50 border-slate-200 text-slate-900 hover:bg-slate-900 hover:text-white'}`}
                 defaultValue=""
               >
                 <option value="" disabled className={isDarkMode ? 'bg-[#0a0a0b] text-gold/50' : ''}>+ Inflate Ingredient Cost...</option>
@@ -105,7 +119,7 @@ const AnalyticsPanel: React.FC<Props> = ({
         {/* Ingredient Cost Inflation Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-10">
           {Object.entries(simulatedInflations).map(([ingredient, inflation]) => (
-            <div key={ingredient} className={`p-6 rounded-[2rem] border transition-all duration-300 relative group overflow-hidden ${isDarkMode ? 'bg-black/20 border-white/5 hover:border-gold/30' : 'bg-slate-50 border-slate-100 hover:border-slate-300'} ${inflation > 0 ? (isDarkMode ? 'shadow-[0_0_30px_rgba(244,63,94,0.15)] border-rose-500/30' : 'shadow-lg border-rose-200') : ''}`}>
+            <div key={ingredient} className={`p-6 relative group overflow-hidden luxury-card ${inflation > 0 ? (isDarkMode ? 'shadow-[0_0_30px_rgba(244,63,94,0.15)] border-rose-500/30' : 'shadow-lg border-rose-200') : ''}`}>
               {inflation > 0 && <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-rose-500 to-orange-500" />}
               
               <div className="flex justify-between items-center mb-6">
@@ -132,15 +146,16 @@ const AnalyticsPanel: React.FC<Props> = ({
             </div>
           ))}
           {Object.keys(simulatedInflations).length === 0 && (
-            <div className={`col-span-full py-6 flex flex-col items-center justify-center rounded-[2rem] border border-dashed transition-colors ${isDarkMode ? 'border-white/10 text-white/20' : 'border-slate-200 text-slate-400'}`}>
-              <p className="text-[10px] uppercase font-black tracking-widest opacity-50">No ingredient inflations active. Baseline costs applied.</p>
+            <div className={`col-span-full py-12 flex flex-col items-center justify-center luxury-card opacity-60`}>
+              <TrendingUp size={32} className="mb-4 text-gold opacity-50" />
+              <p className="text-[11px] uppercase font-black tracking-widest">No ingredient inflations active. Baseline costs applied.</p>
             </div>
           )}
         </div>
 
         {/* Real-time Impact Matrix */}
         <div className="space-y-4">
-          <h4 className={`text-[10px] font-black uppercase tracking-[0.3em] mb-6 ${isDarkMode ? 'text-gold' : 'text-slate-500'}`}>Product Price Adjustment & Profit Impact</h4>
+          <h4 className={`text-[11px] font-black uppercase tracking-[0.3em] mb-6 ${isDarkMode ? 'text-gold' : 'text-slate-500'}`}>Product Price Adjustment & Profit Impact</h4>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {inventory.products.map(p => {
               // 1. Calculate Old vs New Cost
@@ -175,7 +190,7 @@ const AnalyticsPanel: React.FC<Props> = ({
               const isMarginCritical = newMargin < 65;
 
               return (
-                <motion.div key={p.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className={`p-6 rounded-3xl border transition-all ${isDarkMode ? 'border-white/5 bg-white/5' : 'border-slate-200 bg-white shadow-sm'} ${isMarginCritical ? 'border-rose-500/30 shadow-[0_0_20px_rgba(244,63,94,0.1)]' : ''}`}>
+                <motion.div key={p.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className={`p-6 luxury-card ${isMarginCritical ? 'border-rose-500/30 shadow-[0_0_20px_rgba(244,63,94,0.1)]' : ''}`}>
                   <div className="flex justify-between items-start mb-6">
                     <div className="flex items-center gap-3">
                       <span className="text-2xl">{p.icon}</span>
@@ -197,16 +212,16 @@ const AnalyticsPanel: React.FC<Props> = ({
 
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1">
-                      <p className="text-[8px] font-black uppercase tracking-widest opacity-40">Unit Cost Impact</p>
+                      <p className="text-[10px] font-black uppercase tracking-widest opacity-60">Unit Cost Impact</p>
                       <div className="flex items-center gap-2">
-                        <span className="text-[10px] line-through opacity-40">{formatPrice(oldCost)}</span>
+                        <span className="text-[11px] line-through opacity-60">{formatPrice(oldCost)}</span>
                         <span className={`text-xs font-bold ${costDelta > 0 ? 'text-rose-400' : ''}`}>{formatPrice(newCost)}</span>
                       </div>
                     </div>
                     <div className="space-y-1">
-                      <p className="text-[8px] font-black uppercase tracking-widest opacity-40">Unit Profit Impact</p>
+                      <p className="text-[10px] font-black uppercase tracking-widest opacity-60">Unit Profit Impact</p>
                       <div className="flex items-center gap-2">
-                        <span className="text-[10px] line-through opacity-40">{formatPrice(oldProfit)}</span>
+                        <span className="text-[11px] line-through opacity-60">{formatPrice(oldProfit)}</span>
                         <span className={`text-xs font-bold ${profitDelta < 0 ? 'text-rose-400' : 'text-emerald-400'}`}>{formatPrice(newProfit)}</span>
                       </div>
                     </div>
@@ -220,22 +235,29 @@ const AnalyticsPanel: React.FC<Props> = ({
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Hourly Sales */}
-        <div className={`p-8 rounded-[2.5rem] border transition-colors ${isDarkMode ? 'glass-panel' : 'bg-white border-slate-200 shadow-xl'}`}>
+        <div className="p-8 luxury-panel">
           <h3 className={`text-xl font-bold luxury-font uppercase mb-8 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Hourly Volume</h3>
           <div className="h-[250px] w-full">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={analytics.hourlySales}>
+                <defs>
+                  <linearGradient id="goldGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#f3e5ab" />
+                    <stop offset="50%" stopColor="#d4af37" />
+                    <stop offset="100%" stopColor="#b8860b" />
+                  </linearGradient>
+                </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke={isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'} vertical={false} />
                 <XAxis dataKey="hour" fontSize={10} axisLine={false} tickLine={false} tick={{ fill: isDarkMode ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.4)' }} />
-                <Tooltip contentStyle={{ backgroundColor: isDarkMode ? '#0a0a0b' : '#fff', border: 'none', borderRadius: '15px', boxShadow: '0 10px 30px rgba(0,0,0,0.2)' }} itemStyle={{ color: '#d4af37', fontWeight: 'bold' }} />
-                <Bar dataKey="value" fill="#d4af37" radius={[4, 4, 0, 0]} />
+                <Tooltip content={<CustomTooltip isDarkMode={isDarkMode} />} cursor={{fill: 'transparent'}} />
+                <Bar dataKey="value" fill="url(#goldGradient)" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
         </div>
 
         {/* Volume Distribution */}
-        <div className={`p-8 rounded-[2.5rem] border transition-colors ${isDarkMode ? 'glass-panel' : 'bg-white border-slate-200 shadow-xl'}`}>
+        <div className="p-8 luxury-panel">
           <h3 className={`text-xl font-bold luxury-font uppercase mb-8 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Volume Distribution</h3>
           <div className="h-[250px] w-full">
             <ResponsiveContainer width="100%" height="100%">
@@ -243,7 +265,7 @@ const AnalyticsPanel: React.FC<Props> = ({
                 <Pie data={analytics.topProducts} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
                   {analytics.topProducts.map((_, idx) => <Cell key={idx} fill={PIE_COLORS[idx % 5]} />)}
                 </Pie>
-                <Tooltip contentStyle={{ backgroundColor: isDarkMode ? '#0a0a0b' : '#fff', border: 'none', borderRadius: '15px', boxShadow: '0 10px 30px rgba(0,0,0,0.2)' }} />
+                <Tooltip content={<CustomTooltip isDarkMode={isDarkMode} />} />
               </PieChart>
             </ResponsiveContainer>
           </div>
@@ -251,7 +273,7 @@ const AnalyticsPanel: React.FC<Props> = ({
             {analytics.topProducts.map((p, i) => (
               <div key={i} className="flex items-center gap-2">
                 <div className="w-2 h-2 rounded-full" style={{ backgroundColor: PIE_COLORS[i % 5] }} />
-                <span className="text-[10px] font-bold uppercase tracking-widest opacity-40">{p.name}</span>
+                <span className="text-[11px] font-bold uppercase tracking-widest opacity-60">{p.name}</span>
               </div>
             ))}
           </div>

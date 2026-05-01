@@ -72,6 +72,7 @@ class Transaction(Base):
     total_revenue = Column(Float, default=0)
     total_cost = Column(Float, default=0)
     items = Column(JSON, nullable=True)
+    customer_id = Column(String, ForeignKey("customers.id"), nullable=True)
 
 class User(Base):
     __tablename__ = "users"
@@ -83,6 +84,16 @@ class User(Base):
     role = Column(String) # The account type, usually 'owner' or 'cashier'.
     parent_owner_id = Column(Integer, ForeignKey("users.id"), nullable=True)
 
+class Customer(Base):
+    __tablename__ = "customers"
+    id = Column(String, primary_key=True, index=True)
+    owner_id = Column(Integer, ForeignKey("users.id"))
+    name = Column(String, index=True)
+    phone = Column(String, nullable=True)
+    email = Column(String, nullable=True)
+    points = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
 class Order(Base):
     __tablename__ = "orders"
     # Orders are planned pickups for later, not immediate cash register sales.
@@ -90,6 +101,7 @@ class Order(Base):
     owner_id = Column(Integer, ForeignKey("users.id"))
     customer_name = Column(String)
     customer_phone = Column(String, nullable=True)
+    customer_id = Column(String, ForeignKey("customers.id"), nullable=True)
     items = Column(JSON) # List of ordered items.
     total_price = Column(Float)
     deposit_paid = Column(Float, default=0)
