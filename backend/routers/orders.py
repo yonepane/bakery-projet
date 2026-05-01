@@ -8,16 +8,19 @@ from fastapi import APIRouter, Depends, HTTPException
 
 try:
     from .. import models
-    from ..auth import get_effective_owner_id
+    from ..auth import get_effective_owner_id, requires_roles
     from ..database import get_db
     from ..schemas import OrderCreate
 except ImportError:
     import models
-    from auth import get_effective_owner_id
+    from auth import get_effective_owner_id, requires_roles
     from database import get_db
     from schemas import OrderCreate
 
 router = APIRouter()
+
+# Allowed order status values — reject anything outside this set
+VALID_ORDER_STATUSES = {"pending", "ready", "completed", "cancelled"}
 
 
 @router.get("/api/orders")
@@ -33,7 +36,7 @@ async def get_orders(
     )
 
 
-@router.post("/api/orders")
+@router.post("/api/orders", dependencies=[Depends(requires_roles(["owner"]))])
 async def create_order(
     order_data: OrderCreate,
     db: sqlalchemy.orm.Session = Depends(get_db),
@@ -75,13 +78,18 @@ async def create_order(
     return new_order
 
 
-@router.patch("/api/orders/{id}/status")
+@router.patch("/api/orders/{id}/status", dependencies=[Depends(requires_roles(["owner"]))])
 async def update_order_status(
     id: str,
     status: str,
     db: sqlalchemy.orm.Session = Depends(get_db),
     owner_id: int = Depends(get_effective_owner_id),
 ):
+    if status not in VALID_ORDER_STATUSES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid status '{status}'. Must be one of: {sorted(VALID_ORDER_STATUSES)}",
+        )
     order = db.query(models.Order).filter(
         models.Order.id == id,
         models.Order.owner_id == owner_id,

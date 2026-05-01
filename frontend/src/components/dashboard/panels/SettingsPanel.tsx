@@ -37,7 +37,7 @@ const SettingsPanel: React.FC<Props & { settings: any }> = ({
 
   const handleSave = async () => {
     try {
-      await api.put('/settings', form);
+      await api.put('/settings', { ...form, language: lang, theme: isDarkMode ? 'dark' : 'light' });
       fetchData();
       addToast('Settings saved', 'success');
     } catch {
@@ -102,7 +102,7 @@ const SettingsPanel: React.FC<Props & { settings: any }> = ({
         <div className="grid grid-cols-2 gap-6">
           <div>
             <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">Interface Language</label>
-            <select value={lang} onChange={e => setLang(e.target.value)}
+            <select value={lang} onChange={e => { setLang(e.target.value); localStorage.setItem('bakery_lang', e.target.value); }}
               className={`appearance-none cursor-pointer pl-6 pr-12 py-4 text-[10px] font-black uppercase tracking-widest rounded-2xl border transition-all outline-none ${isDarkMode ? 'bg-black/80 border-gold/20 text-gold hover:bg-gold hover:text-charcoal' : 'bg-slate-50 border-slate-200 text-slate-900 hover:bg-slate-900 hover:text-white'}`}>
               <option value="en" className={isDarkMode ? 'bg-[#0a0a0b] text-gold' : ''}>English</option>
               <option value="fr" className={isDarkMode ? 'bg-[#0a0a0b] text-gold' : ''}>Français</option>
@@ -111,7 +111,7 @@ const SettingsPanel: React.FC<Props & { settings: any }> = ({
           </div>
           <div>
             <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-4">Theme Mode</label>
-            <button onClick={() => setIsDarkMode(!isDarkMode)}
+            <button onClick={() => { setIsDarkMode(!isDarkMode); localStorage.setItem('bakery_theme', !isDarkMode ? 'dark' : 'light'); }}
               className={`px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all border ${isDarkMode ? 'bg-white/10 border-white/20 text-white' : 'bg-slate-900 text-white border-transparent'}`}>
               {isDarkMode ? '☀️ Switch to Light' : '🌙 Switch to Dark'}
             </button>

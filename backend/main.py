@@ -4,7 +4,9 @@ This file owns app creation, middleware, router registration, and startup
 lifecycle. Business logic lives in the routers/ and services/ packages.
 """
 
+import logging
 import os
+import secrets
 import sys
 from contextlib import asynccontextmanager
 
@@ -13,7 +15,12 @@ from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 from starlette.middleware.base import BaseHTTPMiddleware
+
+logger = logging.getLogger(__name__)
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 if CURRENT_DIR not in sys.path:
@@ -87,6 +94,11 @@ app = FastAPI(title="BakeryOS API", lifespan=lifespan)
 # Vercel handler alias.
 handler = app
 
+# Rate limiter — shared across routers via slowapi
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
 # ---------------------------------------------------------------------------
 # CORS
 # ---------------------------------------------------------------------------
@@ -108,8 +120,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=_CORS_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Accept"],
 )
 
 # ---------------------------------------------------------------------------
@@ -122,9 +134,17 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response = await call_next(request)
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
-        response.headers["X-XSS-Protection"] = "1; mode=block"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+        # Content-Security-Policy: allow same-origin and trusted CDNs only
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; "
+            "script-src 'self' 'unsafe-inline' https://accounts.google.com; "
+            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+            "font-src 'self' https://fonts.gstatic.com; "
+            "img-src 'self' data: https:; "
+            "connect-src 'self';"
+        )
         # Only set HSTS in production (when not running on localhost)
         if request.url.hostname and request.url.hostname not in ("localhost", "127.0.0.1"):
             response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
@@ -175,22 +195,32 @@ async def seed_users(
     db: sqlalchemy.orm.Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    """Development helper: ensure a cashier sub-account exists for the owner."""
+    """Development helper: create a cashier sub-account with a random one-time password."""
     try:
+        username = f"cashier-{current_user.id}"
         cashier = db.query(models.User).filter(
-            models.User.username == "cashier",
+            models.User.username == username,
             models.User.parent_owner_id == current_user.id,
         ).first()
-        if not cashier:
-            db.add(models.User(
-                username=f"cashier-{current_user.id}",
-                password=get_password_hash("password"),
-                role="cashier",
-                parent_owner_id=current_user.id,
-            ))
-            db.commit()
-        return {"message": "Seed complete for current owner."}
+        if cashier:
+            return {"message": f"Cashier '{username}' already exists. No changes made."}
+        # Generate a cryptographically random password and return it once.
+        # The owner must copy it immediately — it is not stored in plaintext.
+        one_time_password = secrets.token_urlsafe(12)
+        db.add(models.User(
+            username=username,
+            password=get_password_hash(one_time_password),
+            role="cashier",
+            parent_owner_id=current_user.id,
+        ))
+        db.commit()
+        return {
+            "message": "Cashier account created. Save this password — it will not be shown again.",
+            "username": username,
+            "password": one_time_password,
+        }
     except Exception as exc:
+        logger.error("Seed error: %s", exc)
         return {"status": "Error", "message": str(exc)}
 
 

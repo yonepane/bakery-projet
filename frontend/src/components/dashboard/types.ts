@@ -141,6 +141,7 @@ export interface DashboardSharedProps {
   formatPrice: (v: number) => string;
   displayUnit: (v: number, unit: string) => string;
   openDocument: (url: string, filename: string) => void;
+  getDownloadToken: () => Promise<string>;
   openSelector: (config: any) => void;
   addToast: (msg: string, type?: 'success' | 'error' | 'info') => void;
   showConfirm: (config: any) => void;

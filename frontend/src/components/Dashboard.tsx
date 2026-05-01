@@ -264,6 +264,16 @@ const Dashboard: React.FC = () => {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [isForecasting, setIsForecasting] = useState(false);
 
+  const getDownloadToken = async (): Promise<string> => {
+    try {
+      const { data } = await http.get('/auth/download-token');
+      return data.download_token;
+    } catch (e) {
+      console.warn("Failed to fetch download token, falling back to session token");
+      return localStorage.getItem('bakery_token') || '';
+    }
+  };
+
   const [purchasingSuggestions, setPurchasingSuggestions] = useState<any[]>([]);
   const [suppliers, setSuppliers] = useState<any[]>([]);
   const [selectedSupplierId, setSelectedSupplierId] = useState<number | null>(null);
@@ -466,6 +476,13 @@ const Dashboard: React.FC = () => {
       if (settData) {
         setSettings(settData);
         setGeneralNote(settData.operations_note || '');
+        if (settData.language) {
+          setLang(settData.language as Language);
+          localStorage.setItem('bakery_lang', settData.language);
+        }
+        if (settData.theme) {
+          setIsDarkMode(settData.theme === 'dark');
+        }
       }
       if (ordData) setOrders(ordData);
       if (purData) setPurchasingSuggestions(purData);
@@ -1311,7 +1328,7 @@ const Dashboard: React.FC = () => {
     handleReceivePO, handleDeletePO, openPOModal, handleSavePO,
     handlePartialReceivePO, handleDeleteStaff, handleDeleteSupplier,
     handleAddSupplier, handleResetSession, handleCompletePlan,
-    formatPrice, displayUnit: (v, u) => `${v}${u}`, openDocument, openSelector,
+    formatPrice, displayUnit: (v, u) => `${v}${u}`, openDocument, getDownloadToken, openSelector,
     addToast, showConfirm, fetchData, api
   };
 
@@ -1503,9 +1520,10 @@ const Dashboard: React.FC = () => {
                   {(['en', 'fr', 'ar'] as Language[]).map(l => (
                       <button 
                           key={l}
-                          onClick={() => {
+                          onClick={async () => {
                               setLang(l);
                               localStorage.setItem('bakery_lang', l);
+                              try { await api.put('/settings', { language: l }); } catch (e) { console.error(e); }
                           }}
                           className={`flex-1 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${lang === l ? 'bg-gold text-charcoal' : 'bg-white/5 text-cream/40 hover:bg-white/10'}`}
                       >
@@ -2192,9 +2210,9 @@ const Dashboard: React.FC = () => {
                     
                     <div className="grid grid-cols-2 gap-4">
                         <button 
-                            onClick={() => {
-                             const token = localStorage.getItem('bakery_token');
-                             openDocument(`${API_BASE}/transactions/${lastTransaction.transaction_id}/receipt?format=pdf&paper=80mm&token=${token}`, `receipt-${lastTransaction.transaction_id}.pdf`);
+                            onClick={async () => {
+                             const dlToken = await getDownloadToken();
+                             openDocument(`${API_BASE}/transactions/${lastTransaction.transaction_id}/receipt?format=pdf&paper=80mm&token=${dlToken}`, `receipt-${lastTransaction.transaction_id}.pdf`);
                            }}
                             className={`py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest border transition-all ${isDarkMode ? 'border-white/10 text-white hover:bg-white/5' : 'border-slate-200 text-slate-900'}`}
                         >

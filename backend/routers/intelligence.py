@@ -117,7 +117,7 @@ async def analytics(
     }
 
 
-@router.get("/api/alerts")
+@router.get("/api/alerts", dependencies=[Depends(requires_roles(["owner"]))])
 async def get_alerts(
     db: sqlalchemy.orm.Session = Depends(get_db),
     owner_id: int = Depends(get_effective_owner_id),
@@ -212,7 +212,7 @@ async def simulate_price(
     return impact
 
 
-@router.get("/api/forecast")
+@router.get("/api/forecast", dependencies=[Depends(requires_roles(["owner"]))])
 async def get_forecast(
     target_date: str,
     db: sqlalchemy.orm.Session = Depends(get_db),

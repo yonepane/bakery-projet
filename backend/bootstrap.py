@@ -1,5 +1,6 @@
 """Database bootstrap helpers for BakeryOS."""
 
+import logging
 import os
 
 from sqlalchemy import text
@@ -11,6 +12,8 @@ except ImportError:
     import models
     from database import engine
 
+logger = logging.getLogger(__name__)
+
 VERCEL_ENV = os.getenv("VERCEL_ENV", "").lower()
 ENVIRONMENT = os.getenv("ENVIRONMENT", "development").lower()
 IS_LOCAL_DEV = VERCEL_ENV in ("", "development") and ENVIRONMENT == "development"
@@ -21,12 +24,14 @@ def init_db() -> None:
     try:
         models.Base.metadata.create_all(bind=engine)
         ensure_runtime_schema()
-        print("SaaS Database: Tables confirmed.")
+        logger.info("SaaS Database: Tables confirmed.")
     except Exception as exc:
-        print(f"DATABASE ERROR during init_db: {exc}")
-        # On serverless platforms, we don't want a startup error to kill the entire handler.
-        # Specific routes will fail later if the DB is truly unreachable.
-        pass
+        logger.critical("DATABASE ERROR during init_db: %s", exc, exc_info=True)
+        # In production, a DB failure at startup is fatal — surface it clearly.
+        # On serverless platforms we log and continue so the handler can still
+        # return a 503 rather than crashing the entire process.
+        if ENVIRONMENT == "production":
+            raise
 
 
 def ensure_runtime_schema() -> None:

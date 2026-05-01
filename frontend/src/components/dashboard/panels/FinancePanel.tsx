@@ -8,6 +8,8 @@ import React, { useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { FileText, TrendingDown, TrendingUp, Briefcase, FileClock, Table } from 'lucide-react';
 import { DashboardSharedProps } from '../types';
+import http from '../../../lib/http';
+
 
 type Props = Pick<DashboardSharedProps,
   | 'isDarkMode'
@@ -41,6 +43,32 @@ const FinancePanel: React.FC<Props> = ({
   const [isHT, setIsHT] = useState(false);
   const TAX_RATE = 1.20; // 20% standard TVA assumed
 
+  // Fetch a short-lived download token, then open the report URL.
+  // This avoids embedding the long-lived session JWT in the URL.
+  const openReport = async (format: 'pdf' | 'excel') => {
+    try {
+      const { data } = await http.get('/auth/download-token');
+      const dlToken = data.download_token;
+      const year = new Date().getFullYear();
+      const month = new Date().getMonth() + 1;
+      const ext = format === 'pdf' ? 'pdf' : 'xlsx';
+      openDocument(
+        `${API_BASE}/reports/monthly?month=${month}&year=${year}&format=${format}&token=${dlToken}`,
+        `monthly-report.${ext}`,
+      );
+    } catch {
+      // Fallback: open without token if download-token endpoint fails
+      const year = new Date().getFullYear();
+      const month = new Date().getMonth() + 1;
+      const legacyToken = localStorage.getItem('bakery_token');
+      const ext = format === 'pdf' ? 'pdf' : 'xlsx';
+      openDocument(
+        `${API_BASE}/reports/monthly?month=${month}&year=${year}&format=${format}&token=${legacyToken}`,
+        `monthly-report.${ext}`,
+      );
+    }
+  };
+
   const applyTaxMode = (val: number) => isHT ? val / TAX_RATE : val;
   const noTaxKeywords = ['labor', 'payroll', 'salary', 'salaire', 'wage', 'rent', 'loyer', 'insurance', 'assurance', 'tax', 'impot', 'taxes', 'other', 'others', 'autre', 'autres'];
   const applyExpenseTaxMode = (val: number, category: string) => {
@@ -49,7 +77,7 @@ const FinancePanel: React.FC<Props> = ({
   };
 
   const totalWasteLossRaw = filteredWaste.reduce((a: number, w: any) => a + (w.loss_cost || 0), 0);
-  const totalCOGSRaw = filteredSales.reduce((a: number, s: any) => a + (s.total_cost || 0), 0);
+  const totalCOGSRaw = filteredSales.reduce((a: number, s: any) => a + (s.cost || 0), 0);
   
   const displayRevenue = applyTaxMode(monthlySales);
   const displayCOGS = applyTaxMode(totalCOGSRaw);
@@ -119,12 +147,12 @@ const FinancePanel: React.FC<Props> = ({
 
         <div className="flex items-center gap-3">
           <button
-            onClick={() => { const year = new Date().getFullYear(); const month = new Date().getMonth() + 1; const token = localStorage.getItem('bakery_token'); openDocument(`${API_BASE}/reports/monthly?month=${month}&year=${year}&format=pdf&token=${token}`, `monthly-report.pdf`); }}
+            onClick={() => openReport('pdf')}
             className={`flex items-center gap-3 px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${isDarkMode ? 'bg-gold text-charcoal shadow-gold-glow' : 'bg-slate-900 text-white'}`}>
             <FileText size={16} /> Export PDF
           </button>
           <button
-            onClick={() => { const year = new Date().getFullYear(); const month = new Date().getMonth() + 1; const token = localStorage.getItem('bakery_token'); openDocument(`${API_BASE}/reports/monthly?month=${month}&year=${year}&format=excel&token=${token}`, `monthly-report.xlsx`); }}
+            onClick={() => openReport('excel')}
             className={`flex items-center gap-3 px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${isDarkMode ? 'bg-emerald-500 text-white shadow-[0_0_15px_rgba(16,185,129,0.3)]' : 'bg-emerald-600 text-white'}`}>
             <Table size={16} /> Export Excel
           </button>

@@ -1,6 +1,8 @@
 """Authentication and authorization helpers for BakeryOS."""
 
+import logging
 import os
+import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Callable
 
@@ -17,13 +19,33 @@ except ImportError:
     import models
     from database import get_db
 
-SECRET_KEY = os.getenv("SECRET_KEY", "bakeryos_dev_secret_key_change_me_in_production")
-# Ensure the app doesn't crash on startup if the key is missing; 
-# auth will simply fail later with a proper error if the key is default.
+logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Secret key — hard fail at startup if not set in production
+# ---------------------------------------------------------------------------
+SECRET_KEY = os.getenv("SECRET_KEY")
+_ENV = os.getenv("VERCEL_ENV", os.getenv("ENVIRONMENT", "development")).lower()
+
+if not SECRET_KEY:
+    if _ENV in ("production", "preview"):
+        raise RuntimeError(
+            "SECRET_KEY environment variable is not set. "
+            "Set it to a long random string before deploying."
+        )
+    # Development fallback — logs a loud warning so developers notice it
+    SECRET_KEY = "bakeryos_dev_only_secret_do_not_use_in_production"
+    logger.warning(
+        "⚠️  SECRET_KEY is not set — using insecure development default. "
+        "Set SECRET_KEY in your .env before going to production!"
+    )
 
 ALGORITHM = "HS256"
 pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
+
+# Minimum password length for local accounts
+MIN_PASSWORD_LENGTH = 8
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
@@ -41,10 +63,23 @@ def create_access_token(data: dict) -> str:
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
 
+def create_download_token(username: str) -> str:
+    """Create a short-lived (90 seconds) single-use download token.
+
+    This avoids embedding the long-lived session JWT in report URLs where it
+    would be visible in server logs, browser history, and Referrer headers.
+    """
+    expire = datetime.now(timezone.utc) + timedelta(seconds=90)
+    payload = {"sub": username, "type": "download", "exp": expire, "jti": secrets.token_hex(8)}
+    return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
+
+
 async def get_current_user(
     request: Request,
     db: sqlalchemy.orm.Session = Depends(get_db),
 ):
+    # Accept ?token= query param for legacy report URLs only.
+    # New code should pass tokens via the Authorization header exclusively.
     token = request.query_params.get("token")
 
     if not token:
@@ -58,6 +93,9 @@ async def get_current_user(
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         username = payload.get("sub")
+        # Reject download-only tokens from hitting regular API endpoints
+        if payload.get("type") == "download" and not request.url.path.startswith("/api/reports"):
+            raise HTTPException(status_code=401, detail="Download token cannot be used here")
         if username is None:
             raise HTTPException(status_code=401, detail="Invalid token")
     except jwt.PyJWTError:
@@ -80,7 +118,7 @@ def requires_roles(roles: list[str]) -> Callable:
         if current_user.role not in roles:
             raise HTTPException(
                 status_code=403,
-                detail=f"Role {current_user.role} is not authorized for this action. Required: {roles}",
+                detail=f"Role '{current_user.role}' is not authorized. Required: {roles}",
             )
         return current_user
 

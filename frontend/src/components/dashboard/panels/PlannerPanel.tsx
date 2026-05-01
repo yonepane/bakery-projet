@@ -5,11 +5,11 @@ import { DashboardSharedProps } from '../types';
 type Props = Pick<DashboardSharedProps,
   'isDarkMode' | 'inventory' | 'planner' | 'setPlanner' | 'formatPrice' |
   'isForecasting' | 'handleSmartForecast' | 'handleProduce' | 'displayUnit' |
-  'openSelector' | 'API_BASE' | 'wasteRecords'>;
+  'openSelector' | 'getDownloadToken' | 'API_BASE' | 'wasteRecords'>;
 
 const PlannerPanel: React.FC<Props> = ({
   isDarkMode, inventory, planner, setPlanner, formatPrice,
-  isForecasting, handleSmartForecast, handleProduce, displayUnit, openSelector, API_BASE,
+  isForecasting, handleSmartForecast, handleProduce, displayUnit, openSelector, getDownloadToken, API_BASE,
   wasteRecords,
 }) => {
   const resourceForecast = Object.entries(
@@ -38,7 +38,10 @@ const PlannerPanel: React.FC<Props> = ({
             </button>
             <button
               onClick={() => openSelector({ title: 'Production Sheet', label: 'Sheet Date', value: new Date().toISOString().split('T')[0], type: 'date',
-                onConfirm: (date: string) => { const token = localStorage.getItem('bakery_token'); window.open(`${API_BASE}/planner/prep-sheet?date=${date}&token=${token}`, '_blank'); }
+                onConfirm: async (date: string) => {
+                  const dlToken = await getDownloadToken();
+                  window.open(`${API_BASE}/planner/prep-sheet?date=${date}&token=${dlToken}`, '_blank');
+                }
               })}
               className={`flex items-center gap-3 px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${isDarkMode ? 'bg-gold/10 text-gold border border-gold/20 hover:bg-gold hover:text-charcoal' : 'bg-slate-900 text-white shadow-xl'}`}>
               <FileText size={16} />

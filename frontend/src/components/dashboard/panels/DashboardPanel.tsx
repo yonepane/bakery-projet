@@ -31,6 +31,7 @@ type Props = Pick<
   | 'handleDeleteShiftLog'
   | 'alerts'
   | 'openDocument'
+  | 'getDownloadToken'
   | 'handleResetSession'
   | 'API_BASE'
 >;
@@ -47,6 +48,7 @@ const DashboardPanel: React.FC<Props> = ({
   handleDeleteShiftLog,
   alerts,
   openDocument,
+  getDownloadToken,
   handleResetSession,
   API_BASE,
 }) => {
@@ -149,11 +151,11 @@ const DashboardPanel: React.FC<Props> = ({
           <p className={`text-sm mb-6 ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>Generate executive summaries for accounting and performance review.</p>
           <div className="flex gap-4">
             <button
-              onClick={() => {
+              onClick={async () => {
                 const year = new Date().getFullYear();
                 const month = new Date().getMonth() + 1;
-                const token = localStorage.getItem('bakery_token');
-                openDocument(`${API_BASE}/reports/monthly?month=${month}&year=${year}&format=pdf&token=${token}`, `monthly-report-${year}-${month}.pdf`);
+                const dlToken = await getDownloadToken();
+                openDocument(`${API_BASE}/reports/monthly?month=${month}&year=${year}&format=pdf&token=${dlToken}`, `monthly-report-${year}-${month}.pdf`);
               }}
               className={`flex-1 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest border transition-all ${isDarkMode ? 'border-gold/20 text-gold hover:bg-gold hover:text-charcoal' : 'bg-slate-900 text-white shadow-xl'}`}
             >

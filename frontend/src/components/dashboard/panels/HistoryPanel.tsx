@@ -3,9 +3,9 @@ import { FileText, Search, TrendingUp, TrendingDown, Calendar } from 'lucide-rea
 import { DashboardSharedProps } from '../types';
 
 type Props = Pick<DashboardSharedProps,
-  'isDarkMode' | 'history' | 'formatPrice' | 'openDocument' | 'openSelector' | 'API_BASE'>;
+  'isDarkMode' | 'history' | 'formatPrice' | 'openDocument' | 'getDownloadToken' | 'openSelector' | 'API_BASE'>;
 
-const HistoryPanel: React.FC<Props> = ({ isDarkMode, history, formatPrice, openDocument, openSelector, API_BASE }) => {
+const HistoryPanel: React.FC<Props> = ({ isDarkMode, history, formatPrice, openDocument, getDownloadToken, openSelector, API_BASE }) => {
   const today = new Date().toISOString().slice(0, 10);
   const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
 
@@ -140,7 +140,10 @@ const HistoryPanel: React.FC<Props> = ({ isDarkMode, history, formatPrice, openD
                     {tx.type === 'sale' && (
                       <div className="flex items-center justify-end gap-2">
                         <button
-                          onClick={() => { const token = localStorage.getItem('bakery_token'); openDocument(`${API_BASE}/transactions/${tx.id}/receipt?format=pdf&paper=80mm&token=${token}`, `receipt-${tx.id}.pdf`); }}
+                          onClick={async () => {
+                            const dlToken = await getDownloadToken();
+                            openDocument(`${API_BASE}/transactions/${tx.id}/receipt?format=pdf&paper=80mm&token=${dlToken}`, `receipt-${tx.id}.pdf`);
+                          }}
                           className={`p-2 rounded-lg transition-all ${isDarkMode ? 'bg-gold/10 text-gold hover:bg-gold/20' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`} title="Print Receipt">
                           <FileText size={14} />
                         </button>
