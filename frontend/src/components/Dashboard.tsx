@@ -1214,9 +1214,24 @@ const Dashboard: React.FC = () => {
   };
 
   const openDocument = async (url: string, fallbackFilename: string) => {
-    // Open reports and receipts in a new tab so printing feels natural.
-    const popup = window.open('', '_blank');
     const absoluteUrl = new URL(url, window.location.origin).toString();
+    const isDownload = fallbackFilename.toLowerCase().endsWith('.xlsx') || 
+                       fallbackFilename.toLowerCase().endsWith('.xls') ||
+                       fallbackFilename.toLowerCase().endsWith('.csv');
+
+    if (isDownload) {
+      // For Excel/downloads, trigger direct download without a new tab
+      const link = document.createElement('a');
+      link.href = absoluteUrl;
+      link.download = fallbackFilename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      return;
+    }
+
+    // For PDFs/Receipts, open in a new tab so printing/viewing feels natural
+    const popup = window.open('', '_blank');
     if (popup) {
       popup.opener = null;
       popup.location.replace(absoluteUrl);
