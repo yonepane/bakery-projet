@@ -1035,7 +1035,10 @@ const Dashboard: React.FC = () => {
       fetchData();
       // Clear the form after a successful save.
       setNewProduct({ id: '', name: '', price: 0, icon: '🥐', ingredients: [], prep_time: 0, cook_time: 0, yield_qty: 1, instructions: [] });
-    } catch (e: any) { addToast("Action Failed", "error"); }
+    } catch (e: any) {
+      const detail = e.response?.data?.detail;
+      addToast(typeof detail === 'string' ? detail : "Action Failed", "error");
+    }
   };
 
   const handleDeleteProduct = async (id: string) => {
@@ -2103,7 +2106,7 @@ const Dashboard: React.FC = () => {
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-1">Price (MAD)</label>
-                                    <input type="number" value={newProduct.price} onChange={(e)=>setNewProduct({...newProduct, price: parseFloat(e.target.value)})} className={`w-full bg-transparent border-b py-2 outline-none font-bold ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`} />
+                                    <input type="number" value={newProduct.price} onChange={(e)=>setNewProduct({...newProduct, price: parseFloat(e.target.value) || 0})} className={`w-full bg-transparent border-b py-2 outline-none font-bold ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`} />
                                 </div>
                                 <div>
                                     <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-1">Icon</label>
@@ -2161,15 +2164,15 @@ const Dashboard: React.FC = () => {
                             <div className="grid grid-cols-3 gap-4">
                                 <div>
                                     <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-1">Prep (min)</label>
-                                    <input type="number" value={newProduct.prep_time} onChange={(e)=>setNewProduct({...newProduct, prep_time: parseInt(e.target.value)})} className={`w-full bg-transparent border-b py-2 outline-none font-bold ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`} />
+                                    <input type="number" value={newProduct.prep_time} onChange={(e)=>setNewProduct({...newProduct, prep_time: parseInt(e.target.value) || 0})} className={`w-full bg-transparent border-b py-2 outline-none font-bold ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`} />
                                 </div>
                                 <div>
                                     <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-1">Cook (min)</label>
-                                    <input type="number" value={newProduct.cook_time} onChange={(e)=>setNewProduct({...newProduct, cook_time: parseInt(e.target.value)})} className={`w-full bg-transparent border-b py-2 outline-none font-bold ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`} />
+                                    <input type="number" value={newProduct.cook_time} onChange={(e)=>setNewProduct({...newProduct, cook_time: parseInt(e.target.value) || 0})} className={`w-full bg-transparent border-b py-2 outline-none font-bold ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`} />
                                 </div>
                                 <div>
                                     <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-1">Yield (qty)</label>
-                                    <input type="number" value={newProduct.yield_qty} onChange={(e)=>setNewProduct({...newProduct, yield_qty: parseInt(e.target.value)})} className={`w-full bg-transparent border-b py-2 outline-none font-bold ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`} />
+                                    <input type="number" value={newProduct.yield_qty} onChange={(e)=>setNewProduct({...newProduct, yield_qty: parseInt(e.target.value) || 1})} className={`w-full bg-transparent border-b py-2 outline-none font-bold ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`} />
                                 </div>
                             </div>
 
