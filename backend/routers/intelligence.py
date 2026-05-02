@@ -1,10 +1,20 @@
-"""Analytics, alerts, and forecasting routes for BakeryOS."""
+"""Analytics, alerts, and forecasting routes for BakeryOS.
+
+Performance notes (cloud DB):
+- All routes now fetch data in as few queries as possible.
+- Products always use joinedload so recipe_items + ingredients arrive in one
+  round-trip, not N round-trips.
+- The forecast route fetches all relevant transactions at once and then groups
+  them in Python, avoiding a query inside every nested loop.
+"""
 
 import os
 from datetime import datetime, timedelta
+from collections import defaultdict
 
 import sqlalchemy.orm
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import joinedload
 
 try:
     from .. import models
@@ -24,10 +34,24 @@ DATA_DIR = os.path.join(BASE_DIR, "data")
 
 
 def get_user_settings(db: sqlalchemy.orm.Session, owner_id: int) -> dict:
-    settings_records = db.query(models.SystemSetting).filter(models.SystemSetting.owner_id == owner_id).all()
+    settings_records = db.query(models.SystemSetting).filter(
+        models.SystemSetting.owner_id == owner_id
+    ).all()
     if not settings_records:
         return {"currency": "MAD", "tax_rate": 0.2, "bakery_name": "BakeryOS"}
     return {s.key: s.value for s in settings_records}
+
+
+def _load_products_with_recipes(db: sqlalchemy.orm.Session, owner_id: int):
+    """Fetch all products with their recipe items and ingredients in one query."""
+    return (
+        db.query(models.Product)
+        .options(
+            joinedload(models.Product.recipe_items).joinedload(models.RecipeItem.ingredient)
+        )
+        .filter(models.Product.owner_id == owner_id)
+        .all()
+    )
 
 
 @router.get("/api/analytics", dependencies=[Depends(requires_roles(["owner"]))])
@@ -35,14 +59,27 @@ async def analytics(
     db: sqlalchemy.orm.Session = Depends(get_db),
     owner_id: int = Depends(get_effective_owner_id),
 ):
-    transactions = db.query(models.Transaction).filter(models.Transaction.owner_id == owner_id).all()
-    waste_records = db.query(models.WasteRecord).filter(models.WasteRecord.owner_id == owner_id).all()
+    # --- single bulk fetch for all three tables ---
+    transactions = (
+        db.query(models.Transaction)
+        .filter(models.Transaction.owner_id == owner_id)
+        .all()
+    )
+    waste_records = (
+        db.query(models.WasteRecord)
+        .filter(models.WasteRecord.owner_id == owner_id)
+        .all()
+    )
     settings_data = get_user_settings(db, owner_id)
 
-    reset_setting = db.query(models.SystemSetting).filter(
-        models.SystemSetting.key == "last_reset_at",
-        models.SystemSetting.owner_id == owner_id,
-    ).first()
+    reset_setting = (
+        db.query(models.SystemSetting)
+        .filter(
+            models.SystemSetting.key == "last_reset_at",
+            models.SystemSetting.owner_id == owner_id,
+        )
+        .first()
+    )
 
     if reset_setting:
         last_reset = datetime.fromisoformat(reset_setting.value)
@@ -51,14 +88,19 @@ async def analytics(
         last_reset = datetime(now.year, now.month, now.day)
 
     total_revenue = sum(t.total_revenue for t in transactions if t.type == "sale")
-    total_cost = sum(t.total_cost for t in transactions) + sum(w.loss_cost for w in waste_records)
+    total_cost = sum(t.total_cost for t in transactions) + sum(
+        w.loss_cost for w in waste_records
+    )
 
     session_txs = [t for t in transactions if t.timestamp >= last_reset]
     session_waste = [w for w in waste_records if w.date >= last_reset]
 
     today_revenue = sum(t.total_revenue for t in session_txs if t.type == "sale")
-    today_cost = sum(t.total_cost for t in session_txs) + sum(w.loss_cost for w in session_waste)
+    today_cost = sum(t.total_cost for t in session_txs) + sum(
+        w.loss_cost for w in session_waste
+    )
 
+    # Build daily chart data entirely in Python — no extra DB calls.
     daily_data = []
     now = datetime.now()
     for i in range(6, -1, -1):
@@ -78,7 +120,7 @@ async def analytics(
     for tx in [t for t in transactions if t.type == "sale"]:
         hourly_sales[tx.timestamp.hour]["value"] += tx.total_revenue
 
-    product_stats = {}
+    product_stats: dict[str, int] = {}
     for tx in [t for t in transactions if t.type == "sale"]:
         if tx.items:
             for item in tx.items:
@@ -88,11 +130,14 @@ async def analytics(
 
     top_products = [
         {"name": name, "value": qty}
-        for name, qty in sorted(product_stats.items(), key=lambda item: item[1], reverse=True)[:5]
+        for name, qty in sorted(
+            product_stats.items(), key=lambda item: item[1], reverse=True
+        )[:5]
     ]
 
-    products = db.query(models.Product).filter(models.Product.owner_id == owner_id).all()
-    total_portfolio_cost = sum(calculate_product_cost(product) for product in products)
+    # One query for all products + recipes (joinedload = no N+1).
+    products = _load_products_with_recipes(db, owner_id)
+    total_portfolio_cost = sum(calculate_product_cost(p) for p in products)
     margins = []
     for product in products:
         cost = calculate_product_cost(product)
@@ -122,8 +167,13 @@ async def get_alerts(
     db: sqlalchemy.orm.Session = Depends(get_db),
     owner_id: int = Depends(get_effective_owner_id),
 ):
-    ingredients = db.query(models.Ingredient).filter(models.Ingredient.owner_id == owner_id).all()
-    products = db.query(models.Product).filter(models.Product.owner_id == owner_id).all()
+    # Bulk-fetch ingredients and products (+recipes) in two queries.
+    ingredients = (
+        db.query(models.Ingredient)
+        .filter(models.Ingredient.owner_id == owner_id)
+        .all()
+    )
+    products = _load_products_with_recipes(db, owner_id)
     alerts = []
 
     for ing in ingredients:
@@ -158,7 +208,8 @@ async def profit_report(
     db: sqlalchemy.orm.Session = Depends(get_db),
     owner_id: int = Depends(get_effective_owner_id),
 ):
-    products = db.query(models.Product).filter(models.Product.owner_id == owner_id).all()
+    # One query with joined recipes.
+    products = _load_products_with_recipes(db, owner_id)
     report = []
     for product in products:
         cost = calculate_product_cost(product)
@@ -172,7 +223,11 @@ async def profit_report(
                 "selling_price": round(product.price, 2),
                 "net_profit": round(profit, 2),
                 "roi_percentage": f"{round(roi, 2)}%",
-                "margin_percentage": f"{round((profit / product.price * 100), 2) if product.price > 0 else 0}%",
+                "margin_percentage": (
+                    f"{round((profit / product.price * 100), 2)}%"
+                    if product.price > 0
+                    else "0%"
+                ),
             }
         )
     return report
@@ -184,18 +239,18 @@ async def simulate_price(
     db: sqlalchemy.orm.Session = Depends(get_db),
     owner_id: int = Depends(get_effective_owner_id),
 ):
+    # One query with joined recipes.
+    products = _load_products_with_recipes(db, owner_id)
     impact = []
-    products = db.query(models.Product).filter(models.Product.owner_id == owner_id).all()
 
     for product in products:
         old_cost = calculate_product_cost(product)
-        new_cost = 0
+        new_cost = 0.0
         for item in product.recipe_items:
-            factor = 1000.0 if item.ingredient and item.ingredient.unit in ['kg', 'L', 'l'] else 1.0
-            price = materials_update.get(
-                item.ingredient.name if item.ingredient else "",
-                item.ingredient.price if item.ingredient else 0,
-            )
+            if not item.ingredient:
+                continue
+            factor = 1000.0 if item.ingredient.unit in ["kg", "L", "l"] else 1.0
+            price = materials_update.get(item.ingredient.name, item.ingredient.price)
             new_cost += (item.quantity / factor) * price
 
         impact.append(
@@ -205,8 +260,15 @@ async def simulate_price(
                 "new_cost": round(new_cost, 2),
                 "old_profit": round(product.price - old_cost, 2),
                 "new_profit": round(product.price - new_cost, 2),
-                "margin_impact": round(((product.price - new_cost) / product.price * 100) if product.price > 0 else 0, 2),
-                "profit_delta": round((product.price - new_cost) - (product.price - old_cost), 2),
+                "margin_impact": round(
+                    ((product.price - new_cost) / product.price * 100)
+                    if product.price > 0
+                    else 0,
+                    2,
+                ),
+                "profit_delta": round(
+                    (product.price - new_cost) - (product.price - old_cost), 2
+                ),
             }
         )
     return impact
@@ -223,31 +285,54 @@ async def get_forecast(
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD.")
 
-    suggestions = []
-    products = db.query(models.Product).filter(models.Product.owner_id == owner_id).all()
-
+    # Pre-compute the four history dates we need.
     history_dates = [target_dt - timedelta(weeks=i) for i in range(1, 5)]
+    # Build a date window that covers all history dates in one query.
+    window_start = min(
+        datetime(d.year, d.month, d.day) for d in history_dates
+    )
+    window_end = max(
+        datetime(d.year, d.month, d.day) + timedelta(days=1) for d in history_dates
+    )
 
+    # ONE bulk query instead of N products × 4 weeks individual queries.
+    all_txs = (
+        db.query(models.Transaction)
+        .filter(
+            models.Transaction.owner_id == owner_id,
+            models.Transaction.type == "sale",
+            models.Transaction.timestamp >= window_start,
+            models.Transaction.timestamp < window_end,
+        )
+        .all()
+    )
+
+    # Build a lookup: product_id -> {date_key -> qty_sold}
+    # date_key = the start-of-day datetime for each history date.
+    day_starts = {
+        datetime(d.year, d.month, d.day): datetime(d.year, d.month, d.day)
+        for d in history_dates
+    }
+    sales_by_product: dict[str, dict[datetime, int]] = defaultdict(lambda: defaultdict(int))
+
+    for tx in all_txs:
+        tx_day = datetime(tx.timestamp.year, tx.timestamp.month, tx.timestamp.day)
+        if tx_day not in day_starts:
+            continue  # outside our history window
+        if tx.items:
+            for item in tx.items:
+                pid = item.get("id")
+                if pid is not None:
+                    sales_by_product[pid][tx_day] += item.get("qty", 0)
+
+    products = _load_products_with_recipes(db, owner_id)
+    suggestions = []
     for product in products:
-        sales_data = []
-        for h_date in history_dates:
-            start = datetime(h_date.year, h_date.month, h_date.day)
-            end = start + timedelta(days=1)
-            txs = db.query(models.Transaction).filter(
-                models.Transaction.owner_id == owner_id,
-                models.Transaction.type == "sale",
-                models.Transaction.timestamp >= start,
-                models.Transaction.timestamp < end,
-            ).all()
-            day_qty = 0
-            for tx in txs:
-                if tx.items:
-                    for item in tx.items:
-                        if item.get("id") == product.id:
-                            day_qty += item.get("qty", 0)
-            sales_data.append(day_qty)
-
-        avg_sales = sum(sales_data) / len(sales_data) if sales_data else 0
+        total = sum(
+            sales_by_product[product.id].get(datetime(d.year, d.month, d.day), 0)
+            for d in history_dates
+        )
+        avg_sales = total / len(history_dates)
         suggested = int(avg_sales * 1.1) + 1 if avg_sales > 0 else 5
         suggestions.append(
             {

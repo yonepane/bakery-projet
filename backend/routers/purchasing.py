@@ -5,6 +5,7 @@ from datetime import datetime
 
 import sqlalchemy.orm
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import joinedload
 
 try:
     from .. import models
@@ -223,6 +224,17 @@ async def receive_po(
         raise HTTPException(status_code=404, detail="Order not found")
 
     items_by_name = {item["name"]: item for item in po.items}
+
+    # Bulk-fetch all relevant ingredients in one query.
+    item_names = [r.name for r in payload.items]
+    ings_map = {
+        ing.name: ing
+        for ing in db.query(models.Ingredient).filter(
+            models.Ingredient.name.in_(item_names),
+            models.Ingredient.owner_id == owner_id,
+        ).all()
+    }
+
     for received in payload.items:
         item = items_by_name.get(received.name)
         if not item:
@@ -235,10 +247,7 @@ async def receive_po(
         if received.price is not None:
             item["price"] = float(received.price)
         if delta_received > 0:
-            ing = db.query(models.Ingredient).filter(
-                models.Ingredient.name == received.name,
-                models.Ingredient.owner_id == owner_id,
-            ).first()
+            ing = ings_map.get(received.name)
             if ing:
                 ing.stock += delta_received
                 ing.price = float(item.get("price", ing.price))
@@ -267,11 +276,17 @@ async def update_po_status(
         raise HTTPException(status_code=404, detail="Order not found")
 
     if status == "received" and po.status != "received":
-        for item in po.items:
-            ing = db.query(models.Ingredient).filter(
-                models.Ingredient.name == item["name"],
+        # Bulk-fetch all ingredients mentioned in PO items in one query.
+        po_item_names = [item["name"] for item in po.items]
+        ings_map = {
+            ing.name: ing
+            for ing in db.query(models.Ingredient).filter(
+                models.Ingredient.name.in_(po_item_names),
                 models.Ingredient.owner_id == owner_id,
-            ).first()
+            ).all()
+        }
+        for item in po.items:
+            ing = ings_map.get(item["name"])
             if ing:
                 delta = max(0, float(item["qty"]) - float(item.get("received_qty", 0)))
                 ing.stock += delta

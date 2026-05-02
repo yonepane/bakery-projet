@@ -24,13 +24,14 @@ async def update_material_prices(
     db: sqlalchemy.orm.Session = Depends(get_db),
     owner_id: int = Depends(get_effective_owner_id),
 ):
-    for name, new_price in materials_update.items():
-        ing = db.query(models.Ingredient).filter(
-            models.Ingredient.name == name,
-            models.Ingredient.owner_id == owner_id,
-        ).first()
-        if ing:
-            ing.price = new_price
+    # Bulk-fetch all named ingredients in ONE query, then update in Python.
+    names = list(materials_update.keys())
+    ings = db.query(models.Ingredient).filter(
+        models.Ingredient.name.in_(names),
+        models.Ingredient.owner_id == owner_id,
+    ).all()
+    for ing in ings:
+        ing.price = materials_update[ing.name]
     db.commit()
     return {"success": True}
 

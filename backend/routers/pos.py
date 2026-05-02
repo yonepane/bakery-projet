@@ -12,6 +12,7 @@ from typing import Optional
 import sqlalchemy.orm
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse, HTMLResponse, Response
+from sqlalchemy.orm import joinedload
 
 try:
     from .. import models
@@ -72,19 +73,33 @@ async def produce(
     owner_id: int = Depends(get_effective_owner_id),
 ):
     """Produce a batch: consume ingredients, add product stock, log transaction."""
-    product = db.query(models.Product).filter(
-        models.Product.id == batch.product_id,
-        models.Product.owner_id == owner_id,
-    ).first()
+    product = (
+        db.query(models.Product)
+        .options(
+            joinedload(models.Product.recipe_items).joinedload(models.RecipeItem.ingredient)
+        )
+        .filter(
+            models.Product.id == batch.product_id,
+            models.Product.owner_id == owner_id,
+        )
+        .first()
+    )
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
 
+    # Collect required ingredient IDs and bulk-fetch them in one query.
+    ingredient_ids = [item.ingredient_id for item in product.recipe_items]
+    ingredients_map = {
+        ing.id: ing
+        for ing in db.query(models.Ingredient).filter(
+            models.Ingredient.id.in_(ingredient_ids),
+            models.Ingredient.owner_id == owner_id,
+        ).all()
+    }
+
     production_cost = 0
     for item in product.recipe_items:
-        ing = db.query(models.Ingredient).filter(
-            models.Ingredient.id == item.ingredient_id,
-            models.Ingredient.owner_id == owner_id,
-        ).first()
+        ing = ingredients_map.get(item.ingredient_id)
         factor = 1000.0 if ing and ing.unit in ['kg', 'L', 'l'] else 1.0
         required = (item.quantity / factor) * batch.quantity
         if not ing or ing.stock < required:
@@ -130,11 +145,25 @@ async def complete_sale(
     items_snapshot = []
     settings = get_user_settings(db, owner_id)
 
+    # Bulk-fetch all cart products in ONE query instead of one per item.
+    cart_ids = [item.id for item in req.cart]
+    products_map = {
+        p.id: p
+        for p in (
+            db.query(models.Product)
+            .options(
+                joinedload(models.Product.recipe_items).joinedload(models.RecipeItem.ingredient)
+            )
+            .filter(
+                models.Product.id.in_(cart_ids),
+                models.Product.owner_id == owner_id,
+            )
+            .all()
+        )
+    }
+
     for item in req.cart:
-        product = db.query(models.Product).filter(
-            models.Product.id == item.id,
-            models.Product.owner_id == owner_id,
-        ).first()
+        product = products_map.get(item.id)
         if not product:
             continue
 

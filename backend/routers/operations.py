@@ -7,6 +7,7 @@ from typing import Dict, List
 import sqlalchemy.orm
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import HTMLResponse
+from sqlalchemy.orm import joinedload
 
 try:
     from .. import models
@@ -59,9 +60,14 @@ async def get_waste(
     db: sqlalchemy.orm.Session = Depends(get_db),
     owner_id: int = Depends(get_effective_owner_id),
 ):
-    records = db.query(models.WasteRecord).filter(
-        models.WasteRecord.owner_id == owner_id
-    ).order_by(models.WasteRecord.date.desc()).all()
+    # joinedload fetches product names in the same query, no N+1.
+    records = (
+        db.query(models.WasteRecord)
+        .options(joinedload(models.WasteRecord.product))
+        .filter(models.WasteRecord.owner_id == owner_id)
+        .order_by(models.WasteRecord.date.desc())
+        .all()
+    )
     return [
         {
             "id": record.id,
@@ -80,8 +86,20 @@ async def inventory(
     db: sqlalchemy.orm.Session = Depends(get_db),
     owner_id: int = Depends(get_effective_owner_id),
 ):
-    ingredients = db.query(models.Ingredient).filter(models.Ingredient.owner_id == owner_id).all()
-    products = db.query(models.Product).filter(models.Product.owner_id == owner_id).all()
+    ingredients = (
+        db.query(models.Ingredient)
+        .filter(models.Ingredient.owner_id == owner_id)
+        .all()
+    )
+    # joinedload prevents a separate ingredient query for every recipe_item.
+    products = (
+        db.query(models.Product)
+        .options(
+            joinedload(models.Product.recipe_items).joinedload(models.RecipeItem.ingredient)
+        )
+        .filter(models.Product.owner_id == owner_id)
+        .all()
+    )
 
     materials_dict = {
         ing.name: {
@@ -140,11 +158,26 @@ async def get_prep_sheet(
     requirements = {}
     production_summary = []
 
+    # Bulk-fetch all needed products with recipes in one query instead of
+    # querying inside the loop.
+    pending_product_ids = {item.product_id for item in pending}
+    products_map = {
+        p.id: p
+        for p in (
+            db.query(models.Product)
+            .options(
+                joinedload(models.Product.recipe_items).joinedload(models.RecipeItem.ingredient)
+            )
+            .filter(
+                models.Product.id.in_(pending_product_ids),
+                models.Product.owner_id == owner_id,
+            )
+            .all()
+        )
+    }
+
     for item in pending:
-        product = db.query(models.Product).filter(
-            models.Product.id == item.product_id,
-            models.Product.owner_id == owner_id,
-        ).first()
+        product = products_map.get(item.product_id)
         if not product:
             continue
 

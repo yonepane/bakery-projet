@@ -42,6 +42,10 @@ try:
         df = pd.read_sql_query(f"SELECT * FROM {table}", local_conn)
         
         if not df.empty:
+            # FIX: PostgreSQL strict boolean types
+            if table == "purchase_orders" and "archived" in df.columns:
+                df["archived"] = df["archived"].astype(bool)
+
             # Envoyer vers le Cloud
             # if_exists='append' car les tables sont déjà créées par l'app
             df.to_sql(table, cloud_engine, if_exists='append', index=False)
