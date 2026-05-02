@@ -1,19 +1,27 @@
 import sqlite3
 import os
-from sqlalchemy import create_engine, MetaData
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy import create_engine
 import pandas as pd
+from dotenv import load_dotenv
+
+# Load env from root
+load_dotenv()
 
 # CONFIGURATION
-# Remplacez par votre lien réel avec le mot de passe
 SUPABASE_URL = os.getenv("DATABASE_URL")
-LOCAL_DB = "bakeryos.db"
+# Use absolute path to the backend database
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+LOCAL_DB = os.path.join(BASE_DIR, "bakeryos.db")
 
 if not SUPABASE_URL:
     print("ERREUR : Vous devez définir la variable DATABASE_URL")
     exit(1)
 
-print("🚀 Démarrage de la migration vers le Cloud...")
+if not os.path.exists(LOCAL_DB):
+    print(f"ERREUR : Base de données locale introuvable à {LOCAL_DB}")
+    exit(1)
+
+print(f"🚀 Démarrage de la migration de {LOCAL_DB} vers le Cloud...")
 
 # Connexions
 local_conn = sqlite3.connect(LOCAL_DB)
@@ -47,14 +55,12 @@ try:
                 df["archived"] = df["archived"].astype(bool)
 
             # Envoyer vers le Cloud
-            # if_exists='append' car les tables sont déjà créées par l'app
             df.to_sql(table, cloud_engine, if_exists='append', index=False)
             print(f"✅ {len(df)} lignes transférées.")
         else:
             print(f"ℹ️ Table {table} vide, passage à la suivante.")
 
     print("\n✨ FÉLICITATIONS ! Votre boulangerie est maintenant dans le Cloud.")
-    print("Vous pouvez maintenant accéder à vos données depuis n'importe où.")
 
 except Exception as e:
     print(f"\n❌ ERREUR pendant la migration : {e}")

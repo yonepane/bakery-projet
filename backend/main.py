@@ -12,9 +12,12 @@ from contextlib import asynccontextmanager
 
 # Load .env file early so SECRET_KEY and other env vars are available
 # before any module (auth.py) reads them via os.getenv().
+# Load .env file from the project root (one level up from this file)
 try:
     from dotenv import load_dotenv
-    load_dotenv()
+    # Explicitly find the .env in the root to avoid CWD issues
+    env_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env")
+    load_dotenv(dotenv_path=env_path)
 except ImportError:
     pass  # python-dotenv not installed; rely on shell environment
 

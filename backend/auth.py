@@ -12,6 +12,14 @@ from fastapi import Depends, HTTPException, Request
 from fastapi.security import OAuth2PasswordBearer
 from passlib.context import CryptContext
 
+# Standalone scripts (or uvicorn pointing here) need to load .env
+try:
+    from dotenv import load_dotenv
+    env_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env")
+    load_dotenv(dotenv_path=env_path)
+except ImportError:
+    pass
+
 try:
     from . import models
     from .database import get_db
