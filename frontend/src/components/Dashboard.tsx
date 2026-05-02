@@ -1220,7 +1220,13 @@ const Dashboard: React.FC = () => {
                        fallbackFilename.toLowerCase().endsWith('.csv');
 
     if (isDownload) {
-      // For Excel/downloads, trigger direct download without a new tab
+      // Direct Excel Open Protocol (bypasses browser download folder)
+      if (fallbackFilename.toLowerCase().endsWith('.xlsx')) {
+        window.location.href = `ms-excel:ofv|u|${absoluteUrl}`;
+        return;
+      }
+
+      // Fallback for CSV or if the protocol isn't supported
       const link = document.createElement('a');
       link.href = absoluteUrl;
       link.download = fallbackFilename;
