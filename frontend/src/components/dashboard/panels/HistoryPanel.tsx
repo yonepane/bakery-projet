@@ -7,10 +7,9 @@ type Props = Pick<DashboardSharedProps,
 
 const HistoryPanel: React.FC<Props> = ({ isDarkMode, history, formatPrice, openDocument, getDownloadToken, openSelector, API_BASE }) => {
   const today = new Date().toISOString().slice(0, 10);
-  const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
 
   const [search, setSearch] = useState('');
-  const [dateFrom, setDateFrom] = useState(weekAgo);
+  const [dateFrom, setDateFrom] = useState(today);
   const [dateTo, setDateTo] = useState(today);
   const [typeFilter, setTypeFilter] = useState<'all' | 'sale' | 'produce'>('all');
 

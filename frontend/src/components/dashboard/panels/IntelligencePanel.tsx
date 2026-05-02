@@ -1,5 +1,5 @@
 import React from 'react';
-import { Brain, TrendingUp, TrendingDown, Zap } from 'lucide-react';
+import { Brain, TrendingUp, TrendingDown, Zap, Trophy, Star } from 'lucide-react';
 import { DashboardSharedProps } from '../types';
 
 type Props = Pick<DashboardSharedProps,
@@ -60,13 +60,59 @@ const IntelligencePanel: React.FC<Props> = ({ isDarkMode, profitReport, inventor
 
       {/* Star product callout */}
       {topProduct && (
-        <div className={`p-6 rounded-[2rem] border flex items-center gap-5 ${isDarkMode ? 'border-gold/20 bg-gold/5' : 'bg-amber-50 border-amber-200'}`}>
-          <Zap size={22} className="text-gold shrink-0" />
-          <div>
-            <p className="text-[10px] font-black uppercase tracking-widest text-gold">Top Performer</p>
-            <p className={`text-lg font-bold mt-0.5 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
-              {topProduct.icon} {topProduct.name} — {topProduct.margin.toFixed(1)}% margin
-            </p>
+        <div className={`relative overflow-hidden rounded-[2rem] border transition-all ${
+          isDarkMode
+            ? 'border-gold/30 bg-gradient-to-br from-gold/10 via-gold/5 to-transparent'
+            : 'bg-gradient-to-br from-amber-50 via-yellow-50 to-white border-amber-200'
+        }`}>
+          {/* Glow blob */}
+          <div className="absolute -top-10 -right-10 w-48 h-48 rounded-full bg-gold/10 blur-3xl pointer-events-none" />
+
+          <div className="relative p-7 flex items-center gap-6">
+            {/* Rank badge */}
+            <div className={`relative shrink-0 w-20 h-20 rounded-2xl flex flex-col items-center justify-center shadow-lg ${
+              isDarkMode ? 'bg-gold/20 border border-gold/30' : 'bg-amber-100 border border-amber-300'
+            }`}>
+              <Trophy size={26} className="text-gold" />
+              <span className="text-[9px] font-black uppercase tracking-widest text-gold mt-1">#1</span>
+            </div>
+
+            {/* Main info */}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-1">
+                <Star size={11} className="text-gold fill-gold" />
+                <p className="text-[10px] font-black uppercase tracking-widest text-gold">Top Performer</p>
+              </div>
+              <p className={`text-2xl font-bold truncate ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
+                {topProduct.icon} {topProduct.name}
+              </p>
+              {/* Margin bar */}
+              <div className="mt-3 flex items-center gap-3">
+                <div className={`flex-1 h-2 rounded-full ${isDarkMode ? 'bg-white/10' : 'bg-amber-100'}`}>
+                  <div
+                    className="h-2 rounded-full bg-gradient-to-r from-gold to-amber-300 transition-all duration-700"
+                    style={{ width: `${Math.min(topProduct.margin, 100)}%` }}
+                  />
+                </div>
+                <span className="text-gold font-black text-sm shrink-0">{topProduct.margin.toFixed(1)}%</span>
+              </div>
+            </div>
+
+            {/* Stat pills */}
+            <div className="shrink-0 flex flex-col gap-2">
+              <div className={`px-4 py-2 rounded-xl text-center ${
+                isDarkMode ? 'bg-emerald-500/10 border border-emerald-500/20' : 'bg-emerald-50 border border-emerald-200'
+              }`}>
+                <p className="text-[9px] font-black uppercase tracking-widest text-emerald-400">Sell</p>
+                <p className="text-sm font-bold text-emerald-400">{formatPrice(topProduct.sellPrice)}</p>
+              </div>
+              <div className={`px-4 py-2 rounded-xl text-center ${
+                isDarkMode ? 'bg-rose-500/10 border border-rose-500/20' : 'bg-rose-50 border border-rose-200'
+              }`}>
+                <p className="text-[9px] font-black uppercase tracking-widest text-rose-400">Cost</p>
+                <p className="text-sm font-bold text-rose-400">{formatPrice(topProduct.unitCost)}</p>
+              </div>
+            </div>
           </div>
         </div>
       )}
