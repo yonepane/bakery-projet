@@ -687,13 +687,13 @@ const Dashboard: React.FC = () => {
             </div>
           </div>
           {/* Mobile Footer */}
-          <div className="absolute bottom-4 left-0 right-0 z-10 text-center flex flex-col gap-2 opacity-40 hover:opacity-80 transition-opacity">
-            <div className="text-[10px] uppercase tracking-widest text-white/70">
-              &copy; {new Date().getFullYear()} BakeryOS. All rights reserved.
+          <div className="absolute bottom-6 left-0 right-0 z-10 text-center flex flex-col gap-2 opacity-80">
+            <div className="text-[9px] uppercase tracking-widest text-white/40">
+              &copy; {new Date().getFullYear()} BakeryOS
             </div>
-            <div className="flex justify-center gap-4 text-[9px] uppercase tracking-wider text-white/50">
+            <div className="flex justify-center gap-4 text-[9px] uppercase tracking-wider text-white/40">
               <a href="#" className="hover:text-gold transition-colors">Privacy Policy</a>
-              <span className="text-white/20">•</span>
+              <span className="text-white/10">•</span>
               <a href="#" className="hover:text-gold transition-colors">Terms of Service</a>
             </div>
           </div>
@@ -756,6 +756,13 @@ const Dashboard: React.FC = () => {
                   <div className="text-[10px] uppercase tracking-[0.2em] text-white/40 mb-1">Quality</div>
                   <div className="text-white/80 font-light text-sm">Premium Ingredients</div>
                 </div>
+              </div>
+              
+              {/* Desktop Footer (Moved under subtitles) */}
+              <div className="flex items-center gap-6 mt-12 pt-8 text-[9px] uppercase tracking-widest text-white/40 border-t border-white/5 w-fit pr-12">
+                <div>&copy; {new Date().getFullYear()} BakeryOS</div>
+                <a href="#" className="hover:text-gold transition-colors">Privacy Policy</a>
+                <a href="#" className="hover:text-gold transition-colors">Terms of Service</a>
               </div>
             </div>
           </div>
@@ -884,17 +891,6 @@ const Dashboard: React.FC = () => {
                 </div>
               </div>
             </div>
-          </div>
-        </div>
-        
-        {/* Desktop Footer */}
-        <div className="fixed bottom-4 left-0 right-0 text-center flex justify-center items-center gap-6 opacity-30 hover:opacity-100 transition-opacity z-20 pointer-events-none">
-          <div className="text-[10px] uppercase tracking-[0.2em] text-white/70">
-            &copy; {new Date().getFullYear()} BakeryOS. All rights reserved.
-          </div>
-          <div className="flex justify-center gap-6 text-[9px] uppercase tracking-widest text-white/50 pointer-events-auto">
-            <a href="#" className="hover:text-gold transition-colors">Privacy Policy</a>
-            <a href="#" className="hover:text-gold transition-colors">Terms of Service</a>
           </div>
         </div>
       </main>
