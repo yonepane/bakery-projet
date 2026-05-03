@@ -743,23 +743,8 @@ const Dashboard: React.FC = () => {
 
             {/* Bottom Hero Text */}
             <div className="relative z-10 max-w-3xl mt-auto">
-              <div className="flex gap-12 border-t border-white/10 pt-8 w-fit pr-12">
-                <div>
-                  <div className="text-[10px] uppercase tracking-[0.2em] text-white/40 mb-1">Tradition</div>
-                  <div className="text-white/80 font-light text-sm">Artisan Recipes</div>
-                </div>
-                <div>
-                  <div className="text-[10px] uppercase tracking-[0.2em] text-white/40 mb-1">Precision</div>
-                  <div className="text-white/80 font-light text-sm">Perfect Fermentation</div>
-                </div>
-                <div>
-                  <div className="text-[10px] uppercase tracking-[0.2em] text-white/40 mb-1">Quality</div>
-                  <div className="text-white/80 font-light text-sm">Premium Ingredients</div>
-                </div>
-              </div>
-              
-              {/* Desktop Footer (Moved under subtitles) */}
-              <div className="flex items-center gap-6 mt-12 pt-8 text-[9px] uppercase tracking-widest text-white/40 border-t border-white/5 w-fit pr-12">
+              {/* Desktop Footer */}
+              <div className="flex items-center gap-6 text-[9px] uppercase tracking-widest text-white/40 w-fit">
                 <div>&copy; {new Date().getFullYear()} BakeryOS</div>
                 <a href="#" className="hover:text-gold transition-colors">Privacy Policy</a>
                 <a href="#" className="hover:text-gold transition-colors">Terms of Service</a>
