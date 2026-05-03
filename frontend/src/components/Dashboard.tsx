@@ -632,14 +632,15 @@ const Dashboard: React.FC = () => {
       <main className="min-h-screen min-h-[100dvh] w-full bg-[#060606] text-white overflow-hidden font-sans" role="main">
         {/* Mobile View (Hidden on Desktop) */}
         <div className="lg:hidden flex w-full flex-col items-center justify-center min-h-screen min-h-[100dvh] p-6 relative">
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-gold/10 via-[#060606] to-[#060606] opacity-60"></div>
-          <div className="relative z-10 w-full max-w-sm rounded-[2rem] border border-white/10 bg-black/60 backdrop-blur-xl p-8">
+          <div className="absolute inset-0 z-0">
+            <img src="/pain.png" alt="Premium Bakery Background" className="w-full h-full object-cover opacity-40 grayscale-[0.2]" />
+            <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/80 to-[#060606]"></div>
+            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(212,175,55,0.15)_0%,transparent_80%)]"></div>
+          </div>
+          <div className="relative z-10 w-full max-w-sm rounded-[2rem] border border-white/10 bg-black/60 backdrop-blur-2xl p-8 shadow-[0_0_50px_rgba(0,0,0,0.5)]">
             <div className="flex flex-col items-center mb-10 text-center">
-              <div className="h-16 w-16 rounded-full overflow-hidden border border-gold/40 shadow-[0_0_20px_rgba(212,175,55,0.2)] mb-6">
-                <picture>
-                  <source type="image/webp" srcSet="/columbina-login-1x.webp 1x, /columbina-login.webp 2x" />
-                  <img src="/columbina-login.jpg" alt="Crest" className="w-full h-full object-cover" />
-                </picture>
+              <div className="h-16 w-16 rounded-full overflow-hidden border border-gold/40 shadow-[0_0_20px_rgba(212,175,55,0.4)] mb-6">
+                <img src="/columbina-login.jpg" alt="Crest" className="w-full h-full object-cover" />
               </div>
               <h1 className="text-3xl font-light tracking-[0.2em] uppercase text-white font-serif leading-none">
                 Bakery<span className="font-bold text-gold">OS</span>
@@ -657,8 +658,33 @@ const Dashboard: React.FC = () => {
                   <label htmlFor="mobile-password" className="monolith-label">Password</label>
                   <div className="monolith-input-highlight" />
                 </div>
-                <button type="submit" disabled={isAuthSubmitting} className="monolith-btn mt-8">{isAuthSubmitting ? <span className="login-spinner" /> : (authMode === 'login' ? 'Login' : 'Sign Up')}</button>
+                <button type="submit" disabled={isAuthSubmitting} className="monolith-btn mt-8 h-12 text-xs font-bold tracking-widest">{isAuthSubmitting ? <span className="flex items-center justify-center gap-2"><span className="login-spinner" /> Authenticating</span> : (authMode === 'login' ? 'Login' : 'Sign Up')}</button>
             </form>
+            
+            <div className="w-full mt-10">
+              <div className="flex items-center gap-4 mb-6 opacity-50">
+                <div className="h-px flex-1 bg-gradient-to-r from-transparent to-white/50" />
+                <span className="text-[10px] tracking-[0.2em] uppercase font-bold text-white/70">External Protocol</span>
+                <div className="h-px flex-1 bg-gradient-to-l from-transparent to-white/50" />
+              </div>
+
+              <div className="h-[44px] w-full mx-auto overflow-hidden rounded-xl border border-white/10 hover:border-gold/40 transition-colors bg-white/[0.03]">
+                {gsiReady ? (
+                  <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
+                    <GoogleLogin
+                      onSuccess={handleGoogleSuccess}
+                      onError={() => addToast('Link Failed', 'error')}
+                      theme="filled_black"
+                      shape="rectangular"
+                      width="100%"
+                      use_fedcm={false}
+                    />
+                  </GoogleOAuthProvider>
+                ) : (
+                  <div className="w-full h-full bg-white/5 animate-pulse" />
+                )}
+              </div>
+            </div>
           </div>
         </div>
 
@@ -666,22 +692,22 @@ const Dashboard: React.FC = () => {
         <div className="hidden lg:grid min-h-screen min-h-[100dvh] w-full grid-cols-12 grid-rows-1 p-6 gap-6">
           
           {/* Left Column: Hero Panel */}
-          <div className="col-span-8 relative rounded-[2rem] overflow-hidden border border-white/10 bg-[#0a0a0b] shadow-2xl flex flex-col justify-between p-16">
-            {/* Sleek CSS Abstract Background */}
-            <div className="absolute inset-0 z-0 opacity-80 mix-blend-screen pointer-events-none">
-               <div className="absolute top-[-10%] left-[-10%] w-[60%] h-[60%] bg-[radial-gradient(circle,rgba(212,175,55,0.15)_0%,transparent_70%)] blur-3xl"></div>
-               <div className="absolute bottom-[-20%] right-[-10%] w-[80%] h-[80%] bg-[radial-gradient(circle,rgba(212,175,55,0.08)_0%,transparent_60%)] blur-3xl"></div>
-               <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/stardust.png')] opacity-20"></div>
+          <div className="col-span-8 relative rounded-[2rem] overflow-hidden border border-white/10 bg-[#0a0a0b] shadow-2xl flex flex-col justify-between p-16 group">
+            {/* Premium Image Background */}
+            <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden">
+               <img src="/pain.png" alt="Premium Bakery" className="w-full h-full object-cover opacity-60 mix-blend-luminosity scale-105 transition-transform duration-1000 group-hover:scale-110" />
+               <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0b] via-[#0a0a0b]/60 to-[#0a0a0b]/20"></div>
+               <div className="absolute inset-0 bg-gradient-to-r from-[#0a0a0b]/80 via-transparent to-[#0d0d0f]"></div>
+               <div className="absolute top-[-20%] left-[-10%] w-[70%] h-[70%] bg-[radial-gradient(circle,rgba(212,175,55,0.15)_0%,transparent_70%)] blur-3xl"></div>
+               <div className="absolute bottom-[-20%] right-[-10%] w-[80%] h-[80%] bg-[radial-gradient(circle,rgba(212,175,55,0.1)_0%,transparent_60%)] blur-3xl"></div>
+               <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/stardust.png')] opacity-10"></div>
             </div>
 
             {/* Top Bar */}
             <div className="relative z-10 flex justify-between items-start">
               <div className="flex items-center gap-6">
-                <div className="h-16 w-16 rounded-full overflow-hidden border border-gold/40 shadow-[0_0_30px_rgba(212,175,55,0.3)]">
-                  <picture>
-                    <source type="image/webp" srcSet="/columbina-login-1x.webp 1x, /columbina-login.webp 2x" />
-                    <img src="/columbina-login.jpg" alt="Crest" className="w-full h-full object-cover" />
-                  </picture>
+                <div className="h-16 w-16 rounded-full overflow-hidden border border-gold/40 shadow-[0_0_30px_rgba(212,175,55,0.5)]">
+                  <img src="/columbina-login.jpg" alt="Crest" className="w-full h-full object-cover" />
                 </div>
                 <div>
                   <h1 className="text-4xl font-light tracking-[0.2em] uppercase text-white font-serif leading-none">
