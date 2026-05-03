@@ -733,22 +733,22 @@ const Dashboard: React.FC = () => {
             {/* Bottom Hero Text */}
             <div className="relative z-10 max-w-3xl mt-auto">
               <p className="text-[5rem] xl:text-[6rem] font-bold luxury-font tracking-tighter leading-[0.9] text-white mb-8">
-                The Intelligence <br/>
-                Behind the <br/>
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-gold via-[#ffd700] to-gold drop-shadow-[0_0_15px_rgba(212,175,55,0.3)]">Craft.</span>
+                Mastering <br/>
+                The Art of <br/>
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-gold via-[#ffd700] to-gold drop-shadow-[0_0_15px_rgba(212,175,55,0.3)]">Baking.</span>
               </p>
               <div className="flex gap-12 border-t border-white/10 pt-8 mt-12 w-fit pr-12">
                 <div>
-                  <div className="text-[10px] uppercase tracking-[0.2em] text-white/40 mb-1">Architecture</div>
-                  <div className="text-white/80 font-light text-sm">Multi-tenant Edge</div>
+                  <div className="text-[10px] uppercase tracking-[0.2em] text-white/40 mb-1">Tradition</div>
+                  <div className="text-white/80 font-light text-sm">Artisan Recipes</div>
                 </div>
                 <div>
                   <div className="text-[10px] uppercase tracking-[0.2em] text-white/40 mb-1">Precision</div>
-                  <div className="text-white/80 font-light text-sm">Real-time Yield</div>
+                  <div className="text-white/80 font-light text-sm">Perfect Fermentation</div>
                 </div>
                 <div>
-                  <div className="text-[10px] uppercase tracking-[0.2em] text-white/40 mb-1">Scale</div>
-                  <div className="text-white/80 font-light text-sm">Infinite POS Nodes</div>
+                  <div className="text-[10px] uppercase tracking-[0.2em] text-white/40 mb-1">Quality</div>
+                  <div className="text-white/80 font-light text-sm">Premium Ingredients</div>
                 </div>
               </div>
             </div>
