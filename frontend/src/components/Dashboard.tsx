@@ -187,7 +187,15 @@ const Dashboard: React.FC = () => {
   const [history, setHistory] = useState<Transaction[]>([]);
   const [planner, setPlanner] = useState<PlanItem[]>([]);
   const [orders, setOrders] = useState<any[]>([]);
-  const [settings, setSettings] = useState<any>({ conversions: { MAD: 1, EUR: 0.092, USD: 0.10 }, currency: 'MAD' });
+  const [settings, setSettings] = useState<any>({ currency: 'MAD' });
+  // Live exchange rates fetched from the backend (MAD-based).
+  // Seeded with fallbacks so prices never show NaN before the API responds.
+  const [liveRates, setLiveRates] = useState<Record<string, number>>({
+    MAD: 1.0,
+    EUR: 0.0916,
+    USD: 0.0998,
+    GBP: 0.0787,
+  });
   const [loading, setLoading] = useState(true);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -433,8 +441,19 @@ const Dashboard: React.FC = () => {
     };
   }, []);
 
-  const formatPrice = (amount: number) => formatMoney(amount, activeCurrency, settings?.conversions);
+  const formatPrice = (amount: number) => formatMoney(amount, activeCurrency, liveRates);
 
+  // Fetch live exchange rates once after login and keep them fresh.
+  const fetchLiveRates = async () => {
+    try {
+      const data = await api.get('/currency/rates');
+      if (data?.rates && typeof data.rates === 'object') {
+        setLiveRates(data.rates);
+      }
+    } catch (e) {
+      console.warn('Could not fetch live exchange rates — using fallback rates.');
+    }
+  };
 
 
   const fetchData = async () => {
@@ -609,6 +628,8 @@ const Dashboard: React.FC = () => {
     if (user) {
         // Refresh the data regularly so the dashboard stays up to date.
         fetchData();
+        // Fetch live exchange rates once per session — rates are cached for 6h on the backend.
+        fetchLiveRates();
         const interval = setInterval(fetchData, 30000);
         return () => clearInterval(interval);
     }
