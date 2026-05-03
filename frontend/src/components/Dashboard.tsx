@@ -685,6 +685,17 @@ const Dashboard: React.FC = () => {
                 )}
               </div>
             </div>
+            {/* Mobile Footer */}
+            <div className="mt-8 text-center flex flex-col gap-2 opacity-40 hover:opacity-80 transition-opacity">
+              <div className="text-[10px] uppercase tracking-widest text-white/70">
+                &copy; {new Date().getFullYear()} BakeryOS. All rights reserved.
+              </div>
+              <div className="flex justify-center gap-4 text-[9px] uppercase tracking-wider text-white/50">
+                <a href="#" className="hover:text-gold transition-colors">Privacy Policy</a>
+                <span className="text-white/20">•</span>
+                <a href="#" className="hover:text-gold transition-colors">Terms of Service</a>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -854,6 +865,16 @@ const Dashboard: React.FC = () => {
                   ) : (
                     <div className="w-full h-full bg-white/5 animate-pulse" />
                   )}
+                </div>
+              </div>
+              {/* Desktop Footer */}
+              <div className="absolute bottom-6 left-0 right-0 text-center flex flex-col gap-2 opacity-30 hover:opacity-100 transition-opacity z-20">
+                <div className="text-[10px] uppercase tracking-[0.2em] text-white/70">
+                  &copy; {new Date().getFullYear()} BakeryOS. All rights reserved.
+                </div>
+                <div className="flex justify-center gap-6 text-[9px] uppercase tracking-widest text-white/50">
+                  <a href="#" className="hover:text-gold transition-colors">Privacy Policy</a>
+                  <a href="#" className="hover:text-gold transition-colors">Terms of Service</a>
                 </div>
               </div>
             </div>
