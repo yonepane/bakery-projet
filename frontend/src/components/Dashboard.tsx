@@ -685,16 +685,16 @@ const Dashboard: React.FC = () => {
                 )}
               </div>
             </div>
-            {/* Mobile Footer */}
-            <div className="mt-8 text-center flex flex-col gap-2 opacity-40 hover:opacity-80 transition-opacity">
-              <div className="text-[10px] uppercase tracking-widest text-white/70">
-                &copy; {new Date().getFullYear()} BakeryOS. All rights reserved.
-              </div>
-              <div className="flex justify-center gap-4 text-[9px] uppercase tracking-wider text-white/50">
-                <a href="#" className="hover:text-gold transition-colors">Privacy Policy</a>
-                <span className="text-white/20">•</span>
-                <a href="#" className="hover:text-gold transition-colors">Terms of Service</a>
-              </div>
+          </div>
+          {/* Mobile Footer */}
+          <div className="absolute bottom-4 left-0 right-0 z-10 text-center flex flex-col gap-2 opacity-40 hover:opacity-80 transition-opacity">
+            <div className="text-[10px] uppercase tracking-widest text-white/70">
+              &copy; {new Date().getFullYear()} BakeryOS. All rights reserved.
+            </div>
+            <div className="flex justify-center gap-4 text-[9px] uppercase tracking-wider text-white/50">
+              <a href="#" className="hover:text-gold transition-colors">Privacy Policy</a>
+              <span className="text-white/20">•</span>
+              <a href="#" className="hover:text-gold transition-colors">Terms of Service</a>
             </div>
           </div>
         </div>
@@ -741,7 +741,23 @@ const Dashboard: React.FC = () => {
               </div>
             </div>
 
-            {/* Bottom Hero Text Removed */}
+            {/* Bottom Hero Text */}
+            <div className="relative z-10 max-w-3xl mt-auto">
+              <div className="flex gap-12 border-t border-white/10 pt-8 w-fit pr-12">
+                <div>
+                  <div className="text-[10px] uppercase tracking-[0.2em] text-white/40 mb-1">Tradition</div>
+                  <div className="text-white/80 font-light text-sm">Artisan Recipes</div>
+                </div>
+                <div>
+                  <div className="text-[10px] uppercase tracking-[0.2em] text-white/40 mb-1">Precision</div>
+                  <div className="text-white/80 font-light text-sm">Perfect Fermentation</div>
+                </div>
+                <div>
+                  <div className="text-[10px] uppercase tracking-[0.2em] text-white/40 mb-1">Quality</div>
+                  <div className="text-white/80 font-light text-sm">Premium Ingredients</div>
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* Right Column: Login Panel */}
@@ -867,17 +883,18 @@ const Dashboard: React.FC = () => {
                   )}
                 </div>
               </div>
-              {/* Desktop Footer */}
-              <div className="absolute bottom-6 left-0 right-0 text-center flex flex-col gap-2 opacity-30 hover:opacity-100 transition-opacity z-20">
-                <div className="text-[10px] uppercase tracking-[0.2em] text-white/70">
-                  &copy; {new Date().getFullYear()} BakeryOS. All rights reserved.
-                </div>
-                <div className="flex justify-center gap-6 text-[9px] uppercase tracking-widest text-white/50">
-                  <a href="#" className="hover:text-gold transition-colors">Privacy Policy</a>
-                  <a href="#" className="hover:text-gold transition-colors">Terms of Service</a>
-                </div>
-              </div>
             </div>
+          </div>
+        </div>
+        
+        {/* Desktop Footer */}
+        <div className="fixed bottom-4 left-0 right-0 text-center flex justify-center items-center gap-6 opacity-30 hover:opacity-100 transition-opacity z-20 pointer-events-none">
+          <div className="text-[10px] uppercase tracking-[0.2em] text-white/70">
+            &copy; {new Date().getFullYear()} BakeryOS. All rights reserved.
+          </div>
+          <div className="flex justify-center gap-6 text-[9px] uppercase tracking-widest text-white/50 pointer-events-auto">
+            <a href="#" className="hover:text-gold transition-colors">Privacy Policy</a>
+            <a href="#" className="hover:text-gold transition-colors">Terms of Service</a>
           </div>
         </div>
       </main>
