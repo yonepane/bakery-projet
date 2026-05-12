@@ -93,15 +93,18 @@ except ImportError:
 # App lifecycle
 # ---------------------------------------------------------------------------
 
-# Vercel can receive a request before the normal startup hook fires.
-# Call init_db() at module load time as well so tables always exist.
-init_db()
+# Guard so init_db() only runs once per process lifetime even if the
+# module is imported multiple times (e.g. during Vercel warm restarts).
+_db_initialized = False
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Run database initialisation once on startup."""
-    init_db()
+    """Run database initialisation exactly once on startup."""
+    global _db_initialized
+    if not _db_initialized:
+        init_db()
+        _db_initialized = True
     yield
 
 

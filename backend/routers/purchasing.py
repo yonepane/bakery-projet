@@ -5,6 +5,7 @@ from datetime import datetime
 
 import sqlalchemy.orm
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import joinedload
 
 try:
@@ -41,7 +42,7 @@ async def suggest_purchase(
                     "estimated_cost": suggested_buy * ing.price,
                 }
             )
-    return suggestions
+    return JSONResponse(content=suggestions, headers={"Cache-Control": "private, max-age=120"})
 
 
 @router.get("/api/suppliers", dependencies=[Depends(requires_roles(["owner"]))])
@@ -49,7 +50,9 @@ async def get_suppliers(
     db: sqlalchemy.orm.Session = Depends(get_db),
     owner_id: int = Depends(get_effective_owner_id),
 ):
-    return db.query(models.Supplier).filter(models.Supplier.owner_id == owner_id).all()
+    suppliers = db.query(models.Supplier).filter(models.Supplier.owner_id == owner_id).all()
+    data = [{"id": s.id, "name": s.name, "contact_info": s.contact_info} for s in suppliers]
+    return JSONResponse(content=data, headers={"Cache-Control": "private, max-age=120"})
 
 
 @router.post("/api/suppliers", dependencies=[Depends(requires_roles(["owner"]))])
@@ -111,7 +114,17 @@ async def get_purchase_orders(
     db: sqlalchemy.orm.Session = Depends(get_db),
     owner_id: int = Depends(get_effective_owner_id),
 ):
-    return db.query(models.PurchaseOrder).filter(models.PurchaseOrder.owner_id == owner_id).all()
+    pos = db.query(models.PurchaseOrder).filter(models.PurchaseOrder.owner_id == owner_id).all()
+    data = [
+        {
+            "id": p.id, "supplier_id": p.supplier_id, "status": p.status,
+            "items": p.items or [], "notes": p.notes,
+            "date": p.date.isoformat() if p.date else None,
+            "expected_delivery_date": p.expected_delivery_date.isoformat() if p.expected_delivery_date else None,
+        }
+        for p in pos
+    ]
+    return JSONResponse(content=data, headers={"Cache-Control": "private, max-age=60"})
 
 
 @router.delete("/api/purchase-orders/{id}", dependencies=[Depends(requires_roles(["owner"]))])

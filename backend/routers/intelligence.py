@@ -9,11 +9,13 @@ Performance notes (cloud DB):
 """
 
 import os
+import time
 from datetime import datetime, timedelta
 from collections import defaultdict
 
 import sqlalchemy.orm
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import joinedload
 
 try:
@@ -31,6 +33,15 @@ router = APIRouter()
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 DATA_DIR = os.path.join(BASE_DIR, "data")
+
+# ---------------------------------------------------------------------------
+# Simple in-process TTL cache for expensive aggregation endpoints.
+# Each entry: owner_id -> (timestamp, result_dict)
+# TTL = 300 seconds (5 minutes). Cache is per serverless instance lifetime.
+# ---------------------------------------------------------------------------
+_CACHE_TTL = 300  # seconds
+_analytics_cache: dict[int, tuple[float, dict]] = {}
+_profit_cache: dict[int, tuple[float, list]] = {}
 
 
 def get_user_settings(db: sqlalchemy.orm.Session, owner_id: int) -> dict:
@@ -59,6 +70,11 @@ async def analytics(
     db: sqlalchemy.orm.Session = Depends(get_db),
     owner_id: int = Depends(get_effective_owner_id),
 ):
+    # Serve from in-process cache if fresh enough (saves a full DB scan).
+    cached = _analytics_cache.get(owner_id)
+    if cached and (time.time() - cached[0]) < _CACHE_TTL:
+        return JSONResponse(content=cached[1], headers={"Cache-Control": "private, max-age=300"})
+
     # --- single bulk fetch for all three tables ---
     transactions = (
         db.query(models.Transaction)
@@ -145,7 +161,7 @@ async def analytics(
             margins.append((product.price - cost) / product.price * 100)
     avg_margin = sum(margins) / len(margins) if margins else 0
 
-    return {
+    result = {
         "revenue": round(total_revenue, 2),
         "cost": round(total_cost, 2),
         "today_revenue": round(today_revenue, 2),
@@ -160,6 +176,8 @@ async def analytics(
             "products_count": len(product_stats),
         },
     }
+    _analytics_cache[owner_id] = (time.time(), result)
+    return JSONResponse(content=result, headers={"Cache-Control": "private, max-age=300"})
 
 
 @router.get("/api/alerts", dependencies=[Depends(requires_roles(["owner"]))])
@@ -208,6 +226,13 @@ async def profit_report(
     db: sqlalchemy.orm.Session = Depends(get_db),
     owner_id: int = Depends(get_effective_owner_id),
 ):
+    # NOTE: This endpoint is now rarely called — the frontend derives the same
+    # data client-side from the /inventory response via calcProfitReport().
+    # It is kept as a server-side fallback for external API consumers.
+    cached = _profit_cache.get(owner_id)
+    if cached and (time.time() - cached[0]) < _CACHE_TTL:
+        return JSONResponse(content=cached[1], headers={"Cache-Control": "private, max-age=300"})
+
     # One query with joined recipes.
     products = _load_products_with_recipes(db, owner_id)
     report = []
@@ -230,7 +255,8 @@ async def profit_report(
                 ),
             }
         )
-    return report
+    _profit_cache[owner_id] = (time.time(), report)
+    return JSONResponse(content=report, headers={"Cache-Control": "private, max-age=300"})
 
 
 @router.post("/api/simulate_price", dependencies=[Depends(requires_roles(["owner"]))])

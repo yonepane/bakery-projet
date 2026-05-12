@@ -3,6 +3,7 @@
 import uuid
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import JSONResponse
 import sqlalchemy.orm
 
 try:
@@ -24,7 +25,12 @@ async def get_customers(
     owner_id: int = Depends(get_effective_owner_id),
 ):
     """Retrieve all customers for the current bakery."""
-    return db.query(models.Customer).filter(models.Customer.owner_id == owner_id).all()
+    customers = db.query(models.Customer).filter(models.Customer.owner_id == owner_id).all()
+    data = [
+        {"id": c.id, "name": c.name, "phone": c.phone, "email": c.email, "points": c.points}
+        for c in customers
+    ]
+    return JSONResponse(content=data, headers={"Cache-Control": "private, max-age=60"})
 
 @router.post("/api/customers", dependencies=[Depends(requires_roles(["owner", "cashier"]))])
 async def create_customer(

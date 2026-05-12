@@ -46,6 +46,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { QRCodeSVG } from 'qrcode.react';
 import { api, processSyncQueue } from '../lib/api';
+import { calcAlerts, calcProfitReport } from '../lib/calculations';
 import http from '../lib/http';
 import { Language, translations } from '../lib/translations';
 import { GoogleOAuthProvider, GoogleLogin } from '@react-oauth/google';
@@ -422,24 +423,20 @@ const Dashboard: React.FC = () => {
   useEffect(() => {
     const handleOnline = () => {
       setIsOnline(true);
-      // When the internet comes back, replay queued offline changes first.
-      processSyncQueue().then(() => fetchData());
+      // When the internet comes back, replay queued offline changes first,
+      // then refresh the currently visible tab only.
+      processSyncQueue().then(() => fetchTabData(activeTab));
     };
     const handleOffline = () => setIsOnline(false);
 
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
 
-    // If the page loads while already online, try to replay queued work.
-    if (navigator.onLine) {
-        processSyncQueue().then(() => fetchData());
-    }
-
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
-  }, []);
+  }, [activeTab]);
 
   const formatPrice = (amount: number) => formatMoney(amount, activeCurrency, liveRates);
 
@@ -456,94 +453,230 @@ const Dashboard: React.FC = () => {
   };
 
 
-  const fetchData = async () => {
-    if (!user) return;
-    console.log("Fetching data for role:", user.role);
-    try {
-      const isOwner = user.role === 'owner';
-      
-      const safeGet = async (url: string, fallback: any = null) => {
-        // If one request fails, still keep the rest of the dashboard working.
-        try { return await api.get(url); }
-        catch (e) { console.warn(`Failed to fetch ${url}:`, e); return fallback; }
-      };
+  // ---------------------------------------------------------------------------
+  // Shared helper — wraps api.get and swallows individual failures gracefully.
+  // ---------------------------------------------------------------------------
+  const safeGet = async (url: string, fallback: any = null) => {
+    try { return await api.get(url); }
+    catch (e) { console.warn(`Failed to fetch ${url}:`, e); return fallback; }
+  };
 
-      // Load the main dashboard data in parallel for better speed.
-      const [invData, anaData, aleData, histData, planData, settData, ordData, purData, suppData, posData, expData, staffData, profData, wasteData, logData, custData] = await Promise.all([
-        safeGet('/inventory'),
-        isOwner ? safeGet('/analytics') : Promise.resolve({ ...analytics }),
-        safeGet('/alerts', []),
-        safeGet('/history', []),
-        isOwner ? safeGet('/planner', []) : Promise.resolve([]),
-        safeGet('/settings'),
-        safeGet('/orders', []),
-        isOwner ? safeGet('/purchasing/suggest', []) : Promise.resolve([]),
-        isOwner ? safeGet('/suppliers', []) : Promise.resolve([]),
-        isOwner ? safeGet('/purchase-orders', []) : Promise.resolve([]),
-        isOwner ? safeGet('/expenses', []) : Promise.resolve([]),
-        isOwner ? safeGet('/staff', []) : Promise.resolve([]),
-        isOwner ? safeGet('/intelligence/profit-report', []) : Promise.resolve([]),
-        isOwner ? safeGet('/waste', []) : Promise.resolve([]),
-        safeGet('/shift-logs', []),
-        safeGet('/customers', [])
-      ]);
-      console.log("Data sync completed");
-      if (invData) {
-        if (invData.products) {
-          invData.products.sort((a: any, b: any) => (a.name || "").localeCompare(b.name || ""));
+  // ---------------------------------------------------------------------------
+  // applyInventory — shared utility: parse an /inventory response and derive
+  // client-side alerts + profit report from it (zero extra server calls).
+  // ---------------------------------------------------------------------------
+  const applyInventory = (invData: any) => {
+    if (!invData) return;
+    if (invData.products) {
+      invData.products.sort((a: any, b: any) => (a.name || '').localeCompare(b.name || ''));
+    }
+    setInventory(invData);
+
+    // Derive alerts on the client — no need for /api/alerts.
+    const derivedAlerts = calcAlerts(invData.products || [], invData.materials || {});
+    setAlerts(derivedAlerts);
+
+    // Derive profit report on the client — no need for /api/intelligence/profit-report.
+    const derivedReport = calcProfitReport(invData.products || []);
+    setProfitReport(derivedReport);
+
+    // Seed the price-simulation sliders with the latest ingredient prices.
+    if (invData.materials) {
+      const initialPrices: Record<string, number> = {};
+      Object.entries(invData.materials as Record<string, Ingredient>).forEach(
+        ([name, data]) => { initialPrices[name] = (data as any).price; }
+      );
+      setSimPrices(initialPrices);
+    }
+  };
+
+  const applySettings = (settData: any) => {
+    if (!settData) return;
+    setSettings(settData);
+    setGeneralNote(settData.operations_note || '');
+    if (settData.language) {
+      setLang(settData.language as Language);
+      localStorage.setItem('bakery_lang', settData.language);
+    }
+    if (settData.theme) setIsDarkMode(settData.theme === 'dark');
+  };
+
+  // ---------------------------------------------------------------------------
+  // fetchTabData — lazy, tab-aware loader.
+  //
+  // Only the data needed for the currently visible tab is fetched.  This
+  // replaces the old monolithic fetchData() that fired 16 parallel requests
+  // every 30 seconds regardless of what the user was looking at.
+  // ---------------------------------------------------------------------------
+  const fetchTabData = async (tab: string) => {
+    if (!user) return;
+    const isOwner = user.role === 'owner';
+
+    try {
+      switch (tab) {
+        case 'dashboard': {
+          const [invData, anaData, settData] = await Promise.all([
+            safeGet('/inventory'),
+            isOwner ? safeGet('/analytics') : Promise.resolve(null),
+            safeGet('/settings'),
+          ]);
+          applyInventory(invData);
+          if (anaData) setAnalytics(anaData);
+          applySettings(settData);
+          break;
         }
-        setInventory(invData);
-      }
-      if (anaData) setAnalytics(anaData);
-      if (aleData) setAlerts(aleData);
-      if (histData) setHistory(histData);
-      if (planData) setPlanner(planData);
-      if (settData) {
-        setSettings(settData);
-        setGeneralNote(settData.operations_note || '');
-        if (settData.language) {
-          setLang(settData.language as Language);
-          localStorage.setItem('bakery_lang', settData.language);
+
+        case 'pos': {
+          const [invData, ordData, custData, settData] = await Promise.all([
+            safeGet('/inventory'),
+            safeGet('/orders', []),
+            safeGet('/customers', []),
+            safeGet('/settings'),
+          ]);
+          applyInventory(invData);
+          if (ordData) setOrders(ordData);
+          if (custData) setCustomers(custData);
+          applySettings(settData);
+          break;
         }
-        if (settData.theme) {
-          setIsDarkMode(settData.theme === 'dark');
+
+        case 'inventory': {
+          const invData = await safeGet('/inventory');
+          applyInventory(invData);
+          break;
         }
-      }
-      if (ordData) setOrders(ordData);
-      if (purData) setPurchasingSuggestions(purData);
-      if (suppData) {
-        setSuppliers(suppData);
-        setSelectedSupplierId(prev => {
-          if (!suppData.length) return null;
-          if (prev && suppData.some((supp: any) => supp.id === prev)) return prev;
-          return suppData[0].id;
-        });
-      }
-      if (posData) {
-        const sorted = [...posData].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-        setPurchaseOrders(sorted);
-      }
-      if (expData) setExpenses(expData);
-      if (staffData) setStaff(staffData);
-      if (profData) setProfitReport(profData);
-      if (wasteData) setWasteRecords(wasteData);
-      if (logData) setShiftLogs(logData);
-      if (custData) setCustomers(custData);
-      
-      if (invData && invData.materials) {
-        // Fill the simulator with the latest saved ingredient prices.
-        const initialPrices: Record<string, number> = {};
-        Object.entries(invData.materials as Record<string, Ingredient>).forEach(([name, data]) => {
-            initialPrices[name] = data.price;
-        });
-        setSimPrices(initialPrices);
+
+        case 'history': {
+          const histData = await safeGet('/history', []);
+          if (histData) setHistory(histData);
+          break;
+        }
+
+        case 'intelligence': {
+          const [invData, anaData] = await Promise.all([
+            safeGet('/inventory'),
+            isOwner ? safeGet('/analytics') : Promise.resolve(null),
+          ]);
+          // calcProfitReport runs inside applyInventory — no extra server call.
+          applyInventory(invData);
+          if (anaData) setAnalytics(anaData);
+          break;
+        }
+
+        case 'finance': {
+          const [histData, expData, wasteData, ordData] = await Promise.all([
+            safeGet('/history', []),
+            isOwner ? safeGet('/expenses', []) : Promise.resolve([]),
+            isOwner ? safeGet('/waste', []) : Promise.resolve([]),
+            safeGet('/orders', []),
+          ]);
+          if (histData) setHistory(histData);
+          if (expData) setExpenses(expData);
+          if (wasteData) setWasteRecords(wasteData);
+          if (ordData) setOrders(ordData);
+          break;
+        }
+
+        case 'purchasing': {
+          const [purData, suppData, posData, invData] = await Promise.all([
+            isOwner ? safeGet('/purchasing/suggest', []) : Promise.resolve([]),
+            isOwner ? safeGet('/suppliers', []) : Promise.resolve([]),
+            isOwner ? safeGet('/purchase-orders', []) : Promise.resolve([]),
+            safeGet('/inventory'),
+          ]);
+          if (purData) setPurchasingSuggestions(purData);
+          if (suppData) {
+            setSuppliers(suppData);
+            setSelectedSupplierId(prev => {
+              if (!suppData.length) return null;
+              if (prev && suppData.some((s: any) => s.id === prev)) return prev;
+              return suppData[0].id;
+            });
+          }
+          if (posData) {
+            setPurchaseOrders([...posData].sort(
+              (a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime()
+            ));
+          }
+          applyInventory(invData);
+          break;
+        }
+
+        case 'planner': {
+          const [planData, invData] = await Promise.all([
+            isOwner ? safeGet('/planner', []) : Promise.resolve([]),
+            safeGet('/inventory'),
+          ]);
+          if (planData) setPlanner(planData);
+          applyInventory(invData);
+          break;
+        }
+
+        case 'staff': {
+          const [staffData, logData] = await Promise.all([
+            isOwner ? safeGet('/staff', []) : Promise.resolve([]),
+            safeGet('/shift-logs', []),
+          ]);
+          if (staffData) setStaff(staffData);
+          if (logData) setShiftLogs(logData);
+          break;
+        }
+
+        case 'kitchen': {
+          const [invData, planData] = await Promise.all([
+            safeGet('/inventory'),
+            safeGet('/planner', []),
+          ]);
+          applyInventory(invData);
+          if (planData) setPlanner(planData);
+          break;
+        }
+
+        case 'orders': {
+          const [ordData, custData] = await Promise.all([
+            safeGet('/orders', []),
+            safeGet('/customers', []),
+          ]);
+          if (ordData) setOrders(ordData);
+          if (custData) setCustomers(custData);
+          break;
+        }
+
+        case 'customers': {
+          const custData = await safeGet('/customers', []);
+          if (custData) setCustomers(custData);
+          break;
+        }
+
+        case 'settings': {
+          const settData = await safeGet('/settings');
+          applySettings(settData);
+          break;
+        }
+
+        default: {
+          // Fallback: fetch inventory + settings (safe minimal refresh).
+          const [invData, settData] = await Promise.all([
+            safeGet('/inventory'),
+            safeGet('/settings'),
+          ]);
+          applyInventory(invData);
+          applySettings(settData);
+        }
       }
     } catch (error) {
-      console.error("Critical error in fetchData:", error);
+      console.error(`Error loading tab "${tab}":`, error);
     } finally {
       setLoading(false);
     }
   };
+
+  /**
+   * fetchData — kept for backward-compat with mutation handlers (handleProduce,
+   * handleAddProduct, finalizeSale, etc.) that call `fetchData()` after a write.
+   * It re-fetches only the currently active tab, not all 16 endpoints.
+   */
+  const fetchData = () => fetchTabData(activeTab);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -626,14 +759,23 @@ const Dashboard: React.FC = () => {
 
   useEffect(() => {
     if (user) {
-        // Refresh the data regularly so the dashboard stays up to date.
-        fetchData();
-        // Fetch live exchange rates once per session — rates are cached for 6h on the backend.
-        fetchLiveRates();
-        const interval = setInterval(fetchData, 30000);
-        return () => clearInterval(interval);
+      // Fetch live exchange rates once per session — rates are cached for 6h on the backend.
+      fetchLiveRates();
+      // Load initial data for the default tab (dashboard).
+      fetchTabData(activeTab);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
+
+  // Re-fetch data whenever the user navigates to a different tab.
+  // This is the core of the tab-aware lazy loading strategy that
+  // replaces the old 30-second full-data polling interval.
+  useEffect(() => {
+    if (user) {
+      fetchTabData(activeTab);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
 
   const [gsiReady, setGsiReady] = useState(false);
   const [showPassword, setShowPassword] = useState(false);

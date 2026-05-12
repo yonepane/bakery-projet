@@ -6,7 +6,7 @@ from typing import Dict, List
 
 import sqlalchemy.orm
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from sqlalchemy.orm import joinedload
 
 try:
@@ -136,10 +136,10 @@ async def inventory(
             }
         )
 
-    return {
-        "materials": materials_dict,
-        "products": products_list,
-    }
+    return JSONResponse(
+        content={"materials": materials_dict, "products": products_list},
+        headers={"Cache-Control": "private, max-age=60"},
+    )
 
 
 @router.get("/api/planner/prep-sheet")
@@ -277,7 +277,7 @@ async def get_history(
     transactions = db.query(models.Transaction).filter(
         models.Transaction.owner_id == owner_id
     ).order_by(models.Transaction.timestamp.desc()).all()
-    return [
+    data = [
         {
             "id": tx.id,
             "timestamp": tx.timestamp.isoformat(),
@@ -289,6 +289,7 @@ async def get_history(
         }
         for tx in transactions
     ]
+    return JSONResponse(content=data, headers={"Cache-Control": "private, max-age=30"})
 
 
 @router.get("/api/planner")
@@ -296,7 +297,16 @@ async def get_planner(
     db: sqlalchemy.orm.Session = Depends(get_db),
     owner_id: int = Depends(get_effective_owner_id),
 ):
-    return db.query(models.Planner).filter(models.Planner.owner_id == owner_id).all()
+    rows = db.query(models.Planner).filter(models.Planner.owner_id == owner_id).all()
+    return JSONResponse(
+        content=[
+            {
+                "id": r.id, "product_id": r.product_id,
+                "date": str(r.date), "quantity": r.quantity, "status": r.status,
+            } for r in rows
+        ],
+        headers={"Cache-Control": "private, max-age=60"},
+    )
 
 
 @router.post("/api/planner")
@@ -326,7 +336,8 @@ async def get_settings_api(
     owner_id: int = Depends(get_effective_owner_id),
 ):
     settings = db.query(models.SystemSetting).filter(models.SystemSetting.owner_id == owner_id).all()
-    return {setting.key: setting.value for setting in settings}
+    data = {setting.key: setting.value for setting in settings}
+    return JSONResponse(content=data, headers={"Cache-Control": "private, max-age=120"})
 
 
 @router.put("/api/settings", dependencies=[Depends(requires_roles(["owner"]))])

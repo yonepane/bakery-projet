@@ -2,6 +2,7 @@
 
 import sqlalchemy.orm
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import JSONResponse
 
 try:
     from .. import models
@@ -22,7 +23,9 @@ async def get_staff(
     db: sqlalchemy.orm.Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    return db.query(models.User).filter(models.User.parent_owner_id == current_user.id).all()
+    staff = db.query(models.User).filter(models.User.parent_owner_id == current_user.id).all()
+    data = [{"id": u.id, "username": u.username, "role": u.role} for u in staff]
+    return JSONResponse(content=data, headers={"Cache-Control": "private, max-age=300"})
 
 
 @router.post("/api/staff", dependencies=[Depends(requires_roles(["owner"]))])
