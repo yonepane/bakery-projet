@@ -6,7 +6,7 @@
  */
 import React, { useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { FileText, TrendingDown, TrendingUp, Briefcase, FileClock, Table } from 'lucide-react';
+import { FileText, TrendingDown, TrendingUp, Briefcase, FileClock, Table, Plus } from 'lucide-react';
 import { DashboardSharedProps } from '../types';
 import http from '../../../lib/http';
 
@@ -31,6 +31,14 @@ type Props = Pick<DashboardSharedProps,
   | 'openDocument'
   | 'API_BASE'
   | 'orders'
+  | 'expenses'
+  | 'suppliers'
+  | 'setShowAddExpense'
+  | 'editingExpense'
+  | 'setEditingExpense'
+  | 'handleDeleteExpense'
+  | 'showConfirm'
+  | 'addToast'
 >;
 
 const FinancePanel: React.FC<Props> = ({
@@ -38,10 +46,24 @@ const FinancePanel: React.FC<Props> = ({
   filteredSales, filteredExpenses, filteredWaste, filteredPurchaseOrders,
   monthlySales, monthlyExpensesTotal, monthlyNetAfterExpenses, draftPurchaseCommitment,
   expenseBreakdown, productProfitability, wasteByProduct, accountingFeed,
-  openDocument, API_BASE, orders
+  openDocument, API_BASE, orders, expenses, suppliers,
+  setShowAddExpense, editingExpense, setEditingExpense, handleDeleteExpense,
+  showConfirm, addToast
 }) => {
   const [isHT, setIsHT] = useState(false);
   const TAX_RATE = 1.20; // 20% standard TVA assumed
+
+  // Helper: open expense modal pre-filled for editing
+  const openEditExpense = (exp: any) => {
+    setEditingExpense(exp);
+    // Pre-populate the shared newExpense state via the setter exposed by parent
+    // We do this by dispatching a custom event that Dashboard reads — but since
+    // we have direct prop access, we just call setShowAddExpense and the parent
+    // will read editingExpense from state.
+    // Actually we need to set newExpense in Dashboard — we do so by:
+    // The modal reads `editingExpense` and on open it populates `newExpense` from it.
+    setShowAddExpense(true);
+  };
 
   // Fetch a short-lived download token, then open the report URL.
   // This avoids embedding the long-lived session JWT in the URL.
@@ -79,10 +101,62 @@ const FinancePanel: React.FC<Props> = ({
   const totalWasteLossRaw = filteredWaste.reduce((a: number, w: any) => a + (w.loss_cost || 0), 0);
   const totalCOGSRaw = filteredSales.reduce((a: number, s: any) => a + (s.cost || 0), 0);
   
-  const displayRevenue = applyTaxMode(monthlySales);
+  // Moroccan VAT Engine
+  const getSalesTvaCollected = (tx: any) => {
+    let totalTva = 0;
+    if (tx.items && Array.isArray(tx.items)) {
+      tx.items.forEach((item: any) => {
+        const name = (item.name || '').toLowerCase();
+        const isBread = name.includes('pain') || name.includes('bread') || name.includes('baguette');
+        const rate = isBread ? 0 : 0.20;
+        const itemRevenue = (Number(item.qty) || 0) * (Number(item.price) || 0);
+        const ht = itemRevenue / (1 + rate);
+        totalTva += itemRevenue - ht;
+      });
+    } else {
+      const totalRevenue = Number(tx.total_revenue) || 0;
+      totalTva = totalRevenue - (totalRevenue / 1.20);
+    }
+    return totalTva;
+  };
+
+  const tvaCollectee = filteredSales.reduce((sum, tx) => sum + getSalesTvaCollected(tx), 0);
+  const tvaDeductible = filteredExpenses.reduce((sum: number, exp: any) => {
+    return sum + (exp.is_tva_deductible ? (Number(exp.tva_amount) || 0) : 0);
+  }, 0);
+  const tvaAPayer = tvaCollectee - tvaDeductible;
+
+  const displayRevenue = isHT 
+    ? filteredSales.reduce((sum: number, tx: any) => {
+        let txHt = 0;
+        if (tx.items && Array.isArray(tx.items)) {
+          tx.items.forEach((item: any) => {
+            const name = (item.name || '').toLowerCase();
+            const isBread = name.includes('pain') || name.includes('bread') || name.includes('baguette');
+            const rate = isBread ? 0 : 0.20;
+            const itemRevenue = (Number(item.qty) || 0) * (Number(item.price) || 0);
+            txHt += itemRevenue / (1 + rate);
+          });
+        } else {
+          txHt = (Number(tx.total_revenue) || 0) / 1.20;
+        }
+        return sum + txHt;
+      }, 0)
+    : monthlySales;
+
   const displayCOGS = applyTaxMode(totalCOGSRaw);
   const displayExpenses = filteredExpenses.reduce((sum: number, exp: any) => {
-    return sum + applyExpenseTaxMode(Number(exp.amount) || 0, exp.category || '');
+    if (isHT) {
+      if (exp.amount_ht !== undefined && exp.amount_ht !== null && exp.amount_ht > 0) {
+        return sum + exp.amount_ht;
+      }
+      return sum + applyExpenseTaxMode(Number(exp.amount) || 0, exp.category || '');
+    } else {
+      if (exp.amount_ttc !== undefined && exp.amount_ttc !== null && exp.amount_ttc > 0) {
+        return sum + exp.amount_ttc;
+      }
+      return sum + (Number(exp.amount) || 0);
+    }
   }, 0);
   const displayWaste = applyTaxMode(totalWasteLossRaw);
   
@@ -207,6 +281,40 @@ const FinancePanel: React.FC<Props> = ({
         </div>
       </div>
 
+      {/* Moroccan VAT (TVA) Settlement */}
+      <div className={`p-6 rounded-[2rem] border transition-all ${isDarkMode ? 'glass-panel border-gold/20 bg-gold/5' : 'bg-slate-50 border-slate-200'}`}>
+        <div className="flex justify-between items-center mb-6">
+          <div>
+            <h4 className={`text-md font-bold luxury-font uppercase tracking-wider ${isDarkMode ? 'text-gold' : 'text-slate-900'}`}>Moroccan VAT (TVA) Settlement</h4>
+            <p className={`text-[11px] ${isDarkMode ? 'text-cream/40' : 'text-slate-500'}`}>Moroccan tax declaring simulations based on selected range</p>
+          </div>
+          <span className={`text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full ${isDarkMode ? 'bg-gold/10 text-gold' : 'bg-slate-900 text-white'}`}>Moroccan DGI Engine</span>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="space-y-1">
+            <p className={`text-[9px] font-black uppercase tracking-[0.15em] ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>TVA Collectée (Sales)</p>
+            <p className="text-xl font-bold text-emerald-500">+{formatPrice(tvaCollectee)}</p>
+            <p className="text-[10px] opacity-40">20% on pastries, 0% on bread</p>
+          </div>
+          <div className="space-y-1">
+            <p className={`text-[9px] font-black uppercase tracking-[0.15em] ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>TVA Déductible (Expenses)</p>
+            <p className="text-xl font-bold text-rose-500">-{formatPrice(tvaDeductible)}</p>
+            <p className="text-[10px] opacity-40">From qualified taxable expenses</p>
+          </div>
+          <div className={`p-4 rounded-xl ${tvaAPayer >= 0 ? (isDarkMode ? 'bg-rose-500/10 border border-rose-500/20' : 'bg-rose-50 border border-rose-100') : (isDarkMode ? 'bg-emerald-500/10 border border-emerald-500/20' : 'bg-emerald-50 border border-emerald-100')}`}>
+            <p className={`text-[9px] font-black uppercase tracking-[0.15em] ${tvaAPayer >= 0 ? 'text-rose-500' : 'text-emerald-500'} mb-1`}>
+              {tvaAPayer >= 0 ? 'TVA à Payer (Owed)' : 'Crédit de TVA (Refund)'}
+            </p>
+            <p className={`text-xl font-bold ${tvaAPayer >= 0 ? 'text-rose-500' : 'text-emerald-500'}`}>
+              {formatPrice(Math.abs(tvaAPayer))}
+            </p>
+            <p className="text-[10px] opacity-60 mt-1">
+              {tvaAPayer >= 0 ? 'Reserve this amount for tax' : 'Rolls over to next month'}
+            </p>
+          </div>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Product Profitability */}
         <div className={`p-8 rounded-[2.5rem] border transition-colors ${isDarkMode ? 'glass-panel' : 'bg-white border-slate-200 shadow-xl'}`}>
@@ -270,6 +378,127 @@ const FinancePanel: React.FC<Props> = ({
           </div>
         </div>
       )}
+
+      {/* ── Overhead & Bills ─────────────────────────────────────────────── */}
+      <div className="space-y-6">
+        <div className="flex justify-between items-center">
+          <div>
+            <h3 className={`text-3xl font-bold luxury-font uppercase tracking-tighter ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Overhead &amp; Bills</h3>
+            <p className={`text-sm mt-1 ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>Track business expenses, rent, payroll &amp; utilities</p>
+          </div>
+          <button
+            onClick={() => setShowAddExpense(true)}
+            className={`px-8 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center gap-3 transition-all ${
+              isDarkMode ? 'bg-gold text-charcoal shadow-gold-glow hover:opacity-90' : 'bg-slate-900 text-white hover:bg-slate-700'
+            }`}
+          >
+            <Plus size={16} /> Log New Expense
+          </button>
+        </div>
+
+        <div className={`rounded-[2.5rem] border overflow-hidden transition-colors ${isDarkMode ? 'glass-panel' : 'bg-white border-slate-200 shadow-xl'}`}>
+          <table className="w-full text-left">
+            <thead>
+              <tr className={`border-b text-[10px] font-black uppercase tracking-[0.2em] ${isDarkMode ? 'border-black/60 text-cream/40' : 'border-black/10 text-slate-400'}`}>
+                <th className="px-8 py-6">Date</th>
+                <th className="px-8 py-6">Supplier / Ref</th>
+                <th className="px-8 py-6">Category</th>
+                <th className="px-8 py-6">Tax / VAT</th>
+                <th className="px-8 py-6">Status</th>
+                <th className="px-8 py-6 text-right">Amount</th>
+                <th className="px-8 py-6 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(filteredExpenses || []).map((exp: any) => {
+                const suppName = exp.supplier?.name || (exp.supplier_id ? `Supplier #${exp.supplier_id}` : 'None');
+                const tvaRateStr = exp.tva_rate !== undefined ? `${exp.tva_rate}%` : 'Legacy';
+                
+                let statusBadge = '';
+                if (exp.status === 'paid') statusBadge = 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
+                else if (exp.status === 'partial') statusBadge = 'bg-amber-500/10 text-amber-400 border border-amber-500/20';
+                else statusBadge = 'bg-rose-500/10 text-rose-400 border border-rose-500/20';
+
+                return (
+                  <tr key={exp.id} className={`border-b last:border-0 ${
+                    isDarkMode ? 'border-black/50 hover:bg-white/5' : 'border-black/5 hover:bg-slate-50'
+                  } transition-colors`}>
+                    <td className="px-8 py-5 font-bold text-sm">{new Date(exp.date).toLocaleDateString()}</td>
+                    <td className="px-8 py-5">
+                      <div className="font-bold text-sm">{suppName}</div>
+                      {exp.invoice_ref && (
+                        <div className="text-[10px] opacity-40 font-mono mt-0.5">Ref: {exp.invoice_ref}</div>
+                      )}
+                    </td>
+                    <td className="px-8 py-5">
+                      <span className={`text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full ${
+                        isDarkMode ? 'bg-white/5 text-cream/70' : 'bg-slate-100 text-slate-600'
+                      }`}>{exp.category}</span>
+                    </td>
+                    <td className="px-8 py-5">
+                      <div className="text-sm font-semibold">{tvaRateStr} TVA</div>
+                      <div className="text-[10px] mt-0.5">
+                        {exp.is_tva_deductible ? (
+                          <span className="text-emerald-400 font-bold uppercase tracking-wider text-[9px]">Deductible</span>
+                        ) : (
+                          <span className="text-white/30 uppercase tracking-wider text-[9px]">Non-Deductible</span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-8 py-5">
+                      <span className={`text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded-full ${statusBadge}`}>
+                        {exp.status}
+                      </span>
+                      {exp.status === 'partial' && (
+                        <div className="text-[10px] opacity-40 font-semibold mt-1">
+                          Paid: {formatPrice(exp.amount_paid || 0)}
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-8 py-5 text-right">
+                      <div className="font-bold text-sm text-rose-500">
+                        -{formatPrice(isHT ? (exp.amount_ht || applyExpenseTaxMode(exp.amount, exp.category)) : (exp.amount_ttc || exp.amount))}
+                      </div>
+                      <div className="text-[10px] opacity-40 mt-0.5">
+                        {isHT ? `TTC: ${formatPrice(exp.amount_ttc || exp.amount)}` : `HT: ${formatPrice(exp.amount_ht || exp.amount / 1.20)}`}
+                      </div>
+                    </td>
+                    <td className="px-8 py-5 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => openEditExpense(exp)}
+                          className="px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest bg-gold/10 text-gold hover:bg-gold/20 transition-all border border-gold/20"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => showConfirm({
+                            title: 'Delete Expense',
+                            message: `Delete this ${exp.category} expense of ${formatPrice(exp.amount_ttc || exp.amount)}? This cannot be undone.`,
+                            type: 'danger',
+                            confirmText: 'Delete',
+                            onConfirm: () => handleDeleteExpense(exp.id),
+                          })}
+                          className="px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 transition-all border border-rose-500/20"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+              {(!expenses || expenses.length === 0) && (
+                <tr>
+                  <td colSpan={7} className="py-20 text-center opacity-20 font-black uppercase tracking-widest text-[10px]">
+                    No expenses logged yet
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   );
 };

@@ -65,10 +65,23 @@ def get_password_hash(password: str) -> str:
 
 
 def create_access_token(data: dict) -> str:
+    """Create a 24-hour access token used for all API requests."""
     to_encode = data.copy()
     expire = datetime.now(timezone.utc) + timedelta(hours=24)
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
+
+def create_refresh_token(username: str) -> str:
+    """Create a 7-day refresh token.
+
+    Stored client-side in localStorage as `bakery_refresh_token`. The
+    frontend calls POST /api/auth/refresh when an access token expires so
+    active users are never hard-logged-out mid-session.
+    """
+    expire = datetime.now(timezone.utc) + timedelta(days=7)
+    payload = {"sub": username, "type": "refresh", "exp": expire}
+    return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 
 
 def create_download_token(username: str) -> str:

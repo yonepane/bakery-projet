@@ -86,6 +86,13 @@ async def inventory(
     db: sqlalchemy.orm.Session = Depends(get_db),
     owner_id: int = Depends(get_effective_owner_id),
 ):
+    """Return the full inventory (materials + products with live costs).
+
+    Note: No role guard is applied intentionally. Cashier accounts need
+    read access to this endpoint so the POS panel can display the product
+    list and current stock levels. The owner_id filter ensures each tenant
+    only sees their own data.
+    """
     ingredients = (
         db.query(models.Ingredient)
         .filter(models.Ingredient.owner_id == owner_id)

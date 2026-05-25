@@ -66,11 +66,48 @@ async def update_customer(
     ).first()
     if not customer:
         raise HTTPException(status_code=404, detail="Customer not found")
-        
+
     update_data = customer_update.dict(exclude_unset=True)
     for key, value in update_data.items():
         setattr(customer, key, value)
-        
+
     db.commit()
     db.refresh(customer)
     return customer
+
+
+@router.delete("/api/customers/{id}", dependencies=[Depends(requires_roles(["owner"]))])
+async def delete_customer(
+    id: str,
+    db: sqlalchemy.orm.Session = Depends(get_db),
+    owner_id: int = Depends(get_effective_owner_id),
+):
+    """Delete a customer by ID (owner-only).
+
+    Blocked if the customer is referenced by any transaction, to preserve
+    historical financial records.
+    """
+    customer = db.query(models.Customer).filter(
+        models.Customer.id == id,
+        models.Customer.owner_id == owner_id,
+    ).first()
+    if not customer:
+        raise HTTPException(status_code=404, detail="Customer not found")
+
+    linked_transactions = (
+        db.query(models.Transaction)
+        .filter(
+            models.Transaction.customer_id == id,
+            models.Transaction.owner_id == owner_id,
+        )
+        .count()
+    )
+    if linked_transactions:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot delete customer with {linked_transactions} linked transaction(s). Remove transactions first.",
+        )
+
+    db.delete(customer)
+    db.commit()
+    return {"success": True}

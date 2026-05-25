@@ -22,12 +22,12 @@ try:
     from .. import models
     from ..auth import get_effective_owner_id, requires_roles
     from ..database import get_db
-    from ..services.core import calculate_product_cost
+    from ..services.core import calculate_product_cost, get_user_settings
 except ImportError:
     import models
     from auth import get_effective_owner_id, requires_roles
     from database import get_db
-    from services.core import calculate_product_cost
+    from services.core import calculate_product_cost, get_user_settings
 
 router = APIRouter()
 
@@ -44,13 +44,7 @@ _analytics_cache: dict[int, tuple[float, dict]] = {}
 _profit_cache: dict[int, tuple[float, list]] = {}
 
 
-def get_user_settings(db: sqlalchemy.orm.Session, owner_id: int) -> dict:
-    settings_records = db.query(models.SystemSetting).filter(
-        models.SystemSetting.owner_id == owner_id
-    ).all()
-    if not settings_records:
-        return {"currency": "MAD", "tax_rate": 0.2, "bakery_name": "BakeryOS"}
-    return {s.key: s.value for s in settings_records}
+# get_user_settings is imported from services.core — see import block above.
 
 
 def _load_products_with_recipes(db: sqlalchemy.orm.Session, owner_id: int):
@@ -117,8 +111,11 @@ async def analytics(
     )
 
     # Build daily chart data entirely in Python — no extra DB calls.
+    # Use utcnow() consistently so the day boundaries match the UTC timestamps
+    # stored by pos.py (which also uses utcnow). Mixing now() and utcnow() would
+    # shift chart bars by the server's UTC offset.
     daily_data = []
-    now = datetime.now()
+    now = datetime.utcnow()
     for i in range(6, -1, -1):
         day = now - timedelta(days=i)
         s_day = datetime(day.year, day.month, day.day)

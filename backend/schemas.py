@@ -35,6 +35,9 @@ class MaterialCreate(BaseModel):
 class SupplierCreate(BaseModel):
     name: str
     contact_info: Optional[str] = None
+    ice: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
 
 
 class POReceiveItem(BaseModel):
@@ -55,10 +58,27 @@ class POCreate(BaseModel):
     expected_delivery_date: Optional[str] = None
 
 
+class ExpensePaymentCreate(BaseModel):
+    amount: float
+    payment_method: str = "cash"
+    paid_at: Optional[str] = None
+
+
 class ExpenseCreate(BaseModel):
     category: str
-    amount: float
     description: Optional[str] = None
+    amount: Optional[float] = None # Legacy support
+    input_mode: str = "TTC"
+    amount_ht: float = 0.0
+    amount_ttc: float = 0.0
+    tva_rate: float = 0.0
+    tva_amount: float = 0.0
+    is_tva_deductible: bool = False
+    supplier_id: Optional[int] = None
+    invoice_ref: Optional[str] = None
+    status: str = "paid"
+    amount_paid: float = 0.0
+    payments: Optional[List[ExpensePaymentCreate]] = []
 
 
 class ShiftLogCreate(BaseModel):
@@ -109,6 +129,10 @@ class Token(BaseModel):
     token_type: str
     username: str
     role: str
+
+
+class RefreshRequest(BaseModel):
+    refresh_token: str
 
 
 class OrderCreate(BaseModel):

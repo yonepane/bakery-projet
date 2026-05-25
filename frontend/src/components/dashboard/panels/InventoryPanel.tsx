@@ -17,7 +17,7 @@ const InventoryPanel: React.FC<Props> = ({
   <div className="space-y-8 animate-in fade-in duration-500">
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
       {/* Finished Goods */}
-      <div className={`rounded-[2rem] border overflow-hidden transition-colors ${isDarkMode ? 'glass-panel' : 'bg-white border-slate-200 shadow-xl'}`}>
+      <div className={`rounded-[2rem] border overflow-hidden transition-colors ${isDarkMode ? 'bg-[#0a0a0b] border-white/5 shadow-glass backdrop-blur-xl' : 'bg-white border-slate-200 shadow-xl'}`}>
         <div className="p-8 border-b border-white/5 flex justify-between items-center">
           <h3 className={`text-xl font-bold luxury-font uppercase ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Finished Goods</h3>
           {editMode && <button onClick={() => setShowAddProduct(true)} className={`p-2 rounded-lg ${isDarkMode ? 'bg-gold/10 text-gold' : 'bg-slate-100 text-slate-900'}`}><Plus size={16} /></button>}
@@ -46,7 +46,16 @@ const InventoryPanel: React.FC<Props> = ({
                       <button onClick={() => handleAdjustStock('product', p.id, -1)} className={`w-6 h-6 rounded-md flex items-center justify-center text-xs ${isDarkMode ? 'bg-white/5 hover:bg-rose-500/20 text-rose-500' : 'bg-slate-100 hover:bg-rose-100 text-rose-600'}`}>-</button>
                       <span className={`font-bold text-sm min-w-[3ch] text-center ${p.stock < 10 ? 'text-rose-500' : ''}`}>{p.stock}</span>
                       <button
-                        onClick={() => openSelector({ title: 'Quick Stock', label: 'Add Quantity', value: '50', type: 'text', onConfirm: (val) => handleAdjustStock('product', p.id, parseInt(val)) })}
+                        onClick={() => openSelector({
+                          title: 'Quick Stock',
+                          label: 'Add Quantity',
+                          value: '50',
+                          type: 'text',
+                          onConfirm: (val) => {
+                            const parsed = parseInt(val);
+                            if (!isNaN(parsed)) handleAdjustStock('product', p.id, parsed);
+                          }
+                        })}
                         className={`w-6 h-6 rounded-md flex items-center justify-center text-xs ${isDarkMode ? 'bg-white/5 hover:bg-emerald-500/20 text-emerald-500' : 'bg-slate-100 hover:bg-emerald-100 text-emerald-600'}`}>+</button>
                     </div>
                   </td>
@@ -55,7 +64,19 @@ const InventoryPanel: React.FC<Props> = ({
                       <div className="flex items-center gap-3">
                         <span className={`text-sm font-bold ${isDarkMode ? 'text-gold' : 'text-slate-900'}`}>{formatPrice(p.price)}</span>
                         {editMode && (
-                          <button onClick={() => openSelector({ title: 'Update Price', label: 'New Selling Price', value: p.price.toString(), type: 'text', onConfirm: (val) => handleUpdateProductPrice(p.id, parseFloat(val)) })} className="text-[8px] font-black uppercase tracking-widest px-2 py-1 rounded bg-gold/10 text-gold hover:bg-gold hover:text-black transition-all">
+                          <button
+                            onClick={() => openSelector({
+                              title: 'Update Price',
+                              label: 'New Selling Price',
+                              value: p.price.toString(),
+                              type: 'text',
+                              onConfirm: (val) => {
+                                const parsed = parseFloat(val);
+                                if (!isNaN(parsed)) handleUpdateProductPrice(p.id, parsed);
+                              }
+                            })}
+                            className="text-[8px] font-black uppercase tracking-widest px-2 py-1 rounded bg-gold/10 text-gold hover:bg-gold hover:text-black transition-all"
+                          >
                             Edit
                           </button>
                         )}
@@ -71,7 +92,7 @@ const InventoryPanel: React.FC<Props> = ({
       </div>
 
       {/* Raw Materials */}
-      <div className={`rounded-[2rem] border overflow-hidden transition-colors ${isDarkMode ? 'glass-panel' : 'bg-white border-slate-200 shadow-xl'}`}>
+      <div className={`rounded-[2rem] border overflow-hidden transition-colors ${isDarkMode ? 'bg-[#0a0a0b] border-white/5 shadow-glass backdrop-blur-xl' : 'bg-white border-slate-200 shadow-xl'}`}>
         <div className="p-8 border-b border-white/5 flex justify-between items-center">
           <h3 className={`text-xl font-bold luxury-font uppercase ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Raw Materials</h3>
           {editMode && (
@@ -106,7 +127,19 @@ const InventoryPanel: React.FC<Props> = ({
                   <div className="flex items-center gap-2">
                     <button onClick={() => handleAdjustStock('material', name, -100)} className={`w-6 h-6 rounded-md flex items-center justify-center text-xs shrink-0 ${isDarkMode ? 'bg-white/5 hover:bg-rose-500/20 text-rose-500' : 'bg-slate-100 hover:bg-rose-100 text-rose-600'}`}>-</button>
                     <span className={`font-bold text-sm min-w-[4ch] text-center ${data.stock < data.min_threshold ? 'text-rose-500' : (isDarkMode ? 'text-gold' : 'text-slate-900')}`}>{data.stock}</span>
-                    <button onClick={() => openSelector({ title: 'Quick Stock', label: `Add Quantity (${data.unit})`, value: '1000', type: 'text', onConfirm: (val) => handleAdjustStock('material', name, parseInt(val)) })} className={`w-6 h-6 rounded-md flex items-center justify-center text-xs shrink-0 ${isDarkMode ? 'bg-white/5 hover:bg-emerald-500/20 text-emerald-500' : 'bg-slate-100 hover:bg-emerald-100 text-emerald-600'}`}>+</button>
+                    <button
+                      onClick={() => openSelector({
+                        title: 'Quick Stock',
+                        label: `Add Quantity (${data.unit})`,
+                        value: '1000',
+                        type: 'text',
+                        onConfirm: (val) => {
+                          const parsed = parseInt(val);
+                          if (!isNaN(parsed)) handleAdjustStock('material', name, parsed);
+                        }
+                      })}
+                      className={`w-6 h-6 rounded-md flex items-center justify-center text-xs shrink-0 ${isDarkMode ? 'bg-white/5 hover:bg-emerald-500/20 text-emerald-500' : 'bg-slate-100 hover:bg-emerald-100 text-emerald-600'}`}
+                    >+</button>
                     <span className="text-[10px] opacity-40 shrink-0">{data.unit}</span>
                   </div>
                 </td>

@@ -19,7 +19,7 @@ try:
     from ..auth import get_current_user, get_effective_owner_id, requires_roles
     from ..database import get_db
     from ..schemas import ProductionBatch, SaleRequest
-    from ..services.core import calculate_product_cost
+    from ..services.core import calculate_product_cost, get_user_settings
     from ..services.pdf import build_monthly_report_pdf, build_receipt_pdf
     from ..services.excel import build_monthly_report_excel
 except ImportError:
@@ -27,7 +27,7 @@ except ImportError:
     from auth import get_current_user, get_effective_owner_id, requires_roles
     from database import get_db
     from schemas import ProductionBatch, SaleRequest
-    from services.core import calculate_product_cost
+    from services.core import calculate_product_cost, get_user_settings
     from services.pdf import build_monthly_report_pdf, build_receipt_pdf
     from services.excel import build_monthly_report_excel
 
@@ -37,11 +37,7 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__fil
 DATA_DIR = os.path.join(BASE_DIR, "data")
 
 
-def get_user_settings(db: sqlalchemy.orm.Session, owner_id: int) -> dict:
-    settings_records = db.query(models.SystemSetting).filter(models.SystemSetting.owner_id == owner_id).all()
-    if not settings_records:
-        return {"currency": "MAD", "tax_rate": 0.2, "bakery_name": "BakeryOS"}
-    return {s.key: s.value for s in settings_records}
+# get_user_settings is imported from services.core — see import block above.
 
 
 def _pdf_response(buffer, filename: str) -> Response:

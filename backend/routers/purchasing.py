@@ -32,6 +32,7 @@ async def suggest_purchase(
     for ing in ingredients:
         if ing.stock < ing.min_threshold:
             suggested_buy = ing.min_threshold * 2 - ing.stock
+            factor = 1000.0 if ing.unit in ["kg", "L", "l"] else 1.0
             suggestions.append(
                 {
                     "name": ing.name,
@@ -39,7 +40,7 @@ async def suggest_purchase(
                     "min_threshold": ing.min_threshold,
                     "suggested_buy": suggested_buy,
                     "unit": ing.unit,
-                    "estimated_cost": suggested_buy * ing.price,
+                    "estimated_cost": (suggested_buy / factor) * ing.price,
                 }
             )
     return JSONResponse(content=suggestions, headers={"Cache-Control": "private, max-age=120"})
@@ -51,7 +52,17 @@ async def get_suppliers(
     owner_id: int = Depends(get_effective_owner_id),
 ):
     suppliers = db.query(models.Supplier).filter(models.Supplier.owner_id == owner_id).all()
-    data = [{"id": s.id, "name": s.name, "contact_info": s.contact_info} for s in suppliers]
+    data = [
+        {
+            "id": s.id,
+            "name": s.name,
+            "contact_info": s.contact_info,
+            "ice": s.ice,
+            "email": s.email,
+            "phone": s.phone,
+        }
+        for s in suppliers
+    ]
     return JSONResponse(content=data, headers={"Cache-Control": "private, max-age=120"})
 
 
@@ -82,6 +93,9 @@ async def update_supplier(
         raise HTTPException(status_code=404, detail="Supplier not found")
     supplier.name = supp.name
     supplier.contact_info = supp.contact_info
+    supplier.ice = supp.ice
+    supplier.email = supp.email
+    supplier.phone = supp.phone
     db.commit()
     return {"success": True}
 
@@ -114,7 +128,10 @@ async def get_purchase_orders(
     db: sqlalchemy.orm.Session = Depends(get_db),
     owner_id: int = Depends(get_effective_owner_id),
 ):
-    pos = db.query(models.PurchaseOrder).filter(models.PurchaseOrder.owner_id == owner_id).all()
+    pos = db.query(models.PurchaseOrder).filter(
+        models.PurchaseOrder.owner_id == owner_id,
+        models.PurchaseOrder.archived != True,  # noqa: E712 — SQLAlchemy needs != not `is not`
+    ).all()
     data = [
         {
             "id": p.id, "supplier_id": p.supplier_id, "status": p.status,
@@ -281,6 +298,10 @@ async def update_po_status(
     db: sqlalchemy.orm.Session = Depends(get_db),
     owner_id: int = Depends(get_effective_owner_id),
 ):
+    VALID_PO_STATUSES = {"draft", "pending", "partial", "received", "cancelled"}
+    if status not in VALID_PO_STATUSES:
+        raise HTTPException(status_code=400, detail=f"Invalid status. Must be one of {VALID_PO_STATUSES}")
+
     po = db.query(models.PurchaseOrder).filter(
         models.PurchaseOrder.id == id,
         models.PurchaseOrder.owner_id == owner_id,

@@ -205,14 +205,25 @@ async def update_product(
                 models.Ingredient.name == ing_data.name,
                 models.Ingredient.owner_id == owner_id,
             ).first()
-            if ing:
-                db.add(
-                    models.RecipeItem(
-                        product_id=id,
-                        ingredient_id=ing.id,
-                        quantity=ing_data.quantity,
-                    )
+            if not ing:
+                ing = models.Ingredient(
+                    name=ing_data.name,
+                    owner_id=owner_id,
+                    stock=0,
+                    unit="g",
+                    price=0,
+                    min_threshold=1000,
                 )
+                db.add(ing)
+                db.flush()
+
+            db.add(
+                models.RecipeItem(
+                    product_id=id,
+                    ingredient_id=ing.id,
+                    quantity=ing_data.quantity,
+                )
+            )
 
     db.commit()
     return {"success": True}
@@ -280,10 +291,9 @@ async def adjust_stock(
             models.Ingredient.name == adj.id,
             models.Ingredient.owner_id == owner_id,
         ).first()
-
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
 
-    item.stock += adj.amount
+    item.stock = max(0, item.stock + adj.amount)
     db.commit()
     return {"success": True, "new_stock": item.stock}

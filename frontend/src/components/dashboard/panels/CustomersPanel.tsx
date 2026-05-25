@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
-import { Users, Plus, Star, Phone, Mail, Clock, X, CheckCircle } from 'lucide-react';
+import { Users, Plus, Star, Phone, Mail, Trash2, X } from 'lucide-react';
 import { DashboardSharedProps, Customer } from '../types';
 
 type Props = Pick<DashboardSharedProps,
-  'isDarkMode' | 'customers' | 'api' | 'addToast' | 'fetchData'
+  'isDarkMode' | 'customers' | 'api' | 'addToast' | 'fetchData' | 'showConfirm'
 >;
 
 const CustomersPanel: React.FC<Props> = ({
-  isDarkMode, customers, api, addToast, fetchData
+  isDarkMode, customers, api, addToast, fetchData, showConfirm
 }) => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
@@ -98,12 +98,40 @@ const CustomersPanel: React.FC<Props> = ({
                 )}
               </div>
 
-              <button
-                onClick={() => openEdit(customer)}
-                className={`w-full py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${isDarkMode ? 'bg-white/5 text-white/40 hover:bg-white/10 hover:text-white' : 'bg-slate-50 text-slate-500 hover:bg-slate-100 hover:text-slate-900'}`}
-              >
-                Edit Profile
-              </button>
+              <div className="flex gap-2 mt-auto">
+                <button
+                  onClick={() => openEdit(customer)}
+                  className={`flex-1 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${isDarkMode ? 'bg-white/5 text-white/40 hover:bg-white/10 hover:text-white' : 'bg-slate-50 text-slate-500 hover:bg-slate-100 hover:text-slate-900'}`}
+                >
+                  Edit Profile
+                </button>
+                <button
+                  onClick={() => showConfirm({
+                    title: 'Delete Customer',
+                    message: `Remove ${customer.name} from the CRM? This cannot be undone if they have no transaction history.`,
+                    type: 'danger',
+                    confirmText: 'Delete',
+                    onConfirm: async () => {
+                      try {
+                        await api.delete(`/customers/${customer.id}`);
+                        addToast('Customer removed', 'success');
+                        fetchData();
+                      } catch (e: any) {
+                        const detail = e.response?.data?.detail || 'Delete failed';
+                        addToast(detail, 'error');
+                      }
+                    },
+                  })}
+                  className={`p-4 rounded-2xl text-[10px] font-black transition-all ${
+                    isDarkMode
+                      ? 'bg-rose-500/10 text-rose-400 hover:bg-rose-500/20'
+                      : 'bg-rose-50 text-rose-500 hover:bg-rose-100'
+                  }`}
+                  title="Delete customer"
+                >
+                  <Trash2 size={16} />
+                </button>
+              </div>
             </div>
           </div>
         ))}

@@ -139,6 +139,26 @@ class Expense(Base):
     category = Column(String) # The type of expense.
     amount = Column(Float)
     description = Column(String, nullable=True)
+    
+    # New Accounting Fields
+    input_mode = Column(String, default="TTC") # HT or TTC
+    amount_ht = Column(Float, default=0.0)
+    amount_ttc = Column(Float, default=0.0)
+    tva_rate = Column(Float, default=0.0) # 0, 7, 10, 14, 20
+    tva_amount = Column(Float, default=0.0)
+    is_tva_deductible = Column(Boolean, default=False)
+    
+    # Supplier & Billing
+    supplier_id = Column(Integer, ForeignKey("suppliers.id"), nullable=True)
+    invoice_ref = Column(String, nullable=True)
+    
+    # Treasury
+    status = Column(String, default="paid") # paid, pending, partial
+    amount_paid = Column(Float, default=0.0)
+
+    # Relationships
+    payments = relationship("ExpensePayment", back_populates="expense", cascade="all, delete-orphan")
+    supplier = relationship("Supplier")
 
 class Supplier(Base):
     __tablename__ = "suppliers"
@@ -147,6 +167,9 @@ class Supplier(Base):
     owner_id = Column(Integer, ForeignKey("users.id"))
     name = Column(String, index=True)
     contact_info = Column(String, nullable=True)
+    ice = Column(String, nullable=True)
+    email = Column(String, nullable=True)
+    phone = Column(String, nullable=True)
 
 class PurchaseOrder(Base):
     __tablename__ = "purchase_orders"
@@ -188,3 +211,13 @@ class ShiftRecord(Base):
     end_time = Column(DateTime, default=datetime.datetime.utcnow)
     revenue = Column(Float)
     cost = Column(Float)
+
+class ExpensePayment(Base):
+    __tablename__ = "expense_payments"
+    id = Column(Integer, primary_key=True, index=True)
+    expense_id = Column(Integer, ForeignKey("expenses.id"))
+    amount = Column(Float)
+    paid_at = Column(DateTime, default=datetime.datetime.utcnow)
+    payment_method = Column(String, default="cash") # cash, bank_transfer, card, cheque
+
+    expense = relationship("Expense", back_populates="payments")

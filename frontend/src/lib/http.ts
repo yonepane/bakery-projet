@@ -26,13 +26,43 @@ let _isRedirecting = false;
 
 http.interceptors.response.use(
   (response) => response,
-  (error) => {
-    if (error.response?.status === 401 && !_isRedirecting) {
-      // If the server rejects the token, the saved login is no longer valid.
-      // Clear it and force the app back to the login screen.
+  async (error) => {
+    const status = error.response?.status;
+    const isRetry = (error.config as any)?._isRefreshRetry;
+
+    if (status === 401 && !_isRedirecting && !isRetry) {
+      const refreshToken = localStorage.getItem('bakery_refresh_token');
+
+      if (refreshToken) {
+        try {
+          // Attempt a silent token refresh using a plain axios call (not the
+          // intercepted `http` instance) to avoid triggering another 401 loop.
+          const { data } = await axios.post(`${API_BASE}/auth/refresh`, {
+            refresh_token: refreshToken,
+          });
+
+          // Persist the new access token and retry the original request.
+          localStorage.setItem('bakery_token', data.access_token);
+          const retryConfig = {
+            ...error.config,
+            _isRefreshRetry: true,
+            headers: {
+              ...error.config.headers,
+              Authorization: `Bearer ${data.access_token}`,
+            },
+          };
+          return http(retryConfig);
+        } catch {
+          // Refresh failed — fall through to hard logout below.
+        }
+      }
+
+      // No refresh token available, or the refresh itself failed.
+      // Clear everything and force the app back to the login screen.
       _isRedirecting = true;
       localStorage.removeItem('bakery_token');
       localStorage.removeItem('bakery_user');
+      localStorage.removeItem('bakery_refresh_token');
       window.location.reload();
     }
     return Promise.reject(error);

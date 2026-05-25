@@ -45,6 +45,54 @@ def ensure_runtime_schema() -> None:
                 conn.execute(text("ALTER TABLE purchase_orders ADD COLUMN expected_delivery_date DATETIME"))
             if "archived" not in po_columns:
                 conn.execute(text("ALTER TABLE purchase_orders ADD COLUMN archived BOOLEAN DEFAULT 0"))
+
+            supp_columns = {row[1] for row in conn.execute(text("PRAGMA table_info(suppliers)"))}
+            if "ice" not in supp_columns:
+                conn.execute(text("ALTER TABLE suppliers ADD COLUMN ice VARCHAR"))
+            if "email" not in supp_columns:
+                conn.execute(text("ALTER TABLE suppliers ADD COLUMN email VARCHAR"))
+            if "phone" not in supp_columns:
+                conn.execute(text("ALTER TABLE suppliers ADD COLUMN phone VARCHAR"))
+
+            exp_columns = {row[1] for row in conn.execute(text("PRAGMA table_info(expenses)"))}
+            if "input_mode" not in exp_columns:
+                conn.execute(text("ALTER TABLE expenses ADD COLUMN input_mode VARCHAR DEFAULT 'TTC'"))
+                conn.execute(text("ALTER TABLE expenses ADD COLUMN amount_ht FLOAT DEFAULT 0.0"))
+                conn.execute(text("ALTER TABLE expenses ADD COLUMN amount_ttc FLOAT DEFAULT 0.0"))
+                conn.execute(text("ALTER TABLE expenses ADD COLUMN tva_rate FLOAT DEFAULT 0.0"))
+                conn.execute(text("ALTER TABLE expenses ADD COLUMN tva_amount FLOAT DEFAULT 0.0"))
+                conn.execute(text("ALTER TABLE expenses ADD COLUMN is_tva_deductible BOOLEAN DEFAULT 0"))
+                conn.execute(text("ALTER TABLE expenses ADD COLUMN supplier_id INTEGER REFERENCES suppliers(id)"))
+                conn.execute(text("ALTER TABLE expenses ADD COLUMN invoice_ref VARCHAR"))
+                conn.execute(text("ALTER TABLE expenses ADD COLUMN status VARCHAR DEFAULT 'paid'"))
+                conn.execute(text("ALTER TABLE expenses ADD COLUMN amount_paid FLOAT DEFAULT 0.0"))
+
+
+            # Self-healing migration for system_settings composite primary key (key, owner_id)
+            settings_pk_cols = [row[1] for row in conn.execute(text("PRAGMA table_info(system_settings)")) if row[5] > 0]
+            if len(settings_pk_cols) < 2:
+                logger.warning("Migrating system_settings to composite primary key (key, owner_id)")
+                try:
+                    rows = conn.execute(text("SELECT key, owner_id, value FROM system_settings")).fetchall()
+                except Exception:
+                    rows = []
+
+                conn.execute(text("DROP TABLE system_settings"))
+                conn.execute(text("""
+                    CREATE TABLE system_settings (
+                        key VARCHAR NOT NULL,
+                        owner_id INTEGER NOT NULL,
+                        value VARCHAR,
+                        PRIMARY KEY (key, owner_id)
+                    )
+                """))
+
+                for key_val, owner_val, value_val in rows:
+                    safe_owner = owner_val if owner_val else 1
+                    conn.execute(
+                        text("INSERT INTO system_settings (key, owner_id, value) VALUES (:key, :owner_id, :value)"),
+                        {"key": key_val, "owner_id": safe_owner, "value": value_val}
+                    )
             return
 
         if engine.dialect.name == "postgresql":
@@ -66,6 +114,27 @@ def ensure_runtime_schema() -> None:
                 conn.execute(text("ALTER TABLE purchase_orders ADD COLUMN expected_delivery_date TIMESTAMP"))
             if "archived" not in po_columns:
                 conn.execute(text("ALTER TABLE purchase_orders ADD COLUMN archived BOOLEAN DEFAULT FALSE"))
+
+            supp_columns = {row[0] for row in conn.execute(text("SELECT column_name FROM information_schema.columns WHERE table_name = 'suppliers'"))}
+            if "ice" not in supp_columns:
+                conn.execute(text("ALTER TABLE suppliers ADD COLUMN ice VARCHAR"))
+            if "email" not in supp_columns:
+                conn.execute(text("ALTER TABLE suppliers ADD COLUMN email VARCHAR"))
+            if "phone" not in supp_columns:
+                conn.execute(text("ALTER TABLE suppliers ADD COLUMN phone VARCHAR"))
+
+            exp_columns = {row[0] for row in conn.execute(text("SELECT column_name FROM information_schema.columns WHERE table_name = 'expenses'"))}
+            if "input_mode" not in exp_columns:
+                conn.execute(text("ALTER TABLE expenses ADD COLUMN input_mode VARCHAR DEFAULT 'TTC'"))
+                conn.execute(text("ALTER TABLE expenses ADD COLUMN amount_ht FLOAT DEFAULT 0.0"))
+                conn.execute(text("ALTER TABLE expenses ADD COLUMN amount_ttc FLOAT DEFAULT 0.0"))
+                conn.execute(text("ALTER TABLE expenses ADD COLUMN tva_rate FLOAT DEFAULT 0.0"))
+                conn.execute(text("ALTER TABLE expenses ADD COLUMN tva_amount FLOAT DEFAULT 0.0"))
+                conn.execute(text("ALTER TABLE expenses ADD COLUMN is_tva_deductible BOOLEAN DEFAULT FALSE"))
+                conn.execute(text("ALTER TABLE expenses ADD COLUMN supplier_id INTEGER REFERENCES suppliers(id)"))
+                conn.execute(text("ALTER TABLE expenses ADD COLUMN invoice_ref VARCHAR"))
+                conn.execute(text("ALTER TABLE expenses ADD COLUMN status VARCHAR DEFAULT 'paid'"))
+                conn.execute(text("ALTER TABLE expenses ADD COLUMN amount_paid FLOAT DEFAULT 0.0"))
 
             conn.execute(
                 text(

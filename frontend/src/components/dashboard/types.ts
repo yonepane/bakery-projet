@@ -28,8 +28,8 @@ export interface DashboardSharedProps {
   history: Transaction[];
   planner: PlanItem[];
   orders: any[];
-  expenses: any[];
-  suppliers: any[];
+  expenses: Expense[];
+  suppliers: Supplier[];
   purchaseOrders: any[];
   purchasingSuggestions: any[];
   selectedSupplierId: number | null;
@@ -73,6 +73,8 @@ export interface DashboardSharedProps {
   setShowAddProduct: (v: boolean) => void;
   setShowAddMaterial: (v: boolean) => void;
   setShowAddExpense: (v: boolean) => void;
+  editingExpense: Expense | null;
+  setEditingExpense: (e: Expense | null) => void;
   setShowAddSupplier: (v: boolean) => void;
   setShowAddStaff: (v: boolean) => void;
   setShowPOModal: (v: boolean) => void;
@@ -133,6 +135,7 @@ export interface DashboardSharedProps {
   handleSavePO: () => void;
   handlePartialReceivePO: () => void;
   handleDeleteStaff: (username: string) => void;
+  handleDeleteExpense: (id: number) => void;
   handleDeleteSupplier: (supp: any) => void;
   handleAddSupplier: () => void;
   handleResetSession: () => void;
@@ -253,4 +256,47 @@ export interface Customer {
   email?: string;
   points: number;
   created_at: string;
+}
+
+export interface ExpensePayment {
+  id: number;
+  expense_id: number;
+  amount: number;
+  paid_at: string;
+  payment_method: 'cash' | 'bank_transfer' | 'card' | 'cheque';
+}
+
+export interface Expense {
+  id: number;
+  date: string;
+  category: string;
+  description?: string;
+  amount: number;
+  
+  // Accounting
+  input_mode: 'HT' | 'TTC';
+  amount_ht: number;
+  amount_ttc: number;
+  tva_rate: number;
+  tva_amount: number;
+  is_tva_deductible: boolean;
+  
+  // Supplier & Billing
+  supplier_id?: number;
+  invoice_ref?: string;
+  
+  // Treasury
+  status: 'paid' | 'pending' | 'partial';
+  amount_paid: number;
+  payments?: ExpensePayment[];
+  supplier?: Supplier;
+}
+
+export interface Supplier {
+  id: number;
+  name: string;
+  contact_info?: string;
+  ice?: string;
+  email?: string;
+  phone?: string;
 }

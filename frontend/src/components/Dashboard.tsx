@@ -51,6 +51,7 @@ import http from '../lib/http';
 import { Language, translations } from '../lib/translations';
 import { GoogleOAuthProvider, GoogleLogin } from '@react-oauth/google';
 import { GOOGLE_CLIENT_ID, PRODUCT_ICON_CHOICES } from './dashboard/constants';
+import { useBakeryData } from './dashboard/useBakeryData';
 import {
   CartItem,
   ConfirmConfig,
@@ -166,38 +167,18 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  // Main business data loaded from the backend.
-  const [inventory, setInventory] = useState<{ materials: Record<string, Ingredient>, products: Product[] }>({ materials: {}, products: [] });
-  const [analytics, setAnalytics] = useState({ 
-    revenue: 0, 
-    cost: 0, 
-    today_revenue: 0, 
-    today_cost: 0, 
-    currency: 'MAD', 
-    chartData: [] as any[],
-    hourlySales: [] as any[],
-    topProducts: [] as any[],
-    intelligence: {
-        total_portfolio_cost: 0,
-        average_margin: '0%',
-        products_count: 0
-    }
-  });
-  const [profitReport, setProfitReport] = useState<any[]>([]);
-  const [alerts, setAlerts] = useState<DashboardAlert[]>([]);
-  const [history, setHistory] = useState<Transaction[]>([]);
-  const [planner, setPlanner] = useState<PlanItem[]>([]);
-  const [orders, setOrders] = useState<any[]>([]);
-  const [settings, setSettings] = useState<any>({ currency: 'MAD' });
-  // Live exchange rates fetched from the backend (MAD-based).
-  // Seeded with fallbacks so prices never show NaN before the API responds.
-  const [liveRates, setLiveRates] = useState<Record<string, number>>({
-    MAD: 1.0,
-    EUR: 0.0916,
-    USD: 0.0998,
-    GBP: 0.0787,
-  });
-  const [loading, setLoading] = useState(true);
+  // Main business data — delegated to useBakeryData hook.
+  // The hook owns all server-fetched state and the tab-aware lazy fetch strategy.
+  const {
+    inventory, analytics, profitReport, alerts, history, planner, setPlanner,
+    orders, settings, liveRates, customers, expenses, wasteRecords,
+    staff, suppliers, selectedSupplierId, setSelectedSupplierId,
+    purchaseOrders, purchasingSuggestions, shiftLogs, loading, setLoading,
+    setInventory, setAnalytics, setHistory, setOrders, setSettings,
+    setCustomers, setExpenses, setWasteRecords, setStaff,
+    setSuppliers, setPurchaseOrders, setPurchasingSuggestions, setShiftLogs,
+    fetchData, fetchTabData, applyInventory, applySettings,
+  } = useBakeryData(user, activeTab);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [confirmConfig, setConfirmConfig] = useState<ConfirmConfig>({
@@ -241,13 +222,28 @@ const Dashboard: React.FC = () => {
   const [showWasteModal, setShowWasteModal] = useState(false);
   const [showReceiptModal, setShowReceiptModal] = useState(false);
   const [showAddExpense, setShowAddExpense] = useState(false);
+  const [editingExpense, setEditingExpense] = useState<any>(null);
   const [showAddSupplier, setShowAddSupplier] = useState(false);
   const [editingSupplier, setEditingSupplier] = useState<any>(null);
   const [showPOModal, setShowPOModal] = useState(false);
   const [selectedPO, setSelectedPO] = useState<any>(null);
   const [poReceiveDraft, setPoReceiveDraft] = useState<Record<string, { qty: number; price: number }>>({});
-  const [newExpense, setNewExpense] = useState({ category: 'other', amount: 0, description: '' });
-  const [newSupplier, setNewSupplier] = useState({ name: '', contact_info: '' });
+  const [newExpense, setNewExpense] = useState({
+    category: 'other',
+    description: '',
+    input_mode: 'TTC' as 'HT' | 'TTC',
+    amount_ht: 0,
+    amount_ttc: 0,
+    tva_rate: 20,
+    tva_amount: 0,
+    is_tva_deductible: true,
+    supplier_id: null as number | null,
+    invoice_ref: '',
+    status: 'paid' as 'paid' | 'pending' | 'partial',
+    amount_paid: 0,
+    amount: 0, // Legacy support
+  });
+  const [newSupplier, setNewSupplier] = useState({ name: '', contact_info: '', ice: '', email: '', phone: '' });
   const [generalNote, setGeneralNote] = useState('');
   const [isSavingGeneralNote, setIsSavingGeneralNote] = useState(false);
   const today = new Date();
@@ -287,15 +283,6 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  const [purchasingSuggestions, setPurchasingSuggestions] = useState<any[]>([]);
-  const [suppliers, setSuppliers] = useState<any[]>([]);
-  const [selectedSupplierId, setSelectedSupplierId] = useState<number | null>(null);
-  const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
-  const [shiftLogs, setShiftLogs] = useState<any[]>([]);
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [expenses, setExpenses] = useState<any[]>([]);
-  const [wasteRecords, setWasteRecords] = useState<any[]>([]);
-  const [staff, setStaff] = useState<any[]>([]);
   const [showAddStaff, setShowAddStaff] = useState(false);
   const [newStaff, setNewStaff] = useState({ username: '', password: '' });
 
@@ -316,7 +303,10 @@ const Dashboard: React.FC = () => {
     try {
       const payload = {
         name: newSupplier.name.trim(),
-        contact_info: newSupplier.contact_info.trim() || null
+        contact_info: newSupplier.contact_info.trim() || null,
+        ice: newSupplier.ice.trim() || null,
+        email: newSupplier.email.trim() || null,
+        phone: newSupplier.phone.trim() || null,
       };
       if (editingSupplier) {
         await http.put(`/suppliers/${editingSupplier.id}`, payload);
@@ -325,7 +315,7 @@ const Dashboard: React.FC = () => {
       }
       setShowAddSupplier(false);
       setEditingSupplier(null);
-      setNewSupplier({ name: '', contact_info: '' });
+      setNewSupplier({ name: '', contact_info: '', ice: '', email: '', phone: '' });
       fetchData();
       addToast(editingSupplier ? "Supplier Updated" : "Supplier Added", "success");
     } catch (e: any) {
@@ -440,251 +430,16 @@ const Dashboard: React.FC = () => {
 
   const formatPrice = (amount: number) => formatMoney(amount, activeCurrency, liveRates);
 
-  // Fetch live exchange rates once after login and keep them fresh.
-  const fetchLiveRates = async () => {
-    try {
-      const data = await api.get('/currency/rates');
-      if (data?.rates && typeof data.rates === 'object') {
-        setLiveRates(data.rates);
-      }
-    } catch (e) {
-      console.warn('Could not fetch live exchange rates — using fallback rates.');
-    }
-  };
-
-
-  // ---------------------------------------------------------------------------
-  // Shared helper — wraps api.get and swallows individual failures gracefully.
-  // ---------------------------------------------------------------------------
-  const safeGet = async (url: string, fallback: any = null) => {
-    try { return await api.get(url); }
-    catch (e) { console.warn(`Failed to fetch ${url}:`, e); return fallback; }
-  };
-
-  // ---------------------------------------------------------------------------
-  // applyInventory — shared utility: parse an /inventory response and derive
-  // client-side alerts + profit report from it (zero extra server calls).
-  // ---------------------------------------------------------------------------
-  const applyInventory = (invData: any) => {
-    if (!invData) return;
-    if (invData.products) {
-      invData.products.sort((a: any, b: any) => (a.name || '').localeCompare(b.name || ''));
-    }
-    setInventory(invData);
-
-    // Derive alerts on the client — no need for /api/alerts.
-    const derivedAlerts = calcAlerts(invData.products || [], invData.materials || {});
-    setAlerts(derivedAlerts);
-
-    // Derive profit report on the client — no need for /api/intelligence/profit-report.
-    const derivedReport = calcProfitReport(invData.products || []);
-    setProfitReport(derivedReport);
-
-    // Seed the price-simulation sliders with the latest ingredient prices.
-    if (invData.materials) {
-      const initialPrices: Record<string, number> = {};
-      Object.entries(invData.materials as Record<string, Ingredient>).forEach(
-        ([name, data]) => { initialPrices[name] = (data as any).price; }
-      );
-      setSimPrices(initialPrices);
-    }
-  };
-
-  const applySettings = (settData: any) => {
-    if (!settData) return;
-    setSettings(settData);
-    setGeneralNote(settData.operations_note || '');
-    if (settData.language) {
-      setLang(settData.language as Language);
-      localStorage.setItem('bakery_lang', settData.language);
-    }
-    if (settData.theme) setIsDarkMode(settData.theme === 'dark');
-  };
-
-  // ---------------------------------------------------------------------------
-  // fetchTabData — lazy, tab-aware loader.
-  //
-  // Only the data needed for the currently visible tab is fetched.  This
-  // replaces the old monolithic fetchData() that fired 16 parallel requests
-  // every 30 seconds regardless of what the user was looking at.
-  // ---------------------------------------------------------------------------
-  const fetchTabData = async (tab: string) => {
-    if (!user) return;
-    const isOwner = user.role === 'owner';
-
-    try {
-      switch (tab) {
-        case 'dashboard': {
-          const [invData, anaData, settData] = await Promise.all([
-            safeGet('/inventory'),
-            isOwner ? safeGet('/analytics') : Promise.resolve(null),
-            safeGet('/settings'),
-          ]);
-          applyInventory(invData);
-          if (anaData) setAnalytics(anaData);
-          applySettings(settData);
-          break;
-        }
-
-        case 'pos': {
-          const [invData, ordData, custData, settData] = await Promise.all([
-            safeGet('/inventory'),
-            safeGet('/orders', []),
-            safeGet('/customers', []),
-            safeGet('/settings'),
-          ]);
-          applyInventory(invData);
-          if (ordData) setOrders(ordData);
-          if (custData) setCustomers(custData);
-          applySettings(settData);
-          break;
-        }
-
-        case 'inventory': {
-          const invData = await safeGet('/inventory');
-          applyInventory(invData);
-          break;
-        }
-
-        case 'history': {
-          const histData = await safeGet('/history', []);
-          if (histData) setHistory(histData);
-          break;
-        }
-
-        case 'intelligence': {
-          const [invData, anaData] = await Promise.all([
-            safeGet('/inventory'),
-            isOwner ? safeGet('/analytics') : Promise.resolve(null),
-          ]);
-          // calcProfitReport runs inside applyInventory — no extra server call.
-          applyInventory(invData);
-          if (anaData) setAnalytics(anaData);
-          break;
-        }
-
-        case 'finance': {
-          const [histData, expData, wasteData, ordData] = await Promise.all([
-            safeGet('/history', []),
-            isOwner ? safeGet('/expenses', []) : Promise.resolve([]),
-            isOwner ? safeGet('/waste', []) : Promise.resolve([]),
-            safeGet('/orders', []),
-          ]);
-          if (histData) setHistory(histData);
-          if (expData) setExpenses(expData);
-          if (wasteData) setWasteRecords(wasteData);
-          if (ordData) setOrders(ordData);
-          break;
-        }
-
-        case 'purchasing': {
-          const [purData, suppData, posData, invData] = await Promise.all([
-            isOwner ? safeGet('/purchasing/suggest', []) : Promise.resolve([]),
-            isOwner ? safeGet('/suppliers', []) : Promise.resolve([]),
-            isOwner ? safeGet('/purchase-orders', []) : Promise.resolve([]),
-            safeGet('/inventory'),
-          ]);
-          if (purData) setPurchasingSuggestions(purData);
-          if (suppData) {
-            setSuppliers(suppData);
-            setSelectedSupplierId(prev => {
-              if (!suppData.length) return null;
-              if (prev && suppData.some((s: any) => s.id === prev)) return prev;
-              return suppData[0].id;
-            });
-          }
-          if (posData) {
-            setPurchaseOrders([...posData].sort(
-              (a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime()
-            ));
-          }
-          applyInventory(invData);
-          break;
-        }
-
-        case 'planner': {
-          const [planData, invData] = await Promise.all([
-            isOwner ? safeGet('/planner', []) : Promise.resolve([]),
-            safeGet('/inventory'),
-          ]);
-          if (planData) setPlanner(planData);
-          applyInventory(invData);
-          break;
-        }
-
-        case 'staff': {
-          const [staffData, logData] = await Promise.all([
-            isOwner ? safeGet('/staff', []) : Promise.resolve([]),
-            safeGet('/shift-logs', []),
-          ]);
-          if (staffData) setStaff(staffData);
-          if (logData) setShiftLogs(logData);
-          break;
-        }
-
-        case 'kitchen': {
-          const [invData, planData] = await Promise.all([
-            safeGet('/inventory'),
-            safeGet('/planner', []),
-          ]);
-          applyInventory(invData);
-          if (planData) setPlanner(planData);
-          break;
-        }
-
-        case 'orders': {
-          const [ordData, custData] = await Promise.all([
-            safeGet('/orders', []),
-            safeGet('/customers', []),
-          ]);
-          if (ordData) setOrders(ordData);
-          if (custData) setCustomers(custData);
-          break;
-        }
-
-        case 'customers': {
-          const custData = await safeGet('/customers', []);
-          if (custData) setCustomers(custData);
-          break;
-        }
-
-        case 'settings': {
-          const settData = await safeGet('/settings');
-          applySettings(settData);
-          break;
-        }
-
-        default: {
-          // Fallback: fetch inventory + settings (safe minimal refresh).
-          const [invData, settData] = await Promise.all([
-            safeGet('/inventory'),
-            safeGet('/settings'),
-          ]);
-          applyInventory(invData);
-          applySettings(settData);
-        }
-      }
-    } catch (error) {
-      console.error(`Error loading tab "${tab}":`, error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  /**
-   * fetchData — kept for backward-compat with mutation handlers (handleProduce,
-   * handleAddProduct, finalizeSale, etc.) that call `fetchData()` after a write.
-   * It re-fetches only the currently active tab, not all 16 endpoints.
-   */
-  const fetchData = () => fetchTabData(activeTab);
+  // Fetch live exchange rates — now handled inside useBakeryData.
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsAuthSubmitting(true);
     try {
       const res = await http.post('/auth/login', loginForm);
-      const { access_token, username, role } = res.data;
+      const { access_token, refresh_token, username, role } = res.data;
       localStorage.setItem('bakery_token', access_token);
+      if (refresh_token) localStorage.setItem('bakery_refresh_token', refresh_token);
       localStorage.setItem('bakery_user', JSON.stringify({ username, role }));
       setUser({ username, role });
     } catch (err) {
@@ -715,8 +470,9 @@ const Dashboard: React.FC = () => {
         password: signupForm.password
       });
       
-      const { access_token, username, role } = res.data;
+      const { access_token, refresh_token, username, role } = res.data;
       localStorage.setItem('bakery_token', access_token);
+      if (refresh_token) localStorage.setItem('bakery_refresh_token', refresh_token);
       localStorage.setItem('bakery_user', JSON.stringify({ username, role }));
       setUser({ username, role });
       addToast("Bakery Ready!", "success");
@@ -731,8 +487,9 @@ const Dashboard: React.FC = () => {
     // After Google login succeeds, save the same local token and user data as a normal login.
     try {
       const res = await http.post('/auth/google', { credential: response.credential });
-      const { access_token, username, role } = res.data;
+      const { access_token, refresh_token, username, role } = res.data;
       localStorage.setItem('bakery_token', access_token);
+      if (refresh_token) localStorage.setItem('bakery_refresh_token', refresh_token);
       localStorage.setItem('bakery_user', JSON.stringify({ username, role }));
       setUser({ username, role });
       addToast("Welcome back!", "success");
@@ -757,25 +514,26 @@ const Dashboard: React.FC = () => {
     }
   }, []);
 
+  // When editingExpense changes (set from FinancePanel), pre-populate the expense modal form.
   useEffect(() => {
-    if (user) {
-      // Fetch live exchange rates once per session — rates are cached for 6h on the backend.
-      fetchLiveRates();
-      // Load initial data for the default tab (dashboard).
-      fetchTabData(activeTab);
+    if (editingExpense) {
+      setNewExpense({
+        category: editingExpense.category || 'other',
+        description: editingExpense.description || '',
+        input_mode: (editingExpense.input_mode as 'HT' | 'TTC') || 'TTC',
+        amount_ht: editingExpense.amount_ht || 0,
+        amount_ttc: editingExpense.amount_ttc || editingExpense.amount || 0,
+        tva_rate: editingExpense.tva_rate ?? 20,
+        tva_amount: editingExpense.tva_amount || 0,
+        is_tva_deductible: editingExpense.is_tva_deductible ?? true,
+        supplier_id: editingExpense.supplier_id || null,
+        invoice_ref: editingExpense.invoice_ref || '',
+        status: editingExpense.status || 'paid',
+        amount_paid: editingExpense.amount_paid || 0,
+        amount: editingExpense.amount_ttc || editingExpense.amount || 0,
+      });
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
-
-  // Re-fetch data whenever the user navigates to a different tab.
-  // This is the core of the tab-aware lazy loading strategy that
-  // replaces the old 30-second full-data polling interval.
-  useEffect(() => {
-    if (user) {
-      fetchTabData(activeTab);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab]);
+  }, [editingExpense]);
 
   const [gsiReady, setGsiReady] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -1150,13 +908,101 @@ const Dashboard: React.FC = () => {
     setShowAddMaterial(true);
   };
 
+  const updateExpenseCalculations = (updated: Partial<typeof newExpense>) => {
+    setNewExpense(prev => {
+      const next = { ...prev, ...updated };
+      // Safely parse the rate, ensuring 0 is treated as a valid number, not falsy.
+      const rate = next.tva_rate !== undefined && !isNaN(Number(next.tva_rate)) 
+        ? Number(next.tva_rate) 
+        : 20;
+
+      if (next.input_mode === 'TTC') {
+        const ttc = Number(next.amount_ttc) || 0;
+        next.amount_ht = parseFloat((ttc / (1 + rate / 100)).toFixed(2));
+        next.tva_amount = parseFloat((ttc - next.amount_ht).toFixed(2));
+      } else {
+        const ht = Number(next.amount_ht) || 0;
+        next.amount_ttc = parseFloat((ht * (1 + rate / 100)).toFixed(2));
+        next.tva_amount = parseFloat((next.amount_ttc - ht).toFixed(2));
+      }
+
+      if (next.status === 'paid') {
+        next.amount_paid = next.amount_ttc;
+      } else if (next.status === 'pending') {
+        next.amount_paid = 0;
+      } else {
+        if (updated.status === 'partial') {
+          next.amount_paid = parseFloat((next.amount_ttc / 2).toFixed(2));
+        }
+      }
+      
+      next.amount = next.amount_ttc; // Sync legacy amount field
+      return next;
+    });
+  };
+
   const handleAddExpense = async () => {
     try {
-        await api.post('/expenses', newExpense);
+        const payload = {
+          ...newExpense,
+          payments: newExpense.amount_paid > 0 ? [{
+            amount: newExpense.amount_paid,
+            payment_method: 'cash'
+          }] : []
+        };
+        await api.post('/expenses', payload);
         setShowAddExpense(false);
+        // Reset expense form state
+        setNewExpense({
+          category: 'other',
+          description: '',
+          input_mode: 'TTC',
+          amount_ht: 0,
+          amount_ttc: 0,
+          tva_rate: 20,
+          tva_amount: 0,
+          is_tva_deductible: true,
+          supplier_id: null,
+          invoice_ref: '',
+          status: 'paid',
+          amount_paid: 0,
+          amount: 0,
+        });
         fetchData();
         addToast("Expense Logged", "success");
     } catch (e: any) { addToast("Failed to log expense", "error"); }
+  };
+
+  const handleUpdateExpense = async () => {
+    if (!editingExpense) return;
+    try {
+      const payload = {
+        ...newExpense,
+        payments: newExpense.amount_paid > 0 ? [{
+          amount: newExpense.amount_paid,
+          payment_method: 'cash'
+        }] : []
+      };
+      await api.put(`/expenses/${editingExpense.id}`, payload);
+      setShowAddExpense(false);
+      setEditingExpense(null);
+      setNewExpense({
+        category: 'other', description: '', input_mode: 'TTC',
+        amount_ht: 0, amount_ttc: 0, tva_rate: 20, tva_amount: 0,
+        is_tva_deductible: true, supplier_id: null, invoice_ref: '',
+        status: 'paid', amount_paid: 0, amount: 0,
+      });
+      fetchData();
+      addToast("Expense Updated", "success");
+    } catch (e: any) { addToast("Failed to update expense", "error"); }
+  };
+
+  const handleDeleteExpense = async (id: number) => {
+    try {
+      await api.delete(`/expenses/${id}`);
+      fetchData();
+      addToast("Expense Deleted", "success");
+    } catch (e: any) { addToast("Failed to delete expense", "error"); }
   };
 
   const handleAdjustStock = async (item_type: 'product' | 'material', id: string, amount: number) => {
@@ -1528,7 +1374,7 @@ const Dashboard: React.FC = () => {
     productProfitability, wasteByProduct,
     cart, setCart, addToCart, finalizeSale, lastTransaction,
     setShowReceiptModal, setShowBookingModal, bookingForm, setBookingForm,
-    setShowAddProduct, setShowAddMaterial, setShowAddExpense, setShowAddSupplier,
+    setShowAddProduct, setShowAddMaterial, setShowAddExpense, editingExpense, setEditingExpense, setShowAddSupplier,
     setShowAddStaff, setShowPOModal, setShowWasteModal, editingProductId, setEditingProductId,
     editingMaterialName, setEditingMaterialName, editingSupplier, setEditingSupplier,
     newMaterial, setNewMaterial, newSupplier, setNewSupplier, selectedPO, setSelectedPO,
@@ -1542,7 +1388,7 @@ const Dashboard: React.FC = () => {
     handleOpenEditProduct, handleDeleteProduct, handleCleanupProducts,
     handleDeleteMaterial, startEditingMaterial, handleCreatePO,
     handleReceivePO, handleDeletePO, openPOModal, handleSavePO,
-    handlePartialReceivePO, handleDeleteStaff, handleDeleteSupplier,
+    handlePartialReceivePO, handleDeleteStaff, handleDeleteExpense, handleDeleteSupplier,
     handleAddSupplier, handleResetSession, handleCompletePlan,
     formatPrice, displayUnit: (v, u) => `${v}${u}`, openDocument, getDownloadToken, openSelector,
     addToast, showConfirm, fetchData, api
@@ -1648,7 +1494,6 @@ const Dashboard: React.FC = () => {
                             className="overflow-hidden space-y-1 mt-1 pl-4"
                         >
                             {[
-                                { id: 'expenses', icon: Coins, label: t.expenses },
                                 { id: 'comptabilite', icon: Coins, label: t.comptabilite },
                                 { id: 'planner', icon: Calendar, label: t.planner },
                                 { id: 'orders', icon: FileText, label: t.orders },
@@ -1752,7 +1597,8 @@ const Dashboard: React.FC = () => {
             <button 
                 onClick={() => { 
                   localStorage.removeItem('bakery_token'); 
-                  localStorage.removeItem('bakery_user'); 
+                  localStorage.removeItem('bakery_user');
+                  localStorage.removeItem('bakery_refresh_token');
                   setUser(null); 
                 }} 
                 className={`w-full flex items-center justify-center gap-2 py-4 rounded-xl font-bold text-xs uppercase tracking-widest bg-rose-600 hover:bg-rose-700 text-white shadow-lg transition-all ${isSidebarCollapsed ? 'px-0' : ''}`}
@@ -1780,7 +1626,6 @@ const Dashboard: React.FC = () => {
                 {activeTab === 'simulator' && t.simulator}
                 {activeTab === 'history' && t.history}
                 {activeTab === 'planner' && t.planner}
-                {activeTab === 'expenses' && t.expenses}
                 {activeTab === 'comptabilite' && t.comptabilite}
                 {activeTab === 'purchasing' && t.purchasing}
                 {activeTab === 'kitchen' && t.kitchen}
@@ -1968,11 +1813,10 @@ const Dashboard: React.FC = () => {
               {activeTab === 'planner' && <PlannerPanel {...panelProps} />}
               {activeTab === 'orders' && <OrdersPanel {...panelProps} />}
               {activeTab === 'purchasing' && <PurchasingPanel {...panelProps} />}
-              {activeTab === 'expenses' && <ExpensesPanel {...panelProps} />}
               {activeTab === 'comptabilite' && <FinancePanel {...panelProps} />}
               {activeTab === 'staff' && <StaffPanel {...panelProps} />}
               {activeTab === 'settings' && <SettingsPanel {...panelProps} />}
-              {activeTab === 'customers' && <CustomersPanel {...panelProps} />}
+              {activeTab === 'customers' && <CustomersPanel {...panelProps} showConfirm={showConfirm} />}
             </React.Suspense>
           </motion.div>
         </AnimatePresence>
@@ -2089,54 +1933,200 @@ const Dashboard: React.FC = () => {
             <motion.div 
                 initial={{ y: 20, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
-                className="w-full max-w-lg p-10 luxury-panel"
+                className="w-full max-w-xl p-8 max-h-[90vh] overflow-y-auto custom-scrollbar luxury-panel text-cream"
             >
-                <div className="flex justify-between items-start mb-10">
-                    <h3 className={`text-2xl font-bold luxury-font uppercase tracking-tighter ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Log Expenditure</h3>
-                    <button onClick={() => setShowAddExpense(false)} className="p-4 rounded-full bg-white/5 hover:bg-white/10 transition-colors"><X size={24}/></button>
+                <div className="flex justify-between items-start mb-6">
+                    <h3 className={`text-2xl font-bold luxury-font uppercase tracking-tighter ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{editingExpense ? 'Edit Expense' : 'Log Expenditure'}</h3>
+                    <button onClick={() => { setShowAddExpense(false); setEditingExpense(null); setNewExpense({ category: 'other', description: '', input_mode: 'TTC', amount_ht: 0, amount_ttc: 0, tva_rate: 20, tva_amount: 0, is_tva_deductible: true, supplier_id: null, invoice_ref: '', status: 'paid', amount_paid: 0, amount: 0 }); }} className="p-4 rounded-full bg-white/5 hover:bg-white/10 transition-colors"><X size={24}/></button>
                 </div>
 
-                <div className="space-y-8">
+                <div className="space-y-6">
+                    {/* Category Selection */}
                     <div>
-                        <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-4">Expense Category</label>
-                        <div className="grid grid-cols-2 gap-4">
-                            {['salary', 'rent', 'electricity', 'water', 'internet', 'other'].map(cat => (
+                        <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-3">Expense Category</label>
+                        <div className="grid grid-cols-3 gap-2">
+                            {['salary', 'rent', 'electricity', 'water', 'internet', 'raw_materials', 'other'].map(cat => (
                                 <button 
                                     key={cat}
-                                    onClick={() => setNewExpense({...newExpense, category: cat})}
-                                    className={`py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest border transition-all ${newExpense.category === cat ? 'bg-gold text-charcoal' : 'bg-white/5 text-cream/40 border-white/5 hover:bg-white/10'}`}
+                                    type="button"
+                                    onClick={() => updateExpenseCalculations({ category: cat })}
+                                    className={`py-3 rounded-xl text-[9px] font-black uppercase tracking-widest border transition-all ${newExpense.category === cat ? 'bg-gold text-charcoal' : 'bg-white/5 text-cream/40 border-white/5 hover:bg-white/10'}`}
                                 >
-                                    {cat}
+                                    {cat.replace('_', ' ')}
                                 </button>
                             ))}
                         </div>
                     </div>
 
-                    <div>
-                        <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">Amount ({activeCurrency})</label>
-                        <input 
-                            type="number" 
-                            value={newExpense.amount} 
-                            onChange={(e) => setNewExpense({...newExpense, amount: parseFloat(e.target.value)})}
-                            className={`w-full bg-transparent border-b text-2xl font-bold py-4 outline-none ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`}
-                        />
+                    {/* Supplier & Invoice Ref */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <div className="flex justify-between items-center mb-2">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-gold">Supplier</label>
+                                <button 
+                                    type="button"
+                                    onClick={() => setShowAddSupplier(true)}
+                                    className="text-[9px] font-black uppercase tracking-widest text-gold bg-gold/10 px-2 py-0.5 rounded hover:bg-gold/20"
+                                >
+                                    + New
+                                </button>
+                            </div>
+                            <select 
+                                value={newExpense.supplier_id || ''}
+                                onChange={e => updateExpenseCalculations({ supplier_id: e.target.value ? parseInt(e.target.value) : null })}
+                                className={`w-full bg-[#0d0d0f] border-b py-3 px-2 outline-none font-bold text-sm rounded ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`}
+                            >
+                                <option value="">No Supplier</option>
+                                {suppliers.map((supp: any) => (
+                                    <option key={supp.id} value={supp.id}>{supp.name}</option>
+                                ))}
+                            </select>
+                        </div>
+                        <div>
+                            <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">Invoice Reference</label>
+                            <input 
+                                placeholder="e.g. FACT-2026-042"
+                                value={newExpense.invoice_ref} 
+                                onChange={(e) => updateExpenseCalculations({ invoice_ref: e.target.value })}
+                                className={`w-full bg-transparent border-b text-sm py-3 outline-none ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`}
+                            />
+                        </div>
+                    </div>
+
+                    {/* Accounting & Tax Engine */}
+                    <div className="p-4 rounded-2xl bg-white/5 border border-white/5 space-y-4">
+                        <div className="flex justify-between items-center border-b border-white/5 pb-2">
+                            <span className="text-[10px] font-black uppercase tracking-widest text-gold">Accounting Engine</span>
+                            {/* Input Mode Toggle */}
+                            <div className="flex gap-2 bg-white/5 p-0.5 rounded-full border border-white/10">
+                                <button
+                                    type="button"
+                                    onClick={() => updateExpenseCalculations({ input_mode: 'HT' })}
+                                    className={`px-3 py-1 rounded-full text-[9px] font-black tracking-widest uppercase transition-all ${newExpense.input_mode === 'HT' ? 'bg-gold text-charcoal' : 'text-white/40 hover:text-white/80'}`}
+                                >
+                                    HT
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => updateExpenseCalculations({ input_mode: 'TTC' })}
+                                    className={`px-3 py-1 rounded-full text-[9px] font-black tracking-widest uppercase transition-all ${newExpense.input_mode === 'TTC' ? 'bg-gold text-charcoal' : 'text-white/40 hover:text-white/80'}`}
+                                >
+                                    TTC
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="text-[9px] font-black uppercase tracking-widest text-cream/40 block mb-1">
+                                    {newExpense.input_mode === 'TTC' ? 'Amount TTC (MAD)' : 'Amount HT (MAD)'}
+                                </label>
+                                <input 
+                                    type="number" 
+                                    step="0.01"
+                                    value={newExpense.input_mode === 'TTC' ? newExpense.amount_ttc || '' : newExpense.amount_ht || ''} 
+                                    onChange={(e) => {
+                                        const val = parseFloat(e.target.value) || 0;
+                                        if (newExpense.input_mode === 'TTC') {
+                                            updateExpenseCalculations({ amount_ttc: val });
+                                        } else {
+                                            updateExpenseCalculations({ amount_ht: val });
+                                        }
+                                    }}
+                                    className={`w-full bg-transparent border-b text-lg font-bold py-2 outline-none ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`}
+                                    placeholder="0.00"
+                                />
+                            </div>
+                            <div>
+                                <label className="text-[9px] font-black uppercase tracking-widest text-cream/40 block mb-1">TVA Rate</label>
+                                <select 
+                                    value={newExpense.tva_rate} 
+                                    onChange={(e) => updateExpenseCalculations({ tva_rate: parseFloat(e.target.value) })}
+                                    className={`w-full bg-[#0d0d0f] border-b py-2 px-1 outline-none font-bold text-sm rounded ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`}
+                                >
+                                    <option value="0">0% (Exempt / Wages)</option>
+                                    <option value="7">7% (Water/Electricity)</option>
+                                    <option value="10">10% (Banking/Fees)</option>
+                                    <option value="14">14% (Electricity/Transport)</option>
+                                    <option value="20">20% (Raw Materials/COGS)</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        {/* Deductibility & Calculations Preview */}
+                        <div className="flex justify-between items-center pt-2">
+                            <label className="flex items-center gap-2 cursor-pointer">
+                                <input 
+                                    type="checkbox" 
+                                    checked={newExpense.is_tva_deductible}
+                                    onChange={(e) => updateExpenseCalculations({ is_tva_deductible: e.target.checked })}
+                                    className="rounded border-white/10 bg-transparent text-gold focus:ring-gold"
+                                />
+                                <span className="text-[10px] font-black uppercase tracking-widest text-cream/60">TVA Deductible</span>
+                            </label>
+                            <div className="text-right">
+                                <div className="text-[10px] text-gold font-bold">
+                                    HT: {formatPrice(newExpense.amount_ht, activeCurrency)} | TVA: {formatPrice(newExpense.tva_amount, activeCurrency)}
+                                </div>
+                                <div className="text-[11px] font-black text-cream">
+                                    Total TTC: {formatPrice(newExpense.amount_ttc, activeCurrency)}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Treasury / Payments Engine */}
+                    <div className="p-4 rounded-2xl bg-white/5 border border-white/5 space-y-4">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-gold block border-b border-white/5 pb-2">Treasury Engine</span>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="text-[9px] font-black uppercase tracking-widest text-cream/40 block mb-1">Payment Status</label>
+                                <select 
+                                    value={newExpense.status} 
+                                    onChange={(e) => updateExpenseCalculations({ status: e.target.value as any })}
+                                    className={`w-full bg-[#0d0d0f] border-b py-2 px-1 outline-none font-bold text-sm rounded ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`}
+                                >
+                                    <option value="paid">Paid (Fully)</option>
+                                    <option value="partial">Partially Paid</option>
+                                    <option value="pending">Pending (Unpaid)</option>
+                                </select>
+                            </div>
+                            {newExpense.status !== 'pending' && (
+                                <div>
+                                    <label className="text-[9px] font-black uppercase tracking-widest text-cream/40 block mb-1">
+                                        {newExpense.status === 'partial' ? 'Amount Paid (MAD)' : 'Payment Amount'}
+                                    </label>
+                                    <input 
+                                        type="number" 
+                                        step="0.01"
+                                        disabled={newExpense.status === 'paid'}
+                                        value={newExpense.amount_paid} 
+                                        onChange={(e) => {
+                                            const val = parseFloat(e.target.value) || 0;
+                                            updateExpenseCalculations({ amount_paid: val });
+                                        }}
+                                        className={`w-full bg-transparent border-b text-sm font-bold py-2 outline-none disabled:opacity-50 ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`}
+                                    />
+                                </div>
+                            )}
+                        </div>
                     </div>
 
                     <div>
                         <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">Description / Note</label>
                         <input 
                             value={newExpense.description} 
-                            onChange={(e) => setNewExpense({...newExpense, description: e.target.value})}
-                            placeholder="Electricity March 2026..."
-                            className={`w-full bg-transparent border-b text-sm py-4 outline-none ${isDarkMode ? 'border-white/10 text-cream/60' : 'border-slate-200 text-slate-600'}`}
+                            onChange={(e) => updateExpenseCalculations({ description: e.target.value })}
+                            placeholder="e.g. Electricity bill for March"
+                            className={`w-full bg-transparent border-b text-sm py-2 outline-none ${isDarkMode ? 'border-white/10 text-cream/60' : 'border-slate-200 text-slate-600'}`}
                         />
                     </div>
 
                     <button 
-                        onClick={handleAddExpense}
-                        className={`w-full py-6 rounded-[2rem] font-black text-xs uppercase tracking-[0.2em] transition-all ${isDarkMode ? 'bg-gold text-charcoal shadow-gold-glow hover:scale-105' : 'bg-slate-900 text-white shadow-xl'}`}
+                        onClick={editingExpense ? handleUpdateExpense : handleAddExpense}
+                        className={`w-full py-5 rounded-[2rem] font-black text-xs uppercase tracking-[0.2em] transition-all ${isDarkMode ? 'bg-gold text-charcoal shadow-gold-glow hover:scale-[1.02]' : 'bg-slate-900 text-white shadow-xl'}`}
                     >
-                        Register Expense
+                        {editingExpense ? 'Save Changes' : 'Register Expense'}
                     </button>
                 </div>
             </motion.div>
@@ -2662,11 +2652,42 @@ const Dashboard: React.FC = () => {
                       <div>
                           <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">Contact Info</label>
                           <input 
-                              placeholder="+212... or vendor@email.com"
-                              value={newSupplier.contact_info}
+                              placeholder="Address or general details"
+                              value={newSupplier.contact_info || ''}
                               onChange={e => setNewSupplier({...newSupplier, contact_info: e.target.value})}
                               className={`w-full bg-transparent border-b py-3 outline-none font-bold ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`}
                           />
+                      </div>
+
+                      <div>
+                          <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">Identifiant Commun d'Entreprise (ICE)</label>
+                          <input 
+                              placeholder="15-digit Moroccan ICE"
+                              value={newSupplier.ice}
+                              onChange={e => setNewSupplier({...newSupplier, ice: e.target.value})}
+                              className={`w-full bg-transparent border-b py-3 outline-none font-bold ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`}
+                          />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                          <div>
+                              <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">Email</label>
+                              <input 
+                                  placeholder="vendor@company.ma"
+                                  value={newSupplier.email}
+                                  onChange={e => setNewSupplier({...newSupplier, email: e.target.value})}
+                                  className={`w-full bg-transparent border-b py-3 outline-none font-bold ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`}
+                              />
+                          </div>
+                          <div>
+                              <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">Phone</label>
+                              <input 
+                                  placeholder="+212 5XX XX XX XX"
+                                  value={newSupplier.phone}
+                                  onChange={e => setNewSupplier({...newSupplier, phone: e.target.value})}
+                                  className={`w-full bg-transparent border-b py-3 outline-none font-bold ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`}
+                              />
+                          </div>
                       </div>
 
                       <div className="pt-6 flex gap-4">
@@ -2674,7 +2695,7 @@ const Dashboard: React.FC = () => {
                               onClick={() => {
                                   setShowAddSupplier(false);
                                   setEditingSupplier(null);
-                                  setNewSupplier({ name: '', contact_info: '' });
+                                  setNewSupplier({ name: '', contact_info: '', ice: '', email: '', phone: '' });
                               }}
                               className={`flex-1 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest border opacity-40 hover:opacity-100 transition-all ${isDarkMode ? 'border-white/5' : 'border-slate-200'}`}
                           >

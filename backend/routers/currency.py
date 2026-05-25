@@ -93,7 +93,11 @@ def _save_rates_to_db(db: sqlalchemy.orm.Session, owner_id: int, rates: dict) ->
         else:
             db.add(models.SystemSetting(key=key, owner_id=owner_id, value=value))
 
-    db.commit()
+    try:
+        db.commit()
+    except Exception as exc:  # pragma: no cover
+        logger.warning("Could not cache exchange rates in DB: %s", exc)
+        db.rollback()
 
 
 async def _fetch_live_rates_mad_base() -> dict[str, float]:

@@ -6,6 +6,7 @@ import time
 from collections import defaultdict
 from threading import Lock
 
+import jwt
 import sqlalchemy.orm
 from fastapi import APIRouter, Depends, HTTPException, Request
 from google.auth.transport import requests as google_requests
@@ -16,27 +17,33 @@ from slowapi.util import get_remote_address
 try:
     from .. import models
     from ..auth import (
+        ALGORITHM,
         MIN_PASSWORD_LENGTH,
+        SECRET_KEY,
         create_access_token,
         create_download_token,
+        create_refresh_token,
         get_current_user,
         get_password_hash,
         verify_password,
     )
     from ..database import get_db
-    from ..schemas import GoogleLoginRequest, LoginRequest, Token
+    from ..schemas import GoogleLoginRequest, LoginRequest, RefreshRequest, Token
 except ImportError:
     import models
     from auth import (
+        ALGORITHM,
         MIN_PASSWORD_LENGTH,
+        SECRET_KEY,
         create_access_token,
         create_download_token,
+        create_refresh_token,
         get_current_user,
         get_password_hash,
         verify_password,
     )
     from database import get_db
-    from schemas import GoogleLoginRequest, LoginRequest, Token
+    from schemas import GoogleLoginRequest, LoginRequest, RefreshRequest, Token
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -150,8 +157,10 @@ async def google_login(
             db.commit()
 
         access_token = create_access_token(data={"sub": user.username})
+        refresh_token = create_refresh_token(user.username)
         return {
             "access_token": access_token,
+            "refresh_token": refresh_token,
             "token_type": "bearer",
             "username": user.username,
             "role": user.role,
@@ -224,8 +233,10 @@ async def login(
     _reset_counter(req.username)
 
     access_token = create_access_token(data={"sub": user.username})
+    refresh_token = create_refresh_token(user.username)
     return {
         "access_token": access_token,
+        "refresh_token": refresh_token,
         "token_type": "bearer",
         "username": user.username,
         "role": user.role,
@@ -243,3 +254,34 @@ async def get_download_token(
     long-lived session JWT out of server logs and browser history.
     """
     return {"download_token": create_download_token(current_user.username)}
+
+
+@router.post("/api/auth/refresh")
+@limiter.limit("30/minute")
+async def refresh_access_token(
+    request: Request,
+    req: RefreshRequest,
+    db: sqlalchemy.orm.Session = Depends(get_db),
+):
+    """Exchange a valid refresh token for a new access token.
+
+    Called automatically by the frontend http.ts interceptor when a 401 is
+    detected, so active users never experience a hard logout mid-session just
+    because their 24-hour access token expired.
+    """
+    try:
+        payload = jwt.decode(req.refresh_token, SECRET_KEY, algorithms=[ALGORITHM])
+        if payload.get("type") != "refresh":
+            raise HTTPException(status_code=401, detail="Invalid token type")
+        username: str | None = payload.get("sub")
+        if not username:
+            raise HTTPException(status_code=401, detail="Invalid token payload")
+    except jwt.PyJWTError:
+        raise HTTPException(status_code=401, detail="Invalid or expired refresh token")
+
+    user = db.query(models.User).filter(models.User.username == username).first()
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found")
+
+    new_access_token = create_access_token(data={"sub": user.username})
+    return {"access_token": new_access_token, "token_type": "bearer"}

@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from io import StringIO
 
 import sqlalchemy.orm
+from sqlalchemy.orm import joinedload
 from fastapi import APIRouter, Depends
 from fastapi.responses import Response
 
@@ -29,6 +30,7 @@ async def get_expenses(
 ):
     return (
         db.query(models.Expense)
+        .options(joinedload(models.Expense.payments), joinedload(models.Expense.supplier))
         .filter(models.Expense.owner_id == owner_id)
         .order_by(models.Expense.date.desc())
         .all()
@@ -41,8 +43,81 @@ async def add_expense(
     db: sqlalchemy.orm.Session = Depends(get_db),
     owner_id: int = Depends(get_effective_owner_id),
 ):
-    new_exp = models.Expense(**exp.dict(), owner_id=owner_id)
+    exp_data = exp.dict(exclude={"payments"})
+    if exp_data.get("amount") is not None and exp_data.get("amount_ttc") == 0.0:
+        exp_data["amount_ttc"] = exp_data["amount"]
+
+    new_exp = models.Expense(**exp_data, owner_id=owner_id)
     db.add(new_exp)
+    db.flush()
+    
+    if exp.payments:
+        for p in exp.payments:
+            payment = models.ExpensePayment(
+                expense_id=new_exp.id,
+                amount=p.amount,
+                payment_method=p.payment_method,
+                paid_at=datetime.fromisoformat(p.paid_at) if p.paid_at else datetime.utcnow()
+            )
+            db.add(payment)
+            
+    db.commit()
+    return {"success": True}
+
+
+@router.put("/api/expenses/{expense_id}", dependencies=[Depends(requires_roles(["owner"]))])
+async def update_expense(
+    expense_id: int,
+    exp: ExpenseCreate,
+    db: sqlalchemy.orm.Session = Depends(get_db),
+    owner_id: int = Depends(get_effective_owner_id),
+):
+    existing = db.query(models.Expense).filter(
+        models.Expense.id == expense_id,
+        models.Expense.owner_id == owner_id,
+    ).first()
+    if not existing:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Expense not found")
+
+    exp_data = exp.dict(exclude={"payments"})
+    for key, val in exp_data.items():
+        setattr(existing, key, val)
+
+    # Re-sync payments if provided
+    if exp.payments is not None:
+        # Delete old payments and re-create
+        db.query(models.ExpensePayment).filter(
+            models.ExpensePayment.expense_id == expense_id
+        ).delete()
+        for p in exp.payments:
+            payment = models.ExpensePayment(
+                expense_id=expense_id,
+                amount=p.amount,
+                payment_method=p.payment_method,
+                paid_at=datetime.fromisoformat(p.paid_at) if p.paid_at else datetime.utcnow(),
+            )
+            db.add(payment)
+
+    db.commit()
+    return {"success": True}
+
+
+@router.delete("/api/expenses/{expense_id}", dependencies=[Depends(requires_roles(["owner"]))])
+async def delete_expense(
+    expense_id: int,
+    db: sqlalchemy.orm.Session = Depends(get_db),
+    owner_id: int = Depends(get_effective_owner_id),
+):
+    existing = db.query(models.Expense).filter(
+        models.Expense.id == expense_id,
+        models.Expense.owner_id == owner_id,
+    ).first()
+    if not existing:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Expense not found")
+
+    db.delete(existing)
     db.commit()
     return {"success": True}
 

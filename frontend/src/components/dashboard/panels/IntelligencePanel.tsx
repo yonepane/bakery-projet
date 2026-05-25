@@ -1,11 +1,28 @@
 import React from 'react';
-import { Brain, TrendingUp, TrendingDown, Zap, Trophy, Star } from 'lucide-react';
+import { Brain, TrendingUp, TrendingDown, Zap, Trophy, Star, Sparkles, ArrowUpRight, Activity, Coins, ShieldAlert, Layers, Percent } from 'lucide-react';
 import { DashboardSharedProps } from '../types';
 
 type Props = Pick<DashboardSharedProps,
   'isDarkMode' | 'profitReport' | 'inventory' | 'formatPrice' | 'analytics'>;
 
 const IntelligencePanel: React.FC<Props> = ({ isDarkMode, profitReport, inventory, formatPrice, analytics }) => {
+  const cardRef = React.useRef<HTMLDivElement>(null);
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!cardRef.current) return;
+    const rect = cardRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    cardRef.current.style.setProperty('--mouse-x', `${x}px`);
+    cardRef.current.style.setProperty('--mouse-y', `${y}px`);
+  };
+
+  const handleMouseLeave = () => {
+    if (!cardRef.current) return;
+    cardRef.current.style.setProperty('--mouse-x', `-999px`);
+    cardRef.current.style.setProperty('--mouse-y', `-999px`);
+  };
+
   // Normalize the profit report — backend may return product_name/cost_price/selling_price
   // or name/unit_cost/sell_price depending on cache state. Support both shapes.
   const normalizedReport = (profitReport.length > 0 ? profitReport : inventory.products.map(p => ({
@@ -46,76 +63,253 @@ const IntelligencePanel: React.FC<Props> = ({ isDarkMode, profitReport, inventor
       {/* Portfolio KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-5">
         {[
-          { label: 'Portfolio Cost', value: formatPrice(analytics.intelligence.total_portfolio_cost), color: 'text-rose-400' },
-          { label: 'Average Margin', value: analytics.intelligence.average_margin, color: 'text-emerald-400' },
-          { label: 'Active SKUs', value: String(analytics.intelligence.products_count || normalizedReport.length), color: isDarkMode ? 'text-gold' : 'text-slate-900' },
-          { label: 'At-Risk Products', value: String(atRisk.length), color: atRisk.length > 0 ? 'text-rose-400' : 'text-emerald-400' },
+          { 
+            label: 'Portfolio Cost', 
+            value: formatPrice(analytics.intelligence.total_portfolio_cost), 
+            color: 'text-rose-400',
+            glowColor: 'hover:border-rose-500/30 hover:shadow-[0_0_30px_rgba(244,63,94,0.08)]',
+            icon: <Coins size={14} className="text-rose-400" />,
+            visual: (
+              <div className="flex gap-1 items-end h-5 mt-2 opacity-50">
+                <div className="w-1 h-2 bg-rose-400/40 rounded-sm" />
+                <div className="w-1 h-3 bg-rose-400/60 rounded-sm animate-[pulse_1s_infinite_100ms]" />
+                <div className="w-1 h-4.5 bg-rose-400 rounded-sm animate-[pulse_1s_infinite_200ms]" />
+              </div>
+            )
+          },
+          { 
+            label: 'Average Margin', 
+            value: analytics.intelligence.average_margin, 
+            color: 'text-emerald-400',
+            glowColor: 'hover:border-emerald-500/30 hover:shadow-[0_0_30px_rgba(16,185,129,0.08)]',
+            icon: <Percent size={14} className="text-emerald-400" />,
+            visual: (() => {
+              const numVal = parseFloat(analytics.intelligence.average_margin.replace('%', '')) || 0;
+              const radius = 8;
+              const strokeWidth = 2;
+              const circumference = 2 * Math.PI * radius;
+              const strokeDashoffset = circumference - (numVal / 100) * circumference;
+              return (
+                <svg className="w-8 h-8 -rotate-90 mt-1" viewBox="0 0 24 24">
+                  <circle cx="12" cy="12" r={radius} stroke={isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'} strokeWidth={strokeWidth} fill="transparent" />
+                  <circle cx="12" cy="12" r={radius} stroke="#10b981" strokeWidth={strokeWidth} fill="transparent" 
+                    strokeDasharray={circumference} strokeDashoffset={strokeDashoffset} strokeLinecap="round" className="transition-all duration-1000" />
+                </svg>
+              );
+            })()
+          },
+          { 
+            label: 'Active SKUs', 
+            value: String(analytics.intelligence.products_count || normalizedReport.length), 
+            color: isDarkMode ? 'text-gold' : 'text-slate-900',
+            glowColor: 'hover:border-gold/30 hover:shadow-[0_0_30px_rgba(212,175,55,0.08)]',
+            icon: <Layers size={14} className="text-gold" />,
+            visual: (
+              <div className="grid grid-cols-3 gap-1 w-6 h-6 items-center mt-2 opacity-60">
+                {Array.from({ length: 6 }).map((_, idx) => (
+                  <div key={idx} className={`w-1.5 h-1.5 rounded-full ${isDarkMode ? 'bg-gold/60' : 'bg-slate-700/60'} animate-pulse`} style={{ animationDelay: `${idx * 150}ms` }} />
+                ))}
+              </div>
+            )
+          },
+          { 
+            label: 'At-Risk Products', 
+            value: String(atRisk.length), 
+            color: atRisk.length > 0 ? 'text-rose-400' : 'text-emerald-400',
+            glowColor: atRisk.length > 0 ? 'hover:border-rose-500/30 hover:shadow-[0_0_30px_rgba(244,63,94,0.08)]' : 'hover:border-emerald-500/30 hover:shadow-[0_0_30px_rgba(16,185,129,0.08)]',
+            icon: <ShieldAlert size={14} className={atRisk.length > 0 ? 'text-rose-400' : 'text-emerald-400'} />,
+            visual: (
+              <div className="relative w-8 h-8 flex items-center justify-center mt-1">
+                {atRisk.length > 0 ? (
+                  <>
+                    <div className="absolute w-5 h-5 rounded-full bg-rose-500/20 animate-ping" />
+                    <div className="absolute w-3.5 h-3.5 rounded-full bg-rose-500/40 animate-pulse" />
+                    <ShieldAlert size={14} className="text-rose-400 relative z-10" />
+                  </>
+                ) : (
+                  <div className="w-4 h-4 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400 font-bold text-[8px] animate-pulse">✓</div>
+                )}
+              </div>
+            )
+          },
         ].map((kpi, i) => (
-          <div key={i} className={`p-6 rounded-[2rem] border transition-all ${isDarkMode ? 'glass-panel hover:-translate-y-1' : 'bg-white border-slate-200 shadow-xl'}`}>
-            <p className={`text-[10px] font-black uppercase tracking-widest mb-3 ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>{kpi.label}</p>
-            <p className={`text-3xl font-bold ${kpi.color}`}>{kpi.value}</p>
+          <div 
+            key={i} 
+            className={`group p-6 rounded-[2.5rem] border transition-all duration-300 flex flex-col justify-between ${
+              isDarkMode 
+                ? `bg-gradient-to-b from-slate-900/60 to-black/60 border-white/5 shadow-glass ${kpi.glowColor} hover:-translate-y-0.5` 
+                : `bg-white border-slate-200 shadow-xl hover:border-slate-300 hover:-translate-y-0.5 ${kpi.glowColor}`
+            }`}
+          >
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <p className={`text-[9px] font-black uppercase tracking-[0.18em] ${isDarkMode ? 'text-cream/35' : 'text-slate-400'}`}>{kpi.label}</p>
+                <div className={`p-1.5 rounded-lg ${isDarkMode ? 'bg-white/5' : 'bg-slate-100'}`}>
+                  {kpi.icon}
+                </div>
+              </div>
+              <p className={`text-3xl font-black luxury-font tracking-tight ${kpi.color}`}>{kpi.value}</p>
+            </div>
+            
+            {/* Embedded Micro-Telemetry Graphic */}
+            <div className="flex justify-end items-center mt-4">
+              {kpi.visual}
+            </div>
           </div>
         ))}
       </div>
 
       {/* Star product callout */}
-      {topProduct && (
-        <div className={`relative overflow-hidden rounded-[2rem] border transition-all ${
-          isDarkMode
-            ? 'border-gold/30 bg-gradient-to-br from-gold/10 via-gold/5 to-transparent'
-            : 'bg-gradient-to-br from-amber-50 via-yellow-50 to-white border-amber-200'
-        }`}>
-          {/* Glow blob */}
-          <div className="absolute -top-10 -right-10 w-48 h-48 rounded-full bg-gold/10 blur-3xl pointer-events-none" />
+      {topProduct && (() => {
+        const computedRoi = topProduct.unitCost > 0
+          ? ((topProduct.sellPrice - topProduct.unitCost) / topProduct.unitCost) * 100
+          : 0;
+        const totalSegments = 16;
+        const filledSegments = Math.round((topProduct.margin / 100) * totalSegments);
 
-          <div className="relative p-7 flex items-center gap-6">
-            {/* Rank badge */}
-            <div className={`relative shrink-0 w-20 h-20 rounded-2xl flex flex-col items-center justify-center shadow-lg ${
-              isDarkMode ? 'bg-gold/20 border border-gold/30' : 'bg-amber-100 border border-amber-300'
-            }`}>
-              <Trophy size={26} className="text-gold" />
-              <span className="text-[9px] font-black uppercase tracking-widest text-gold mt-1">#1</span>
-            </div>
+        return (
+          <div
+            ref={cardRef}
+            onMouseMove={handleMouseMove}
+            onMouseLeave={handleMouseLeave}
+            className={`relative overflow-hidden rounded-[2rem] border transition-all duration-500 group hover:-translate-y-0.5 hover:shadow-2xl ${
+              isDarkMode
+                ? 'border-white/10 hover:border-gold/40 bg-gradient-to-b from-slate-900/90 to-black/90 shadow-[0_0_50px_rgba(212,175,55,0.05)]'
+                : 'bg-gradient-to-b from-[#fdfdfd] to-[#faf8f4] border-[#e3dfd5] hover:border-[#d4af37]/50 shadow-[0_15px_40px_rgba(180,130,20,0.04)] shadow-[#f59e0b]/5'
+            }`}
+          >
+            {/* Interactive Spotlight Effect */}
+            <div
+              className="absolute inset-0 pointer-events-none transition-opacity duration-300 opacity-0 group-hover:opacity-100"
+              style={{
+                background: isDarkMode
+                  ? 'radial-gradient(400px circle at var(--mouse-x, 0px) var(--mouse-y, 0px), rgba(212, 175, 55, 0.08), transparent 60%)'
+                  : 'radial-gradient(400px circle at var(--mouse-x, 0px) var(--mouse-y, 0px), rgba(212, 175, 55, 0.04), transparent 60%)',
+              }}
+            />
 
-            {/* Main info */}
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-1">
-                <Star size={11} className="text-gold fill-gold" />
-                <p className="text-[10px] font-black uppercase tracking-widest text-gold">Top Performer</p>
-              </div>
-              <p className={`text-2xl font-bold truncate ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
-                {topProduct.icon} {topProduct.name}
-              </p>
-              {/* Margin bar */}
-              <div className="mt-3 flex items-center gap-3">
-                <div className={`flex-1 h-2 rounded-full ${isDarkMode ? 'bg-white/10' : 'bg-amber-100'}`}>
-                  <div
-                    className="h-2 rounded-full bg-gradient-to-r from-gold to-amber-300 transition-all duration-700"
-                    style={{ width: `${Math.min(topProduct.margin, 100)}%` }}
-                  />
+            {/* Interactive Backdrop Shimmer & Gradients */}
+            <div className="absolute -top-24 -left-24 w-48 h-48 rounded-full bg-gold/10 blur-[80px] pointer-events-none group-hover:bg-gold/15 transition-all duration-1000" />
+            <div className="absolute -bottom-24 -right-24 w-48 h-48 rounded-full bg-emerald-500/5 blur-[80px] pointer-events-none group-hover:bg-emerald-500/10 transition-all duration-1000" />
+
+            <div className="relative p-6 flex flex-col lg:flex-row lg:items-center gap-6 justify-between">
+              
+              {/* Left: Product Info Identity */}
+              <div className="flex items-center gap-5 flex-1 min-w-0">
+                <div className={`relative shrink-0 w-16 h-16 rounded-2xl flex items-center justify-center border transition-all duration-700 group-hover:scale-[1.03] group-hover:rotate-2 ${
+                  isDarkMode 
+                    ? 'bg-slate-900/60 border-white/10 shadow-[0_8px_30px_rgb(0,0,0,0.4)] group-hover:border-gold/30' 
+                    : 'bg-white border-slate-200 shadow-[0_8px_30px_rgba(0,0,0,0.05)] group-hover:border-amber-400'
+                }`}>
+                  {/* 3D Drop shadow behind emoji */}
+                  <span className="text-3xl filter drop-shadow-[0_4px_8px_rgba(0,0,0,0.25)] select-none">
+                    {topProduct.icon}
+                  </span>
+                  {/* Absolute micro-badge trophy */}
+                  <div className={`absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full flex items-center justify-center shadow-lg border ${
+                    isDarkMode ? 'bg-gold border-slate-950 text-slate-950' : 'bg-amber-50 border-white text-white'
+                  }`}>
+                    <Trophy size={10} className="stroke-[2.5]" />
+                  </div>
                 </div>
-                <span className="text-gold font-black text-sm shrink-0">{topProduct.margin.toFixed(1)}%</span>
+
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5 mb-1.5">
+                    <Sparkles size={11} className="text-gold fill-gold animate-pulse animate-[spin_4s_linear_infinite]" />
+                    <span className={`text-[9px] font-black uppercase tracking-[0.25em] ${isDarkMode ? 'text-gold' : 'text-amber-600'}`}>
+                      Portfolio Alpha SKU
+                    </span>
+                  </div>
+                  <h4 className={`text-xl sm:text-2xl font-black luxury-font tracking-tight truncate ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
+                    {topProduct.name}
+                  </h4>
+                </div>
+              </div>
+
+              {/* Center: Premium Performance Telemetry */}
+              <div className="flex flex-wrap items-center gap-3 lg:justify-center">
+                <div className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl border text-[10px] font-black uppercase tracking-wider transition-all duration-300 ${
+                  isDarkMode 
+                    ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.05)]' 
+                    : 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                }`}>
+                  <Activity size={12} className="animate-[pulse_1.5s_infinite]" />
+                  <span>{topProduct.margin.toFixed(1)}% Margin</span>
+                </div>
+
+                <div className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl border text-[10px] font-black uppercase tracking-wider transition-all duration-300 ${
+                  isDarkMode 
+                    ? 'bg-gold/10 border-gold/20 text-gold shadow-[0_0_15px_rgba(212,175,55,0.05)]' 
+                    : 'bg-amber-50 border-amber-200 text-amber-700'
+                }`}>
+                  <ArrowUpRight size={12} className="stroke-[2.5]" />
+                  <span>+{computedRoi.toFixed(0)}% ROI</span>
+                </div>
+              </div>
+
+              {/* Right: Live Telemetry Grid */}
+              <div className={`grid grid-cols-3 gap-6 lg:pl-6 lg:border-l shrink-0 ${isDarkMode ? 'border-white/10' : 'border-slate-200'}`}>
+                <div>
+                  <p className={`text-[8px] font-black uppercase tracking-[0.2em] mb-1 ${isDarkMode ? 'text-cream/30' : 'text-slate-400'}`}>Unit Cost</p>
+                  <p className="text-sm font-extrabold text-rose-400 tracking-tight">{formatPrice(topProduct.unitCost)}</p>
+                </div>
+                <div>
+                  <p className={`text-[8px] font-black uppercase tracking-[0.2em] mb-1 ${isDarkMode ? 'text-cream/30' : 'text-slate-400'}`}>Net Spread</p>
+                  <p className="text-sm font-extrabold text-emerald-400 tracking-tight">{formatPrice(topProduct.sellPrice - topProduct.unitCost)}</p>
+                </div>
+                <div>
+                  <p className={`text-[8px] font-black uppercase tracking-[0.2em] mb-1 ${isDarkMode ? 'text-cream/30' : 'text-slate-400'}`}>Sell Price</p>
+                  <p className={`text-sm font-extrabold tracking-tight ${isDarkMode ? 'text-gold' : 'text-slate-900'}`}>{formatPrice(topProduct.sellPrice)}</p>
+                </div>
+              </div>
+
+            </div>
+
+            {/* Bottom telemetry bar */}
+            <div className={`px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-4 border-t ${
+              isDarkMode ? 'border-white/5 bg-black/20' : 'border-slate-100 bg-slate-50/50'
+            }`}>
+              <div className="flex-1 w-full flex flex-col gap-1.5">
+                <div className="flex items-center justify-between text-[8px] font-black uppercase tracking-widest">
+                  <span className={isDarkMode ? 'text-cream/40' : 'text-slate-400'}>Product Margin Intensity Meter</span>
+                  <span className={isDarkMode ? 'text-gold' : 'text-amber-600'}>{topProduct.margin.toFixed(1)}% Max Cap</span>
+                </div>
+                
+                {/* LED Equalizer Segment track */}
+                <div className="flex items-center gap-1.5 w-full">
+                  {Array.from({ length: totalSegments }).map((_, idx) => {
+                    const isFilled = idx < filledSegments;
+                    return (
+                      <div
+                        key={idx}
+                        className={`h-2 flex-1 rounded-[3px] transition-all duration-700 ${
+                          isFilled
+                            ? isDarkMode
+                              ? 'bg-gradient-to-t from-gold to-yellow-400 shadow-[0_0_12px_rgba(212,175,55,0.7)]'
+                              : 'bg-gradient-to-t from-amber-500 to-yellow-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]'
+                            : isDarkMode
+                            ? 'bg-white/5'
+                            : 'bg-slate-100'
+                        }`}
+                      />
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className={`shrink-0 flex items-center gap-2 text-[8px] font-black uppercase tracking-[0.2em] px-2.5 py-1.5 rounded-md border ${
+                isDarkMode 
+                  ? 'bg-slate-950/80 border-gold/10 text-gold/60' 
+                  : 'bg-white border-amber-200/60 text-amber-700/80'
+              }`}>
+                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-[ping_1.5s_infinite]" />
+                <span>Optimal Portfolio Lock-in</span>
               </div>
             </div>
 
-            {/* Stat pills */}
-            <div className="shrink-0 flex flex-col gap-2">
-              <div className={`px-4 py-2 rounded-xl text-center ${
-                isDarkMode ? 'bg-emerald-500/10 border border-emerald-500/20' : 'bg-emerald-50 border border-emerald-200'
-              }`}>
-                <p className="text-[9px] font-black uppercase tracking-widest text-emerald-400">Sell</p>
-                <p className="text-sm font-bold text-emerald-400">{formatPrice(topProduct.sellPrice)}</p>
-              </div>
-              <div className={`px-4 py-2 rounded-xl text-center ${
-                isDarkMode ? 'bg-rose-500/10 border border-rose-500/20' : 'bg-rose-50 border border-rose-200'
-              }`}>
-                <p className="text-[9px] font-black uppercase tracking-widest text-rose-400">Cost</p>
-                <p className="text-sm font-bold text-rose-400">{formatPrice(topProduct.unitCost)}</p>
-              </div>
-            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Profit Report Table */}
       <div className={`rounded-[2rem] border overflow-hidden transition-colors ${isDarkMode ? 'glass-panel' : 'bg-white border-slate-200 shadow-xl'}`}>
