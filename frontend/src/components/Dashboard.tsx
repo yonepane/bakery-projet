@@ -52,6 +52,7 @@ import { Language, translations } from '../lib/translations';
 import { GoogleOAuthProvider, GoogleLogin } from '@react-oauth/google';
 import { GOOGLE_CLIENT_ID, PRODUCT_ICON_CHOICES } from './dashboard/constants';
 import { useBakeryData } from './dashboard/useBakeryData';
+import { CommandPalette } from './CommandPalette';
 import {
   CartItem,
   ConfirmConfig,
@@ -299,6 +300,32 @@ const Dashboard: React.FC = () => {
   const [isSearchingRecipes, setIsSearchingRecipes] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [isForecasting, setIsForecasting] = useState(false);
+
+  const [showCommandPalette, setShowCommandPalette] = useState(false);
+
+  useEffect(() => {
+    const handleCmdK = (e: KeyboardEvent) => {
+      if ((e.key === 'k' && (e.metaKey || e.ctrlKey)) || e.key === '/') {
+        if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+        e.preventDefault();
+        setShowCommandPalette(true);
+      }
+    };
+    window.addEventListener('keydown', handleCmdK);
+    return () => window.removeEventListener('keydown', handleCmdK);
+  }, []);
+
+  const commandActions = [
+    { name: 'Go to POS', category: 'Navigation', onSelect: () => setActiveTab('pos') },
+    { name: 'Go to Kitchen', category: 'Navigation', onSelect: () => setActiveTab('kitchen') },
+    { name: 'Go to Inventory', category: 'Navigation', onSelect: () => setActiveTab('inventory') },
+    { name: 'Go to Analytics', category: 'Navigation', onSelect: () => setActiveTab('simulator') },
+    ...(inventory?.products || []).map(p => ({
+      name: `Recipe: ${p.name}`,
+      category: 'Products',
+      onSelect: () => setSelectedProduct(p)
+    }))
+  ];
 
   const getDownloadToken = async (): Promise<string> => {
     try {
@@ -2999,6 +3026,12 @@ const Dashboard: React.FC = () => {
           </div>
         )}
       </AnimatePresence>
+      <CommandPalette 
+        isOpen={showCommandPalette} 
+        onClose={() => setShowCommandPalette(false)} 
+        isDarkMode={isDarkMode} 
+        actions={commandActions} 
+      />
     </div>
   );
 };
