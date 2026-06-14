@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   LayoutDashboard, 
   Package, 
@@ -111,6 +111,23 @@ const Dashboard: React.FC = () => {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [showAlertsPopover, setShowAlertsPopover] = useState(false);
   const [isOperationsOpen, setIsOperationsOpen] = useState(false);
+
+  const notificationRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (notificationRef.current && !notificationRef.current.contains(event.target as Node)) {
+        setShowAlertsPopover(false);
+      }
+    };
+
+    if (showAlertsPopover) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showAlertsPopover]);
 
   // State used by the booking modal.
   const [showBookingModal, setShowBookingModal] = useState(false);
@@ -247,9 +264,10 @@ const Dashboard: React.FC = () => {
   const [generalNote, setGeneralNote] = useState('');
   const [isSavingGeneralNote, setIsSavingGeneralNote] = useState(false);
   const today = new Date();
+  const threeMonthsAgo = new Date(today.getFullYear(), today.getMonth() - 2, 1).toISOString().slice(0, 10);
   const monthStart = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10);
   const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().slice(0, 10);
-  const [accountingRange, setAccountingRange] = useState({ start: monthStart, end: monthEnd });
+  const [accountingRange, setAccountingRange] = useState({ start: threeMonthsAgo, end: monthEnd });
   const [lastTransaction, setLastTransaction] = useState<any>(null);
   const [newProduct, setNewProduct] = useState<any>({ 
     id: '', 
@@ -1498,7 +1516,8 @@ const Dashboard: React.FC = () => {
                                 { id: 'planner', icon: Calendar, label: t.planner },
                                 { id: 'orders', icon: FileText, label: t.orders },
                                 { id: 'customers', icon: Users, label: 'Customers' },
-                                { id: 'staff', icon: Settings, label: t.staff },
+                                { id: 'staff', icon: Users, label: t.staff },
+                                { id: 'settings', icon: Settings, label: 'Settings' },
                             ].filter(sub => {
                                 if (sub.id === 'staff' && user?.role !== 'owner') return false;
                                 return true;
@@ -1533,67 +1552,15 @@ const Dashboard: React.FC = () => {
             {!isSidebarCollapsed && <span className="text-[10px] font-black uppercase tracking-widest">Collapse View</span>}
           </button>
 
-          {/* Theme & Currency Controls */}
-          {!isSidebarCollapsed && (
-            <>
-              <div className={`grid grid-cols-2 gap-2 p-1 rounded-xl ${isDarkMode ? 'bg-white/5' : 'bg-slate-100'}`}>
-                <button onClick={() => setIsDarkMode(true)} className={`py-2 rounded-lg flex justify-center transition-all ${isDarkMode ? 'bg-gold text-black shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}><Moon size={16}/></button>
-                <button onClick={() => setIsDarkMode(false)} className={`py-2 rounded-lg flex justify-center transition-all ${!isDarkMode ? 'bg-white text-slate-900 shadow-lg' : 'text-white/20 hover:text-white'}`}><Sun size={16}/></button>
-              </div>
-              
-              <div className="glass-radio-group">
-                <input
-                  type="radio"
-                  id="glass-mad"
-                  name="currency-switcher"
-                  checked={activeCurrency === 'MAD'}
-                  onChange={() => setActiveCurrency('MAD')}
-                />
-                <label htmlFor="glass-mad">MAD</label>
-
-                <input
-                  type="radio"
-                  id="glass-eur"
-                  name="currency-switcher"
-                  checked={activeCurrency === 'EUR'}
-                  onChange={() => setActiveCurrency('EUR')}
-                />
-                <label htmlFor="glass-eur">EUR</label>
-
-                <input
-                  type="radio"
-                  id="glass-usd"
-                  name="currency-switcher"
-                  checked={activeCurrency === 'USD'}
-                  onChange={() => setActiveCurrency('USD')}
-                />
-                <label htmlFor="glass-usd">USD</label>
-
-                <div className="glass-glider" aria-hidden="true"></div>
-              </div>
-
-              <button onClick={() => setShowWasteModal(true)} className={`w-full py-4 rounded-xl font-bold text-xs uppercase tracking-widest border border-rose-500/20 text-rose-500 hover:bg-rose-500/10 transition-all`}>Log Daily Waste</button>
-            </>
-          )}
-
-          <div className={`p-4 border-t ${isDarkMode ? 'border-white/5' : 'border-slate-100'}`}>
-            {!isSidebarCollapsed && (
-              <div className="flex gap-2 mb-4">
-                  {(['en', 'fr', 'ar'] as Language[]).map(l => (
-                      <button 
-                          key={l}
-                          onClick={async () => {
-                              setLang(l);
-                              localStorage.setItem('bakery_lang', l);
-                              try { await api.put('/settings', { language: l }); } catch (e) { console.error(e); }
-                          }}
-                          className={`flex-1 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${lang === l ? 'bg-gold text-charcoal' : 'bg-white/5 text-cream/40 hover:bg-white/10'}`}
-                      >
-                          {l}
-                      </button>
-                  ))}
-              </div>
-            )}
+          {/* Action & Logout Controls */}
+          <div className={`mt-4 pt-4 border-t ${isDarkMode ? 'border-white/5' : 'border-slate-100'} space-y-2`}>
+            <button 
+              onClick={() => setShowWasteModal(true)} 
+              className={`w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-xs uppercase tracking-widest border border-rose-500/20 text-rose-500 hover:bg-rose-500/10 transition-all ${isSidebarCollapsed ? 'px-0' : ''}`}
+              title="Log Daily Waste"
+            >
+              {isSidebarCollapsed ? <AlertTriangle size={16}/> : 'Log Daily Waste'}
+            </button>
             <button 
                 onClick={() => { 
                   localStorage.removeItem('bakery_token'); 
@@ -1602,6 +1569,7 @@ const Dashboard: React.FC = () => {
                   setUser(null); 
                 }} 
                 className={`w-full flex items-center justify-center gap-2 py-4 rounded-xl font-bold text-xs uppercase tracking-widest bg-rose-600 hover:bg-rose-700 text-white shadow-lg transition-all ${isSidebarCollapsed ? 'px-0' : ''}`}
+                title={t.logout}
             >
                 <LogOut size={16}/>
                 {!isSidebarCollapsed && t.logout}
@@ -1657,6 +1625,19 @@ const Dashboard: React.FC = () => {
               <div className={`w-3 h-3 rounded-full ${isOnline ? 'bg-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.8)]' : 'bg-rose-500 shadow-[0_0_15px_rgba(244,63,94,0.8)] animate-pulse'}`} />
             </div>
 
+            {/* Theme Toggle */}
+            <button 
+              onClick={() => {
+                const newTheme = !isDarkMode;
+                setIsDarkMode(newTheme);
+                localStorage.setItem('bakery_theme', newTheme ? 'dark' : 'light');
+              }} 
+              className={`p-3 rounded-2xl border transition-all flex items-center justify-center ${isDarkMode ? 'glass-panel hover:bg-white/5 border-gold/10 text-gold' : 'border-slate-200 bg-white shadow-sm text-slate-600 hover:bg-slate-50'}`}
+              title="Toggle Theme"
+            >
+              {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
+            </button>
+
             {/* Notifications Bell */}
             <div className="relative">
               <button 
@@ -1674,6 +1655,7 @@ const Dashboard: React.FC = () => {
               <AnimatePresence>
                 {showAlertsPopover && (
                   <motion.div 
+                    ref={notificationRef}
                     initial={{ opacity: 0, y: 10, scale: 0.95 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 10, scale: 0.95 }}
