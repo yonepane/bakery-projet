@@ -315,11 +315,39 @@ const Dashboard: React.FC = () => {
     return () => window.removeEventListener('keydown', handleCmdK);
   }, []);
 
+  const allNavItems = [
+    { id: 'dashboard', label: t.dashboard },
+    { id: 'intelligence', label: 'Intelligence' },
+    { id: 'pos', label: t.pos },
+    { id: 'kitchen', label: t.kitchen },
+    { id: 'inventory', label: t.inventory },
+    { id: 'fiche', label: t.fiche },
+    { id: 'purchasing', label: t.purchasing },
+    { id: 'simulator', label: t.simulator },
+    { id: 'history', label: t.history },
+    { id: 'planner', label: t.planner },
+    { id: 'orders', label: t.orders },
+    { id: 'comptabilite', label: t.comptabilite },
+    { id: 'staff', label: t.staff },
+    { id: 'settings', label: 'Settings' },
+    { id: 'customers', label: 'Customers' }
+  ];
+
+  const cashierRestrictedTabs = ['simulator', 'inventory', 'purchasing', 'intelligence', 'staff'];
+
+  const filteredNavItems = allNavItems.filter(item => {
+    if (user?.role === 'cashier' && cashierRestrictedTabs.includes(item.id)) return false;
+    return true;
+  });
+
+  const navigationActions = filteredNavItems.map(item => ({
+    name: item.label,
+    category: 'Navigation',
+    onSelect: () => setActiveTab(item.id)
+  }));
+
   const commandActions = [
-    { name: 'Go to POS', category: 'Navigation', onSelect: () => setActiveTab('pos') },
-    { name: 'Go to Kitchen', category: 'Navigation', onSelect: () => setActiveTab('kitchen') },
-    { name: 'Go to Inventory', category: 'Navigation', onSelect: () => setActiveTab('inventory') },
-    { name: 'Go to Analytics', category: 'Navigation', onSelect: () => setActiveTab('simulator') },
+    ...navigationActions,
     ...(inventory?.products || []).map(p => ({
       name: `Recipe: ${p.name}`,
       category: 'Products',
