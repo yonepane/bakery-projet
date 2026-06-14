@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Calendar, Plus, Trash2, Lock, X, CheckCircle, Users, Search } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { DashboardSharedProps } from '../types';
@@ -6,12 +6,12 @@ import { DashboardSharedProps } from '../types';
 type Props = Pick<DashboardSharedProps,
   'isDarkMode' | 'inventory' | 'cart' | 'setCart' | 'addToCart' | 'finalizeSale' |
   'formatPrice' | 'lastTransaction' | 'setShowReceiptModal' | 'setShowBookingModal' |
-  'setBookingForm' | 'bookingForm' | 'API_BASE' | 'history' | 'api' | 'fetchData' | 'user' | 'customers'>;
+  'setBookingForm' | 'bookingForm' | 'API_BASE' | 'history' | 'api' | 'fetchData' | 'user' | 'customers' | 'openSelector'>;
 
 const POSPanel: React.FC<Props> = ({
   isDarkMode, inventory, cart, setCart, addToCart, finalizeSale, formatPrice,
   lastTransaction, setShowReceiptModal, setShowBookingModal, setBookingForm, bookingForm, API_BASE,
-  history, api, fetchData, user, customers
+  history, api, fetchData, user, customers, openSelector
 }) => {
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
   const [showCloseShift, setShowCloseShift] = useState(false);
@@ -19,6 +19,11 @@ const POSPanel: React.FC<Props> = ({
   const [shiftClosed, setShiftClosed] = useState(false);
   const [shiftResult, setShiftResult] = useState<{ expected: number, counted: number, diff: number } | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [cashGiven, setCashGiven] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (cart.length === 0) setCashGiven(null);
+  }, [cart.length]);
 
   const filteredProducts = inventory.products.filter(p =>
     p.name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -123,6 +128,28 @@ const POSPanel: React.FC<Props> = ({
                 <p className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>{item.qty} x {formatPrice(item.price)}</p>
               </div>
               <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <button onClick={() => setCart(cart.map(i => i.id === item.id ? { ...i, qty: Math.max(1, i.qty - 1) } : i))} className={`w-6 h-6 rounded-md flex items-center justify-center text-xs ${isDarkMode ? 'bg-white/5 hover:bg-white/10 text-cream' : 'bg-slate-200 hover:bg-slate-300 text-slate-700'}`}>-</button>
+                  <span 
+                    onClick={() => openSelector({
+                      title: 'Set Quantity',
+                      label: 'Quantity',
+                      value: item.qty.toString(),
+                      type: 'text',
+                      onConfirm: (val) => {
+                        const parsed = parseInt(val);
+                        if (!isNaN(parsed) && parsed > 0) {
+                          setCart(cart.map(i => i.id === item.id ? { ...i, qty: parsed } : i));
+                        }
+                      }
+                    })}
+                    className={`font-bold text-sm min-w-[2ch] text-center cursor-pointer hover:text-gold transition-colors ${isDarkMode ? 'text-cream' : 'text-slate-900'}`}
+                    title="Click to enter exact quantity"
+                  >
+                    {item.qty}
+                  </span>
+                  <button onClick={() => setCart(cart.map(i => i.id === item.id ? { ...i, qty: i.qty + 1 } : i))} className={`w-6 h-6 rounded-md flex items-center justify-center text-xs ${isDarkMode ? 'bg-white/5 hover:bg-white/10 text-cream' : 'bg-slate-200 hover:bg-slate-300 text-slate-700'}`}>+</button>
+                </div>
                 <span className={`font-bold ${isDarkMode ? 'text-gold' : 'text-slate-900'}`}>{formatPrice(item.qty * item.price)}</span>
                 <button onClick={() => setCart(cart.filter(i => i.id !== item.id))} className="text-rose-500/30 hover:text-rose-500 transition-colors"><Trash2 size={16} /></button>
               </div>
@@ -136,6 +163,22 @@ const POSPanel: React.FC<Props> = ({
             <span className={`text-5xl font-bold tracking-tighter ${isDarkMode ? 'text-cream' : 'text-slate-900'}`}>
               {formatPrice(cart.reduce((a, c) => a + (c.price * c.qty), 0)).split(' ')[0]}
             </span>
+          </div>
+
+          <div className="mb-6">
+            <p className={`text-xs font-black uppercase tracking-widest mb-3 ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>Quick Cash Payment</p>
+            <div className="grid grid-cols-4 gap-2">
+              <button onClick={() => setCashGiven(cart.reduce((a, c) => a + (c.price * c.qty), 0))} className={`py-2 rounded-xl text-sm font-bold border transition-colors ${cashGiven === cart.reduce((a, c) => a + (c.price * c.qty), 0) ? 'bg-gold text-charcoal border-gold' : isDarkMode ? 'bg-white/5 border-white/10 hover:border-gold/30' : 'bg-slate-50 border-slate-200 text-slate-900 hover:border-slate-400'}`}>Exact</button>
+              {[50, 100, 200].map(amt => (
+                <button key={amt} onClick={() => setCashGiven(amt)} className={`py-2 rounded-xl text-sm font-bold border transition-colors ${cashGiven === amt ? 'bg-gold text-charcoal border-gold' : isDarkMode ? 'bg-white/5 border-white/10 hover:border-gold/30 text-white' : 'bg-slate-50 border-slate-200 text-slate-900 hover:border-slate-400'}`}>{amt}</button>
+              ))}
+            </div>
+            {cashGiven !== null && (
+              <div className={`mt-4 p-4 rounded-2xl flex justify-between items-center ${cashGiven >= cart.reduce((a, c) => a + (c.price * c.qty), 0) ? (isDarkMode ? 'bg-green-500/10 text-green-400 border border-green-500/20' : 'bg-green-50 text-green-700 border border-green-200') : (isDarkMode ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20' : 'bg-rose-50 text-rose-700 border border-rose-200')}`}>
+                <span className="font-bold text-sm uppercase tracking-widest">Change Due:</span>
+                <span className="text-2xl font-black">{cashGiven >= cart.reduce((a, c) => a + (c.price * c.qty), 0) ? (cashGiven - cart.reduce((a, c) => a + (c.price * c.qty), 0)).toFixed(2) : 'Insufficient'} <span className="text-sm">MAD</span></span>
+              </div>
+            )}
           </div>
           
           {/* Customer Selection for Loyalty Points */}
