@@ -283,6 +283,15 @@ const Dashboard: React.FC = () => {
   const [newMaterial, setNewMaterial] = useState<any>({ name: '', price: 0, unit: 'g', min_threshold: 1000 });
   const [wasteForm, setWasteForm] = useState({ product_id: '', quantity: 1 });
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [targetYield, setTargetYield] = useState<number>(0);
+  const [checkedIngredients, setCheckedIngredients] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    if (selectedProduct) {
+      setTargetYield(selectedProduct.yield_qty || 1);
+      setCheckedIngredients({});
+    }
+  }, [selectedProduct]);
 
   // State used by recipe search and online/offline handling.
   const [recipeSearchQuery, setRecipeSearchQuery] = useState('');
@@ -2130,7 +2139,17 @@ const Dashboard: React.FC = () => {
                             <h2 className="text-4xl font-bold luxury-font tracking-tight mb-2">{selectedProduct.name}</h2>
                             <div className="flex gap-4">
                                 <span className="text-[10px] font-black uppercase tracking-widest text-gold bg-gold/10 px-3 py-1 rounded-full">Protocol v1.0</span>
-                                <span className="text-[10px] font-black uppercase tracking-widest text-cream/40 bg-white/5 px-3 py-1 rounded-full">Yield: {selectedProduct.yield_qty} Units</span>
+                                <div className="flex items-center gap-2">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-cream/40">Target Yield:</label>
+                                    <input 
+                                        type="number" 
+                                        value={targetYield}
+                                        onChange={(e) => setTargetYield(Number(e.target.value))}
+                                        className={`w-20 px-2 py-0.5 rounded-full text-center text-sm font-bold ${isDarkMode ? 'bg-white/5 text-white outline-none focus:bg-white/10' : 'bg-slate-100 text-slate-900 outline-none focus:bg-slate-200'}`}
+                                        min="1"
+                                    />
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-cream/40 bg-white/5 px-3 py-1 rounded-full">Base: {selectedProduct.yield_qty}</span>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -2142,12 +2161,22 @@ const Dashboard: React.FC = () => {
                     <div>
                         <h3 className="text-xs font-black uppercase tracking-[0.3em] text-gold mb-8 opacity-40">Composition</h3>
                         <div className="space-y-6">
-                            {selectedProduct.ingredients.map(ing => (
-                                <div key={ing.name} className="flex justify-between items-end border-b border-white/5 pb-2">
-                                    <span className="font-bold text-sm">{ing.name}</span>
-                                    <span className="text-gold font-black">{ing.quantity}<span className="text-[10px] ml-1 opacity-40">{inventory.materials[ing.name]?.unit || 'g'}</span></span>
-                                </div>
-                            ))}
+                            {selectedProduct.ingredients.map((ing, i) => {
+                                const scaleMultiplier = (targetYield || 1) / (selectedProduct.yield_qty || 1);
+                                const scaledQty = (ing.quantity * scaleMultiplier).toFixed(2);
+                                const isChecked = checkedIngredients[ing.name] || false;
+                                return (
+                                    <div key={i} className="flex justify-between items-center border-b border-white/5 pb-2 cursor-pointer group" onClick={() => setCheckedIngredients(prev => ({...prev, [ing.name]: !prev[ing.name]}))}>
+                                        <div className="flex items-center gap-3">
+                                            <div className={`w-4 h-4 rounded-[4px] border flex items-center justify-center transition-colors ${isChecked ? 'bg-gold border-gold text-charcoal' : 'border-white/20 group-hover:border-white/50'}`}>
+                                                {isChecked && <CheckCircle size={10} />}
+                                            </div>
+                                            <span className={`font-bold text-sm transition-opacity ${isChecked ? 'opacity-30 line-through' : ''}`}>{ing.name}</span>
+                                        </div>
+                                        <span className={`text-gold font-black transition-opacity ${isChecked ? 'opacity-30' : ''}`}>{scaledQty}<span className="text-[10px] ml-1 opacity-40">{inventory.materials[ing.name]?.unit || 'g'}</span></span>
+                                    </div>
+                                );
+                            })}
                         </div>
                     </div>
 
