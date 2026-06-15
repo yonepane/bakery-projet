@@ -12,6 +12,7 @@ from typing import Optional
 import sqlalchemy.orm
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse, HTMLResponse, Response
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import joinedload
 
 try:
@@ -22,6 +23,7 @@ try:
     from ..services.core import calculate_product_cost, get_user_settings
     from ..services.pdf import build_monthly_report_pdf, build_receipt_pdf
     from ..services.excel import build_monthly_report_excel
+    from ..routers.intelligence import _analytics_cache
 except ImportError:
     import models
     from auth import get_current_user, get_effective_owner_id, requires_roles
@@ -30,6 +32,10 @@ except ImportError:
     from services.core import calculate_product_cost, get_user_settings
     from services.pdf import build_monthly_report_pdf, build_receipt_pdf
     from services.excel import build_monthly_report_excel
+    try:
+        from routers.intelligence import _analytics_cache
+    except ImportError:
+        _analytics_cache = {}
 
 router = APIRouter()
 
@@ -204,6 +210,9 @@ async def complete_sale(
 
     db.commit()
 
+    # Invalidate analytics cache so dashboard reflects new sale immediately.
+    _analytics_cache.pop(owner_id, None)
+
     # Build a WhatsApp-friendly text receipt the frontend can share directly.
     currency = settings.get("currency", "MAD")
     whatsapp_text = f"BAKERY OS: Receipt {tx_id}\n"
@@ -213,6 +222,102 @@ async def complete_sale(
 
     return {"success": True, "transaction_id": tx_id, "whatsapp_text": whatsapp_text}
 
+
+# ---------------------------------------------------------------------------
+# Refund / Cancel a sale
+# ---------------------------------------------------------------------------
+
+@router.post("/api/transactions/{id}/refund")
+async def refund_transaction(
+    id: str,
+    db: sqlalchemy.orm.Session = Depends(get_db),
+    owner_id: int = Depends(get_effective_owner_id),
+):
+    """Cancel a completed sale: restore product stock and mark it refunded."""
+    tx = db.query(models.Transaction).filter(
+        models.Transaction.id == id,
+        models.Transaction.owner_id == owner_id,
+    ).first()
+    if not tx:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+    if tx.type != "sale":
+        raise HTTPException(status_code=400, detail="Only sales can be refunded")
+    if getattr(tx, "status", "completed") == "refunded":
+        raise HTTPException(status_code=400, detail="Transaction already refunded")
+
+    # Restore stock for each item in the original sale snapshot.
+    if tx.items:
+        product_ids = [item["id"] for item in tx.items if "id" in item]
+        products_map = {
+            p.id: p
+            for p in db.query(models.Product).filter(
+                models.Product.id.in_(product_ids),
+                models.Product.owner_id == owner_id,
+            ).all()
+        }
+        for item in tx.items:
+            product = products_map.get(item.get("id"))
+            if product:
+                product.stock += item.get("qty", 0)
+
+    # Deduct loyalty points that were awarded at time of sale.
+    if tx.customer_id:
+        customer = db.query(models.Customer).filter(
+            models.Customer.id == tx.customer_id,
+            models.Customer.owner_id == owner_id,
+        ).first()
+        if customer:
+            points_to_remove = int(tx.total_revenue)
+            customer.points = max(0, customer.points - points_to_remove)
+
+    # Mark refunded — keep the record for audit purposes.
+    tx.status = "refunded"
+
+    # Invalidate analytics cache so dashboard reflects the refund immediately.
+    _analytics_cache.pop(owner_id, None)
+
+    db.commit()
+    return {"success": True, "refunded_id": id}
+
+
+# ---------------------------------------------------------------------------
+# Delete a transaction
+# ---------------------------------------------------------------------------
+
+@router.delete("/api/transactions/{id}")
+async def delete_transaction(
+    id: str,
+    db: sqlalchemy.orm.Session = Depends(get_db),
+    owner_id: int = Depends(get_effective_owner_id),
+):
+    """Permanently delete a refunded transaction from history."""
+    tx = db.query(models.Transaction).filter(
+        models.Transaction.id == id,
+        models.Transaction.owner_id == owner_id,
+    ).first()
+    if not tx:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+    
+    if getattr(tx, "status", "completed") != "refunded":
+        raise HTTPException(status_code=400, detail="Only refunded transactions can be deleted")
+
+    try:
+        db.delete(tx)
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail="This transaction is still linked to another record and could not be deleted.",
+        )
+    except SQLAlchemyError:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail="Could not delete this transaction. Please try again.",
+        )
+
+    return {"success": True}
 
 # ---------------------------------------------------------------------------
 # Receipt

@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import React from 'react';
 import { CheckCircle, Edit2, FileText, Package, Plus, Radio, Trash2, Truck } from 'lucide-react';
 import { DashboardSharedProps } from '../types';
@@ -13,13 +14,15 @@ const PurchasingPanel: React.FC<Props> = ({
   setSelectedSupplierId, formatPrice, inventory, handleCreatePO, handleReceivePO,
   handleDeletePO, openPOModal, addToast, setShowAddSupplier, setEditingSupplier,
   setNewSupplier, handleDeleteSupplier,
-}) => (
+}) => {
+  const { t } = useTranslation();
+  return (
   <div className="space-y-8 animate-in fade-in duration-500">
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
       {/* Procurement Intelligence */}
       <div className={`lg:col-span-2 rounded-[2rem] border overflow-hidden transition-colors ${isDarkMode ? 'glass-panel' : 'bg-white border-slate-200 shadow-xl'}`}>
         <div className="p-8 border-b border-white/5 flex justify-between items-center">
-          <h3 className={`text-xl font-bold luxury-font uppercase ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Procurement Intelligence</h3>
+          <h3 className={`text-xl font-bold luxury-font uppercase ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{t('procurement_intelligence')}</h3>
           <div className="flex items-center gap-3">
             {suppliers.length > 0 && purchasingSuggestions.length > 0 && (
               <button
@@ -37,10 +40,10 @@ const PurchasingPanel: React.FC<Props> = ({
                 }`}
               >
                 <Radio size={12} />
-                Broadcast RFQ
+                {t('broadcast_rfq')}
               </button>
             )}
-            <p className="text-[10px] font-black uppercase tracking-widest text-gold bg-gold/10 px-3 py-1 rounded-full">Auto-Suggestions</p>
+            <p className="text-[10px] font-black uppercase tracking-widest text-gold bg-gold/10 px-3 py-1 rounded-full">{t('auto_suggestions')}</p>
           </div>
         </div>
         <div className="p-8 space-y-6">
@@ -48,14 +51,14 @@ const PurchasingPanel: React.FC<Props> = ({
             <div className="space-y-4">
               <div className={`p-5 rounded-2xl border flex items-center justify-between gap-4 ${isDarkMode ? 'bg-white/5 border-white/10' : 'bg-slate-50 border-slate-200'}`}>
                 <div>
-                  <p className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>Bulk Order Supplier</p>
+                  <p className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>{t('bulk_order_supplier')}</p>
                   <p className={`text-sm font-bold mt-1 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
                     {selectedSupplierId ? suppliers.find(s => s.id === selectedSupplierId)?.name || 'Select supplier' : 'No supplier selected'}
                   </p>
                 </div>
                 <select value={selectedSupplierId ?? ''} onChange={(e) => setSelectedSupplierId(e.target.value ? Number(e.target.value) : null)}
                   className={`min-w-[220px] border-b py-3 px-2 outline-none text-[10px] font-black uppercase tracking-widest rounded-xl ${isDarkMode ? 'bg-black text-gold border-white/10' : 'bg-white text-slate-700 border-slate-200'}`}>
-                  {suppliers.length === 0 ? <option value="" className={isDarkMode ? 'bg-[#0a0a0b] text-gold' : ''}>Add supplier first</option> : suppliers.map(s => <option key={s.id} value={s.id} className={isDarkMode ? 'bg-[#0a0a0b] text-gold' : ''}>{s.name}</option>)}
+                  {suppliers.length === 0 ? <option value="" className={isDarkMode ? 'bg-[#0a0a0b] text-gold' : ''}>{t('add_supplier_first')}</option> : suppliers.map(s => <option key={s.id} value={s.id} className={isDarkMode ? 'bg-[#0a0a0b] text-gold' : ''}>{s.name}</option>)}
                 </select>
               </div>
               {purchasingSuggestions.map(s => (
@@ -75,20 +78,20 @@ const PurchasingPanel: React.FC<Props> = ({
               ))}
               <button
                 onClick={async () => {
-                  if (!suppliers.length) { addToast('Add a supplier first', 'error'); return; }
-                  if (!selectedSupplierId) { addToast('Select a supplier first', 'error'); return; }
+                  if (!suppliers.length) { addToast(t('add_a_supplier_first'), 'error'); return; }
+                  if (!selectedSupplierId) { addToast(t('select_a_supplier_first'), 'error'); return; }
                   const items = purchasingSuggestions.map(s => ({ name: s.name, qty: s.suggested_buy, price: inventory.materials[s.name]?.price || 0 }));
                   await handleCreatePO({ supplier_id: selectedSupplierId, items });
                 }}
                 disabled={!suppliers.length || !selectedSupplierId}
                 className={`w-full py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all disabled:opacity-40 ${isDarkMode ? 'bg-gold text-charcoal shadow-gold-glow' : 'bg-slate-900 text-white'}`}>
-                Generate Bulk Purchase Order
+                {t('generate_bulk_purchase_order')}
               </button>
             </div>
           ) : (
             <div className="py-20 flex flex-col items-center opacity-20">
               <CheckCircle size={48} className="mb-4" />
-              <p className="font-black text-xs uppercase tracking-widest text-center">Stock Levels Optimal<br /><span className="text-[10px] lowercase font-bold tracking-normal opacity-60">No procurement suggested</span></p>
+              <p className="font-black text-xs uppercase tracking-widest text-center">{t('stock_levels_optimal')}<br /><span className="text-[10px] lowercase font-bold tracking-normal opacity-60">{t('no_procurement_suggested')}</span></p>
             </div>
           )}
         </div>
@@ -99,7 +102,7 @@ const PurchasingPanel: React.FC<Props> = ({
         {/* Recent Orders */}
         <div className={`rounded-[2rem] border overflow-hidden transition-colors ${isDarkMode ? 'glass-panel' : 'bg-white border-slate-200 shadow-xl'}`}>
           <div className={`p-8 border-b flex justify-between items-center ${isDarkMode ? 'border-white/5' : 'border-slate-100'}`}>
-            <h3 className={`text-xl font-bold luxury-font uppercase ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Recent Orders</h3>
+            <h3 className={`text-xl font-bold luxury-font uppercase ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{t('recent_orders')}</h3>
             <div className="flex items-center gap-3">
               <p className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-cream/30' : 'text-slate-400'}`}>{purchaseOrders.length} orders</p>
               <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
@@ -110,7 +113,7 @@ const PurchasingPanel: React.FC<Props> = ({
               <div key={po.id} className={`p-6 rounded-3xl border ${isDarkMode ? 'bg-white/5 border-white/5' : 'bg-slate-50 border-slate-100'}`}>
                 <div className="flex justify-between items-start mb-4">
                   <div>
-                    <p className="text-[10px] font-black uppercase tracking-widest opacity-40 mb-1">Order ID</p>
+                    <p className="text-[10px] font-black uppercase tracking-widest opacity-40 mb-1">{t('order_id')}</p>
                     <p className="font-bold font-mono text-sm">{po.id}</p>
                   </div>
                   <div className="flex flex-col items-end gap-2">
@@ -119,19 +122,19 @@ const PurchasingPanel: React.FC<Props> = ({
                   </div>
                 </div>
                 <div className="space-y-2 mb-4">
-                  <button onClick={() => openPOModal(po)} className={`w-full py-3 rounded-xl font-black text-[10px] uppercase tracking-widest ${isDarkMode ? 'bg-white/10 hover:bg-white/15' : 'bg-slate-200 text-slate-900'}`}>Manage Order</button>
-                  {po.status === 'draft' && <button onClick={() => handleReceivePO(po.id)} className={`w-full py-3 rounded-xl font-black text-[10px] uppercase tracking-widest ${isDarkMode ? 'bg-gold text-charcoal' : 'bg-slate-900 text-white'}`}>Mark as Fully Received</button>}
+                  <button onClick={() => openPOModal(po)} className={`w-full py-3 rounded-xl font-black text-[10px] uppercase tracking-widest ${isDarkMode ? 'bg-white/10 hover:bg-white/15' : 'bg-slate-200 text-slate-900'}`}>{t('manage_order')}</button>
+                  {po.status === 'draft' && <button onClick={() => handleReceivePO(po.id)} className={`w-full py-3 rounded-xl font-black text-[10px] uppercase tracking-widest ${isDarkMode ? 'bg-gold text-charcoal' : 'bg-slate-900 text-white'}`}>{t('mark_fully_received')}</button>}
                 </div>
               </div>
             ))}
-            {purchaseOrders.filter(po => !po.archived).length === 0 && <div className="py-10 text-center opacity-20"><FileText size={32} className="mx-auto mb-4" /><p className="text-[10px] font-black uppercase tracking-widest">No Recent Orders</p></div>}
+            {purchaseOrders.filter(po => !po.archived).length === 0 && <div className="py-10 text-center opacity-20"><FileText size={32} className="mx-auto mb-4" /><p className="text-[10px] font-black uppercase tracking-widest">{t('no_recent_orders')}</p></div>}
           </div>
         </div>
 
         {/* Suppliers */}
         <div className={`rounded-[2rem] border overflow-hidden transition-colors ${isDarkMode ? 'glass-panel' : 'bg-white border-slate-200 shadow-xl'}`}>
           <div className={`p-8 border-b flex justify-between items-center ${isDarkMode ? 'border-white/5' : 'border-slate-100'}`}>
-            <h3 className={`text-xl font-bold luxury-font uppercase ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Suppliers</h3>
+            <h3 className={`text-xl font-bold luxury-font uppercase ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{t('suppliers')}</h3>
             <button onClick={() => setShowAddSupplier(true)} className="text-gold p-2 hover:bg-gold/10 rounded-lg transition-all"><Plus size={16} /></button>
           </div>
           <div className="p-6 space-y-4">
@@ -147,12 +150,13 @@ const PurchasingPanel: React.FC<Props> = ({
                 </div>
               </div>
             ))}
-            {suppliers.length === 0 && <div className="py-10 text-center opacity-20"><Truck size={32} className="mx-auto mb-4" /><p className="text-[10px] font-black uppercase tracking-widest">No Registered Suppliers</p></div>}
+            {suppliers.length === 0 && <div className="py-10 text-center opacity-20"><Truck size={32} className="mx-auto mb-4" /><p className="text-[10px] font-black uppercase tracking-widest">{t('no_registered_suppliers')}</p></div>}
           </div>
         </div>
       </div>
     </div>
   </div>
-);
+  );
+};
 
 export default PurchasingPanel;

@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import React from 'react';
 import { FileText, Plus, Trash2, Zap } from 'lucide-react';
 import { DashboardSharedProps } from '../types';
@@ -12,6 +13,8 @@ const PlannerPanel: React.FC<Props> = ({
   isForecasting, handleSmartForecast, handleProduce, displayUnit, openSelector, getDownloadToken, API_BASE,
   wasteRecords, api, addToast, fetchData,
 }) => {
+  const { t } = useTranslation();
+
   const resourceForecast = Object.entries(
     planner.filter(p => p.status === 'pending').reduce((acc, item) => {
       const prod = inventory.products.find(p => p.id === item.product_id);
@@ -25,8 +28,8 @@ const PlannerPanel: React.FC<Props> = ({
       <div className={`p-10 rounded-[3.5rem] border transition-colors ${isDarkMode ? 'border-gold/20 bg-black/20 shadow-gold-glow' : 'border-slate-200 bg-white shadow-sm'}`}>
         <div className="flex justify-between items-center mb-10">
           <div>
-            <h3 className={`text-2xl font-bold luxury-font uppercase tracking-tighter ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Production Strategy</h3>
-            <p className={`text-[10px] font-black uppercase tracking-widest mt-1 ${isDarkMode ? 'text-cream/20' : 'text-slate-400'}`}>Operational Batch Planning</p>
+            <h3 className={`text-2xl font-bold luxury-font uppercase tracking-tighter ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{t('production_strategy')}</h3>
+            <p className={`text-[10px] font-black uppercase tracking-widest mt-1 ${isDarkMode ? 'text-cream/20' : 'text-slate-400'}`}>{t('operational_batch_planning')}</p>
           </div>
           <div className="flex gap-4">
             <button
@@ -40,14 +43,14 @@ const PlannerPanel: React.FC<Props> = ({
               onClick={async () => {
                 try {
                   await api.post('/planner', planner);
-                  addToast("Plan Saved to Cloud", "success");
+                  addToast(t('plan_saved_to_cloud'), "success");
                   fetchData();
                 } catch (e) {
-                  addToast("Failed to save plan", "error");
+                  addToast(t('failed_to_save_plan'), "error");
                 }
               }}
               className={`flex items-center gap-3 px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${isDarkMode ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 hover:bg-emerald-500 hover:text-white' : 'bg-emerald-50 text-emerald-600 border border-emerald-100 hover:bg-emerald-100 shadow-sm'}`}>
-              Save Plan
+              {t('save_plan')}
             </button>
             <button
               onClick={() => openSelector({ title: 'Production Sheet', label: 'Sheet Date', value: new Date().toISOString().split('T')[0], type: 'date',
@@ -58,19 +61,19 @@ const PlannerPanel: React.FC<Props> = ({
               })}
               className={`flex items-center gap-3 px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${isDarkMode ? 'bg-gold/10 text-gold border border-gold/20 hover:bg-gold hover:text-charcoal' : 'bg-slate-900 text-white shadow-xl'}`}>
               <FileText size={16} />
-              Print Prep List
+              {t('print_prep_list')}
             </button>
           </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
           <div className="space-y-6">
-            <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">Initialize Batch</label>
+            <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">{t('initialize_batch')}</label>
             <select onChange={(e) => {
               const p = inventory.products.find(x => x.id === e.target.value);
               if (p) setPlanner([...planner, { id: Math.random().toString(36).substr(2, 9), date: new Date().toISOString(), product_id: p.id, quantity: 10, status: 'pending' }]);
             }} className={`appearance-none cursor-pointer pl-6 pr-12 py-4 text-[10px] font-black uppercase tracking-widest rounded-2xl border transition-all outline-none ${isDarkMode ? 'bg-black/80 border-gold/20 text-gold hover:bg-gold hover:text-charcoal' : 'bg-slate-50 border-slate-200 text-slate-900 hover:bg-slate-900 hover:text-white'}`}>
-              <option value="" disabled className={isDarkMode ? 'bg-[#0a0a0b] text-gold/50' : ''}>Select Entity...</option>
+              <option value="" disabled className={isDarkMode ? 'bg-[#0a0a0b] text-gold/50' : ''}>{t('select_entity')}</option>
               {inventory.products.map(p => <option key={p.id} value={p.id} className={isDarkMode ? 'bg-[#0a0a0b] text-gold' : ''}>{p.name}</option>)}
             </select>
 
@@ -93,11 +96,11 @@ const PlannerPanel: React.FC<Props> = ({
                         <p className={`font-bold text-sm ${isDarkMode ? 'text-cream' : 'text-slate-900'}`}>{inventory.products.find(p => p.id === item.product_id)?.name}</p>
                         {isHighWasteRisk ? (
                           <div className="flex items-center gap-2 mt-1">
-                            <span className="text-[8px] font-black uppercase tracking-widest bg-amber-500/10 text-amber-500 px-2 py-0.5 rounded-full">⚠️ High Waste Risk</span>
+                            <span className="text-[8px] font-black uppercase tracking-widest bg-amber-500/10 text-amber-500 px-2 py-0.5 rounded-full">{t('high_waste_risk')}</span>
                             <span className={`text-[8px] font-bold ${isDarkMode ? 'text-cream/30' : 'text-slate-400'}`}>{totalWasted} units wasted last 7 days</span>
                           </div>
                         ) : (
-                          <p className="text-[10px] text-gold font-black uppercase tracking-widest">Pending Execution</p>
+                          <p className="text-[10px] text-gold font-black uppercase tracking-widest">{t('pending_execution')}</p>
                         )}
                       </div>
                     </div>
@@ -106,9 +109,9 @@ const PlannerPanel: React.FC<Props> = ({
                         <button
                           onClick={() => setPlanner(planner.map(p => p.id === item.id ? { ...p, quantity: Math.max(1, Math.round(item.quantity * 0.7)) } : p))}
                           className="px-3 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest bg-amber-500/10 text-amber-500 hover:bg-amber-500 hover:text-black transition-all"
-                          title="Auto-scale down by 30%"
+                          title={t('auto_scale_down_by_30')}
                         >
-                          ↓ Auto-Scale Down
+                          {t('auto_scale_down')}
                         </button>
                       )}
                       <input type="number" value={item.quantity}
@@ -125,7 +128,7 @@ const PlannerPanel: React.FC<Props> = ({
           </div>
 
           <div className={`p-8 rounded-3xl border ${isDarkMode ? 'bg-white/5 border-white/10' : 'bg-slate-50 border-slate-200'}`}>
-            <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-gold mb-8">Resource Forecast</h4>
+            <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-gold mb-8">{t('resource_forecast')}</h4>
             <div className="space-y-6">
               {resourceForecast.map(([name, req]) => (
                 <div key={name} className="flex justify-between items-end">
@@ -136,14 +139,14 @@ const PlannerPanel: React.FC<Props> = ({
                     </p>
                   </div>
                   <div className="text-right">
-                    <p className="text-[10px] font-bold text-gold uppercase tracking-widest">Available</p>
+                    <p className="text-[10px] font-bold text-gold uppercase tracking-widest">{t('available')}</p>
                     <p className={`text-sm font-bold ${(inventory.materials[name]?.stock || 0) < req ? 'text-red-500' : 'text-emerald-500'}`}>
                       {displayUnit(inventory.materials[name]?.stock || 0, inventory.materials[name]?.unit || 'g')}
                     </p>
                   </div>
                 </div>
               ))}
-              {resourceForecast.length === 0 && <p className="text-[10px] opacity-20 uppercase tracking-widest font-bold text-center py-10">Add items to batch first</p>}
+              {resourceForecast.length === 0 && <p className="text-[10px] opacity-20 uppercase tracking-widest font-bold text-center py-10">{t('add_items_to_batch_first')}</p>}
             </div>
           </div>
         </div>

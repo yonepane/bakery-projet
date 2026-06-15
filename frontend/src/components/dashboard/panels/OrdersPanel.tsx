@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import React, { useMemo } from 'react';
 import { Calendar, Crown, FileText, Plus, Zap } from 'lucide-react';
 import { DashboardSharedProps } from '../types';
@@ -9,6 +10,8 @@ type Props = Pick<DashboardSharedProps,
 const OrdersPanel: React.FC<Props> = ({
   isDarkMode, orders, inventory, setShowBookingModal, setBookingForm, bookingForm, fetchData, api, addToast,
 }) => {
+  const { t } = useTranslation();
+
 
   // VIP Clienteling: count orders per customer to detect repeat customers
   const customerOrderCounts = useMemo(() => {
@@ -30,7 +33,7 @@ const OrdersPanel: React.FC<Props> = ({
       <div className={`p-8 rounded-[3rem] border transition-colors ${isDarkMode ? 'border-gold/20 bg-black/20 shadow-gold-glow' : 'border-slate-200 bg-white shadow-sm'}`}>
         <div className="flex justify-between items-center mb-10">
           <div>
-            <h3 className={`text-2xl font-bold luxury-font uppercase tracking-tighter ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Pre-Order Ledger</h3>
+            <h3 className={`text-2xl font-bold luxury-font uppercase tracking-tighter ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{t('pre_order_ledger')}</h3>
             <div className="flex items-center gap-3 mt-1">
               <p className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-cream/20' : 'text-slate-400'}`}>Tracking {orders.length} active custom bookings</p>
               {orders.filter(o => isVIP(o)).length > 0 && (
@@ -42,17 +45,17 @@ const OrdersPanel: React.FC<Props> = ({
           </div>
           <button onClick={() => { setBookingForm({ name: '', phone: '', date: new Date(Date.now() + 86400000).toISOString().slice(0, 16), source: 'ledger', notes: '' }); setShowBookingModal(true); }}
             className={`px-8 py-4 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] transition-all active:scale-95 ${isDarkMode ? 'bg-gold text-charcoal shadow-gold-glow' : 'bg-slate-900 text-white shadow-xl'}`}>
-            Create Booking
+            {t('create_booking')}
           </button>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left">
             <thead>
               <tr className={`border-b text-[10px] font-black uppercase tracking-[0.3em] ${isDarkMode ? 'border-white/5 text-cream/40' : 'border-slate-100 text-slate-400'}`}>
-                <th className="px-8 py-6">Customer Identity</th>
-                <th className="px-8 py-6">Pickup Schedule</th>
-                <th className="px-8 py-6">Fulfillment Status</th>
-                <th className="px-8 py-6 text-right">Connect</th>
+                <th className="px-8 py-6">{t('customer_identity')}</th>
+                <th className="px-8 py-6">{t('pickup_schedule')}</th>
+                <th className="px-8 py-6">{t('fulfillment_status')}</th>
+                <th className="px-8 py-6 text-right">{t('connect')}</th>
               </tr>
             </thead>
             <tbody className={`divide-y ${isDarkMode ? 'divide-white/5' : 'divide-slate-100'}`}>
@@ -72,7 +75,7 @@ const OrdersPanel: React.FC<Props> = ({
                             <p className={`font-bold text-lg ${isDarkMode ? 'text-cream' : 'text-slate-900'}`}>{order.customer_name}</p>
                             {vip && (
                               <span className="text-[8px] font-black uppercase tracking-widest text-gold bg-gold/10 px-2 py-0.5 rounded-full border border-gold/20">
-                                👑 VIP
+                                {t('vip')}
                               </span>
                             )}
                           </div>
@@ -97,10 +100,10 @@ const OrdersPanel: React.FC<Props> = ({
                       <select value={order.status}
                         onChange={async (e) => { await api.patch(`/orders/${order.id}/status?status=${e.target.value}`, null); addToast(`Order ${e.target.value.toUpperCase()}`, 'success'); fetchData(); }}
                         className={`appearance-none cursor-pointer px-4 py-2 text-[10px] font-black uppercase tracking-widest rounded-xl border transition-all outline-none ${isDarkMode ? 'bg-black/80 border-gold/20 text-gold hover:bg-gold hover:text-charcoal' : 'bg-slate-50 border-slate-200 text-slate-900 hover:bg-slate-900 hover:text-white'}`}>
-                        <option value="pending" className={isDarkMode ? 'bg-[#0a0a0b] text-gold' : ''}>Pending</option>
-                        <option value="baking" className={isDarkMode ? 'bg-[#0a0a0b] text-gold' : ''}>Baking</option>
-                        <option value="ready" className={isDarkMode ? 'bg-[#0a0a0b] text-gold' : ''}>Ready</option>
-                        <option value="picked_up" className={isDarkMode ? 'bg-[#0a0a0b] text-gold' : ''}>Picked Up</option>
+                        <option value="pending" className={isDarkMode ? 'bg-[#0a0a0b] text-gold' : ''}>{t('pending')}</option>
+                        <option value="baking" className={isDarkMode ? 'bg-[#0a0a0b] text-gold' : ''}>{t('baking')}</option>
+                        <option value="ready" className={isDarkMode ? 'bg-[#0a0a0b] text-gold' : ''}>{t('ready')}</option>
+                        <option value="picked_up" className={isDarkMode ? 'bg-[#0a0a0b] text-gold' : ''}>{t('picked_up')}</option>
                       </select>
                     </td>
                     <td className="px-8 py-6 text-right">
@@ -113,7 +116,7 @@ const OrdersPanel: React.FC<Props> = ({
                 );
               })}
               {orders.length === 0 && (
-                <tr><td colSpan={4} className="py-20 text-center opacity-10"><FileText size={48} className="mx-auto mb-4" /><p className="font-black text-[10px] uppercase tracking-widest">No Active Bookings</p></td></tr>
+                <tr><td colSpan={4} className="py-20 text-center opacity-10"><FileText size={48} className="mx-auto mb-4" /><p className="font-black text-[10px] uppercase tracking-widest">{t('no_active_bookings')}</p></td></tr>
               )}
             </tbody>
           </table>

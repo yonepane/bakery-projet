@@ -17,7 +17,6 @@ export interface DashboardSharedProps {
   setActiveCurrency: (v: string) => void;
   editMode: boolean;
   setEditMode: (v: boolean) => void;
-  t: Record<string, string>;
   lang: string;
   setLang: (l: string) => void;
 
@@ -60,7 +59,7 @@ export interface DashboardSharedProps {
 
   // ─── POS ──────────────────────────────────────────────────────────────────
   cart: CartItem[];
-  setCart: (cart: CartItem[]) => void;
+  setCart: React.Dispatch<React.SetStateAction<CartItem[]>>;
   addToCart: (product: Product) => void;
   finalizeSale: (customerId?: string | null) => void;
   lastTransaction: any;
@@ -150,6 +149,7 @@ export interface DashboardSharedProps {
   addToast: (msg: string, type?: 'success' | 'error' | 'info') => void;
   showConfirm: (config: any) => void;
   fetchData: () => void;
+  fetchTabData: (tab: string) => void;
   api: any;
 }
 
@@ -205,6 +205,7 @@ export interface Transaction {
   id: string;
   timestamp: string;
   type: string;
+  status?: string; // 'completed' | 'refunded'
   revenue?: number;
   cost?: number;
   product?: string;

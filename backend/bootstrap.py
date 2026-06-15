@@ -67,6 +67,9 @@ def ensure_runtime_schema() -> None:
                 conn.execute(text("ALTER TABLE expenses ADD COLUMN status VARCHAR DEFAULT 'paid'"))
                 conn.execute(text("ALTER TABLE expenses ADD COLUMN amount_paid FLOAT DEFAULT 0.0"))
 
+            tx_columns = {row[1] for row in conn.execute(text("PRAGMA table_info(transactions)"))}
+            if "status" not in tx_columns:
+                conn.execute(text("ALTER TABLE transactions ADD COLUMN status VARCHAR DEFAULT 'completed'"))
 
             # Self-healing migration for system_settings composite primary key (key, owner_id)
             settings_pk_cols = [row[1] for row in conn.execute(text("PRAGMA table_info(system_settings)")) if row[5] > 0]
@@ -135,6 +138,10 @@ def ensure_runtime_schema() -> None:
                 conn.execute(text("ALTER TABLE expenses ADD COLUMN invoice_ref VARCHAR"))
                 conn.execute(text("ALTER TABLE expenses ADD COLUMN status VARCHAR DEFAULT 'paid'"))
                 conn.execute(text("ALTER TABLE expenses ADD COLUMN amount_paid FLOAT DEFAULT 0.0"))
+
+            tx_columns = {row[0] for row in conn.execute(text("SELECT column_name FROM information_schema.columns WHERE table_name = 'transactions'"))}
+            if "status" not in tx_columns:
+                conn.execute(text("ALTER TABLE transactions ADD COLUMN status VARCHAR DEFAULT 'completed'"))
 
             conn.execute(
                 text(

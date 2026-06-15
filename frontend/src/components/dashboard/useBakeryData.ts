@@ -118,7 +118,7 @@ export function useBakeryData(user: UserSession | null, activeTab: string) {
 
   const fetchTabData = useCallback(async (tab: string) => {
     if (!user) return;
-    const isOwner = user.role === 'owner';
+    const isOwner = user.role === 'owner' || user.role === 'chef_executif';
 
     try {
       switch (tab) {

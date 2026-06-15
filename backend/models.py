@@ -73,6 +73,7 @@ class Transaction(Base):
     total_cost = Column(Float, default=0)
     items = Column(JSON, nullable=True)
     customer_id = Column(String, ForeignKey("customers.id"), nullable=True)
+    status = Column(String, default="completed") # 'completed' or 'refunded'
 
 class User(Base):
     __tablename__ = "users"

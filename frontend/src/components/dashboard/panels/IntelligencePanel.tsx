@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import React from 'react';
 import { Brain, TrendingUp, TrendingDown, Zap, Trophy, Star, Sparkles, ArrowUpRight, Activity, Coins, ShieldAlert, Layers, Percent } from 'lucide-react';
 import { DashboardSharedProps } from '../types';
@@ -6,6 +7,8 @@ type Props = Pick<DashboardSharedProps,
   'isDarkMode' | 'profitReport' | 'inventory' | 'formatPrice' | 'analytics'>;
 
 const IntelligencePanel: React.FC<Props> = ({ isDarkMode, profitReport, inventory, formatPrice, analytics }) => {
+  const { t } = useTranslation();
+
   const cardRef = React.useRef<HTMLDivElement>(null);
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -55,8 +58,8 @@ const IntelligencePanel: React.FC<Props> = ({ isDarkMode, profitReport, inventor
           <Brain size={26} />
         </div>
         <div>
-          <h3 className={`text-3xl font-bold luxury-font uppercase tracking-tighter ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Intelligence Matrix</h3>
-          <p className={`text-[10px] font-black uppercase tracking-widest mt-1 ${isDarkMode ? 'text-cream/30' : 'text-slate-400'}`}>Live portfolio performance analysis</p>
+          <h3 className={`text-3xl font-bold luxury-font uppercase tracking-tighter ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{t('intelligence_matrix')}</h3>
+          <p className={`text-[10px] font-black uppercase tracking-widest mt-1 ${isDarkMode ? 'text-cream/30' : 'text-slate-400'}`}>{t('live_portfolio_analysis')}</p>
         </div>
       </div>
 
@@ -217,7 +220,7 @@ const IntelligencePanel: React.FC<Props> = ({ isDarkMode, profitReport, inventor
                   <div className="flex items-center gap-1.5 mb-1.5">
                     <Sparkles size={11} className="text-gold fill-gold animate-pulse animate-[spin_4s_linear_infinite]" />
                     <span className={`text-[9px] font-black uppercase tracking-[0.25em] ${isDarkMode ? 'text-gold' : 'text-amber-600'}`}>
-                      Portfolio Alpha SKU
+                      {t('portfolio_alpha_sku')}
                     </span>
                   </div>
                   <h4 className={`text-xl sm:text-2xl font-black luxury-font tracking-tight truncate ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
@@ -250,15 +253,15 @@ const IntelligencePanel: React.FC<Props> = ({ isDarkMode, profitReport, inventor
               {/* Right: Live Telemetry Grid */}
               <div className={`grid grid-cols-3 gap-6 lg:pl-6 lg:border-l shrink-0 ${isDarkMode ? 'border-white/10' : 'border-slate-200'}`}>
                 <div>
-                  <p className={`text-[8px] font-black uppercase tracking-[0.2em] mb-1 ${isDarkMode ? 'text-cream/30' : 'text-slate-400'}`}>Unit Cost</p>
+                  <p className={`text-[8px] font-black uppercase tracking-[0.2em] mb-1 ${isDarkMode ? 'text-cream/30' : 'text-slate-400'}`}>{t('unit_cost')}</p>
                   <p className="text-sm font-extrabold text-rose-400 tracking-tight">{formatPrice(topProduct.unitCost)}</p>
                 </div>
                 <div>
-                  <p className={`text-[8px] font-black uppercase tracking-[0.2em] mb-1 ${isDarkMode ? 'text-cream/30' : 'text-slate-400'}`}>Net Spread</p>
+                  <p className={`text-[8px] font-black uppercase tracking-[0.2em] mb-1 ${isDarkMode ? 'text-cream/30' : 'text-slate-400'}`}>{t('net_spread')}</p>
                   <p className="text-sm font-extrabold text-emerald-400 tracking-tight">{formatPrice(topProduct.sellPrice - topProduct.unitCost)}</p>
                 </div>
                 <div>
-                  <p className={`text-[8px] font-black uppercase tracking-[0.2em] mb-1 ${isDarkMode ? 'text-cream/30' : 'text-slate-400'}`}>Sell Price</p>
+                  <p className={`text-[8px] font-black uppercase tracking-[0.2em] mb-1 ${isDarkMode ? 'text-cream/30' : 'text-slate-400'}`}>{t('sell_price')}</p>
                   <p className={`text-sm font-extrabold tracking-tight ${isDarkMode ? 'text-gold' : 'text-slate-900'}`}>{formatPrice(topProduct.sellPrice)}</p>
                 </div>
               </div>
@@ -271,7 +274,7 @@ const IntelligencePanel: React.FC<Props> = ({ isDarkMode, profitReport, inventor
             }`}>
               <div className="flex-1 w-full flex flex-col gap-1.5">
                 <div className="flex items-center justify-between text-[8px] font-black uppercase tracking-widest">
-                  <span className={isDarkMode ? 'text-cream/40' : 'text-slate-400'}>Product Margin Intensity Meter</span>
+                  <span className={isDarkMode ? 'text-cream/40' : 'text-slate-400'}>{t('product_margin_meter')}</span>
                   <span className={isDarkMode ? 'text-gold' : 'text-amber-600'}>{topProduct.margin.toFixed(1)}% Max Cap</span>
                 </div>
                 
@@ -303,7 +306,7 @@ const IntelligencePanel: React.FC<Props> = ({ isDarkMode, profitReport, inventor
                   : 'bg-white border-amber-200/60 text-amber-700/80'
               }`}>
                 <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-[ping_1.5s_infinite]" />
-                <span>Optimal Portfolio Lock-in</span>
+                <span>{t('optimal_portfolio_lock_in')}</span>
               </div>
             </div>
 
@@ -314,16 +317,16 @@ const IntelligencePanel: React.FC<Props> = ({ isDarkMode, profitReport, inventor
       {/* Profit Report Table */}
       <div className={`rounded-[2rem] border overflow-hidden transition-colors ${isDarkMode ? 'glass-panel' : 'bg-white border-slate-200 shadow-xl'}`}>
         <div className={`p-8 border-b ${isDarkMode ? 'border-white/5' : 'border-slate-100'}`}>
-          <h3 className={`text-xl font-bold luxury-font uppercase ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Per-Product Profitability</h3>
+          <h3 className={`text-xl font-bold luxury-font uppercase ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{t('per_product_profitability')}</h3>
         </div>
         <table className="w-full text-left">
           <thead>
             <tr className={`border-b text-[10px] font-black uppercase tracking-[0.2em] ${isDarkMode ? 'border-white/5 text-cream/40' : 'border-slate-100 text-slate-400'}`}>
-              <th className="px-8 py-5">Product</th>
-              <th className="px-8 py-5 text-right">Sell Price</th>
-              <th className="px-8 py-5 text-right">Unit Cost</th>
-              <th className="px-8 py-5 text-right">Margin</th>
-              <th className="px-8 py-5 text-right">Signal</th>
+              <th className="px-8 py-5">{t('product')}</th>
+              <th className="px-8 py-5 text-right">{t('sell_price')}</th>
+              <th className="px-8 py-5 text-right">{t('unit_cost')}</th>
+              <th className="px-8 py-5 text-right">{t('margin')}</th>
+              <th className="px-8 py-5 text-right">{t('signal')}</th>
             </tr>
           </thead>
           <tbody className={`divide-y ${isDarkMode ? 'divide-white/5' : 'divide-slate-100'}`}>
@@ -353,8 +356,8 @@ const IntelligencePanel: React.FC<Props> = ({ isDarkMode, profitReport, inventor
                   </td>
                   <td className="px-8 py-5 text-right">
                     {isHealthy
-                      ? <div className="flex items-center justify-end gap-2 text-emerald-500 text-[10px] font-black uppercase tracking-widest"><TrendingUp size={14} /> Healthy</div>
-                      : <div className="flex items-center justify-end gap-2 text-rose-500 text-[10px] font-black uppercase tracking-widest"><TrendingDown size={14} /> Low Margin</div>
+                      ? <div className="flex items-center justify-end gap-2 text-emerald-500 text-[10px] font-black uppercase tracking-widest"><TrendingUp size={14} /> {t('healthy')}</div>
+                      : <div className="flex items-center justify-end gap-2 text-rose-500 text-[10px] font-black uppercase tracking-widest"><TrendingDown size={14} /> {t('low_margin')}</div>
                     }
                   </td>
                 </tr>
@@ -363,7 +366,7 @@ const IntelligencePanel: React.FC<Props> = ({ isDarkMode, profitReport, inventor
             {normalizedReport.length === 0 && (
               <tr><td colSpan={5} className="px-8 py-20 text-center">
                 <Brain size={48} className="mx-auto mb-4 opacity-10" />
-                <p className="text-[10px] font-black uppercase tracking-widest opacity-20">No products found — add products in Inventory</p>
+                <p className="text-[10px] font-black uppercase tracking-widest opacity-20">{t('no_products_found_add_products')}</p>
               </td></tr>
             )}
           </tbody>

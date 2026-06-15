@@ -1,6 +1,7 @@
 import React, { Suspense, lazy } from 'react'
 import ReactDOM from 'react-dom/client'
 import './index.css'
+import './i18n'
 import { registerSW } from 'virtual:pwa-register'
 
 // PERF: Start the service worker right away so the app can cache files and

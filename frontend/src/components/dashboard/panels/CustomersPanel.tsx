@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import React, { useState } from 'react';
 import { Users, Plus, Star, Phone, Mail, Trash2, X } from 'lucide-react';
 import { DashboardSharedProps, Customer } from '../types';
@@ -9,22 +10,24 @@ type Props = Pick<DashboardSharedProps,
 const CustomersPanel: React.FC<Props> = ({
   isDarkMode, customers, api, addToast, fetchData, showConfirm
 }) => {
+  const { t } = useTranslation();
+
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [formData, setFormData] = useState({ name: '', phone: '', email: '' });
 
   const handleSave = async () => {
     if (!formData.name.trim()) {
-      addToast("Name is required", "error");
+      addToast(t('name_is_required'), "error");
       return;
     }
     try {
       if (editingCustomer) {
         await api.patch(`/customers/${editingCustomer.id}`, formData);
-        addToast("Customer Updated", "success");
+        addToast(t('customer_updated'), "success");
       } else {
         await api.post('/customers', formData);
-        addToast("Customer Created", "success");
+        addToast(t('customer_created'), "success");
       }
       setShowAddModal(false);
       setEditingCustomer(null);
@@ -49,8 +52,8 @@ const CustomersPanel: React.FC<Props> = ({
     <div className="space-y-8 animate-in fade-in duration-500">
       <div className="flex justify-between items-center">
         <div>
-          <h3 className={`text-4xl font-bold luxury-font uppercase tracking-tighter ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Loyalty & CRM</h3>
-          <p className={`text-sm mt-1 ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>Manage customers and reward loyalty</p>
+          <h3 className={`text-4xl font-bold luxury-font uppercase tracking-tighter ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{t('loyalty_crm')}</h3>
+          <p className={`text-sm mt-1 ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>{t('manage_customers_desc')}</p>
         </div>
         <button
           onClick={() => {
@@ -60,7 +63,7 @@ const CustomersPanel: React.FC<Props> = ({
           }}
           className={`px-6 py-4 rounded-full flex items-center gap-2 text-xs font-black uppercase tracking-widest transition-all ${isDarkMode ? 'bg-gold text-charcoal shadow-gold-glow hover:scale-105' : 'bg-slate-900 text-white shadow-xl hover:bg-slate-800'}`}
         >
-          <Plus size={16} /> New Member
+          <Plus size={16} /> {t('new_member')}
         </button>
       </div>
 
@@ -103,7 +106,7 @@ const CustomersPanel: React.FC<Props> = ({
                   onClick={() => openEdit(customer)}
                   className={`flex-1 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${isDarkMode ? 'bg-white/5 text-white/40 hover:bg-white/10 hover:text-white' : 'bg-slate-50 text-slate-500 hover:bg-slate-100 hover:text-slate-900'}`}
                 >
-                  Edit Profile
+                  {t('edit_profile')}
                 </button>
                 <button
                   onClick={() => showConfirm({
@@ -114,7 +117,7 @@ const CustomersPanel: React.FC<Props> = ({
                     onConfirm: async () => {
                       try {
                         await api.delete(`/customers/${customer.id}`);
-                        addToast('Customer removed', 'success');
+                        addToast(t('customer_removed'), 'success');
                         fetchData();
                       } catch (e: any) {
                         const detail = e.response?.data?.detail || 'Delete failed';
@@ -127,7 +130,7 @@ const CustomersPanel: React.FC<Props> = ({
                       ? 'bg-rose-500/10 text-rose-400 hover:bg-rose-500/20'
                       : 'bg-rose-50 text-rose-500 hover:bg-rose-100'
                   }`}
-                  title="Delete customer"
+                  title={t('delete_customer')}
                 >
                   <Trash2 size={16} />
                 </button>
@@ -138,7 +141,7 @@ const CustomersPanel: React.FC<Props> = ({
         {customers.length === 0 && (
           <div className="col-span-full py-20 border-2 border-dashed border-white/5 rounded-[3rem] flex flex-col items-center justify-center opacity-20">
             <Users size={48} className="mb-4" />
-            <p className="font-black text-xs uppercase tracking-widest">No Members Yet</p>
+            <p className="font-black text-xs uppercase tracking-widest">{t('no_members_yet')}</p>
           </div>
         )}
       </div>
@@ -157,18 +160,18 @@ const CustomersPanel: React.FC<Props> = ({
 
             <div className="space-y-8">
               <div>
-                <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">Full Name</label>
+                <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">{t('full_name')}</label>
                 <input
                   type="text"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="e.g. Jean Dupont"
+                  placeholder={t('e_g_jean_dupont')}
                   className={`w-full bg-transparent border-b text-lg font-bold py-4 outline-none ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`}
                 />
               </div>
 
               <div>
-                <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">Phone Number</label>
+                <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">{t('phone_number')}</label>
                 <input
                   type="text"
                   value={formData.phone}
@@ -179,12 +182,12 @@ const CustomersPanel: React.FC<Props> = ({
               </div>
 
               <div>
-                <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">Email Address</label>
+                <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">{t('email_address')}</label>
                 <input
                   type="email"
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  placeholder="customer@email.com"
+                  placeholder={t('customer_email_com')}
                   className={`w-full bg-transparent border-b text-lg font-bold py-4 outline-none ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`}
                 />
               </div>

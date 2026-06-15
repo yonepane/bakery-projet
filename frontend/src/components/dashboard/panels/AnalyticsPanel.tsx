@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import React, { useMemo } from 'react';
 import { FileText, Plus, TrendingUp, X } from 'lucide-react';
 import { BarChart, Bar, XAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
@@ -30,6 +31,8 @@ const AnalyticsPanel: React.FC<Props> = ({
   simulatedInflations, setSimulatedInflations, formatPrice,
   handleUpdateProductField, api, fetchData, addToast
 }) => {
+  const { t } = useTranslation();
+
 
   const allIngredients = useMemo(() => {
     const ingredients = new Set<string>();
@@ -64,15 +67,15 @@ const AnalyticsPanel: React.FC<Props> = ({
       }
       
       if (committedAny) {
-        addToast('Pricing Strategy Committed successfully!', 'success');
+        addToast(t('pricing_strategy_committed_suc'), 'success');
         setSimPrices({});
         setSimulatedInflations({});
         fetchData();
       } else {
-        addToast('No price changes to commit.', 'info');
+        addToast(t('no_price_changes_to_commit'), 'info');
       }
     } catch (e) {
-      addToast('Failed to commit pricing strategy', 'error');
+      addToast(t('failed_to_commit_pricing_strat'), 'error');
     }
   };
 
@@ -87,15 +90,15 @@ const AnalyticsPanel: React.FC<Props> = ({
               <div className={`p-3 rounded-2xl ${isDarkMode ? 'bg-gold/10' : 'bg-slate-100'}`}>
                 <TrendingUp size={20} className={isDarkMode ? 'text-gold' : 'text-slate-900'} />
               </div>
-              Elite Master Pricing Engine
+              {t('elite_master_pricing_engine')}
             </h3>
-            <p className="text-[11px] uppercase tracking-widest opacity-60 mt-2 ml-14">Simulate simultaneous ingredient cost hikes and product selling price adjustments</p>
+            <p className="text-[11px] uppercase tracking-widest opacity-60 mt-2 ml-14">{t('simulate_cost_hikes')}</p>
           </div>
           
           <div className="flex items-center gap-4">
             {Object.keys(simPrices).length > 0 && (
               <button onClick={handleCommitStrategy} className={`px-6 py-4 rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all shadow-xl ${isDarkMode ? 'bg-gold text-charcoal hover:scale-105 shadow-[0_0_20px_rgba(212,175,55,0.4)]' : 'bg-slate-900 text-white hover:bg-slate-800'}`}>
-                Commit Strategy
+                {t('commit_strategy')}
               </button>
             )}
             <div className="relative group">
@@ -104,7 +107,7 @@ const AnalyticsPanel: React.FC<Props> = ({
                 className={`appearance-none cursor-pointer pl-6 pr-12 py-4 text-[11px] font-black uppercase tracking-widest rounded-2xl border transition-all outline-none ${isDarkMode ? 'bg-black/80 border-gold/20 text-gold hover:bg-gold hover:text-charcoal' : 'bg-slate-50 border-slate-200 text-slate-900 hover:bg-slate-900 hover:text-white'}`}
                 defaultValue=""
               >
-                <option value="" disabled className={isDarkMode ? 'bg-[#0a0a0b] text-gold/50' : ''}>+ Inflate Ingredient Cost...</option>
+                <option value="" disabled className={isDarkMode ? 'bg-[#0a0a0b] text-gold/50' : ''}>{t('inflate_ingredient_cost')}</option>
                 {allIngredients.filter(ing => !(ing in simulatedInflations)).map(ing => (
                   <option key={ing} value={ing} className={isDarkMode ? 'bg-[#0a0a0b] text-gold' : ''}>{ing}</option>
                 ))}
@@ -148,14 +151,14 @@ const AnalyticsPanel: React.FC<Props> = ({
           {Object.keys(simulatedInflations).length === 0 && (
             <div className={`col-span-full py-12 flex flex-col items-center justify-center luxury-card opacity-60`}>
               <TrendingUp size={32} className="mb-4 text-gold opacity-50" />
-              <p className="text-[11px] uppercase font-black tracking-widest">No ingredient inflations active. Baseline costs applied.</p>
+              <p className="text-[11px] uppercase font-black tracking-widest">{t('no_ingredient_inflations_activ')}</p>
             </div>
           )}
         </div>
 
         {/* Real-time Impact Matrix */}
         <div className="space-y-4">
-          <h4 className={`text-[11px] font-black uppercase tracking-[0.3em] mb-6 ${isDarkMode ? 'text-gold' : 'text-slate-500'}`}>Product Price Adjustment & Profit Impact</h4>
+          <h4 className={`text-[11px] font-black uppercase tracking-[0.3em] mb-6 ${isDarkMode ? 'text-gold' : 'text-slate-500'}`}>{t('product_price_adjustment_profi')}</h4>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {inventory.products.map(p => {
               // 1. Calculate Old vs New Cost
@@ -206,20 +209,20 @@ const AnalyticsPanel: React.FC<Props> = ({
                         onChange={(e) => setSimPrices({ ...simPrices, [p.id]: parseFloat(e.target.value) || 0 })}
                         className={`w-20 text-right font-black bg-transparent border-b-2 outline-none py-1 text-sm transition-colors ${currentSimPrice !== p.price ? 'border-gold text-gold' : (isDarkMode ? 'border-white/10 text-white' : 'border-slate-200 text-slate-900')}`}
                       />
-                      <span className="text-[10px] opacity-40 font-black">MAD</span>
+                      <span className="text-[10px] opacity-40 font-black">{t('mad')}</span>
                     </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1">
-                      <p className="text-[10px] font-black uppercase tracking-widest opacity-60">Unit Cost Impact</p>
+                      <p className="text-[10px] font-black uppercase tracking-widest opacity-60">{t('unit_cost_impact')}</p>
                       <div className="flex items-center gap-2">
                         <span className="text-[11px] line-through opacity-60">{formatPrice(oldCost)}</span>
                         <span className={`text-xs font-bold ${costDelta > 0 ? 'text-rose-400' : ''}`}>{formatPrice(newCost)}</span>
                       </div>
                     </div>
                     <div className="space-y-1">
-                      <p className="text-[10px] font-black uppercase tracking-widest opacity-60">Unit Profit Impact</p>
+                      <p className="text-[10px] font-black uppercase tracking-widest opacity-60">{t('unit_profit_impact')}</p>
                       <div className="flex items-center gap-2">
                         <span className="text-[11px] line-through opacity-60">{formatPrice(oldProfit)}</span>
                         <span className={`text-xs font-bold ${profitDelta < 0 ? 'text-rose-400' : 'text-emerald-400'}`}>{formatPrice(newProfit)}</span>
@@ -236,7 +239,7 @@ const AnalyticsPanel: React.FC<Props> = ({
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Hourly Sales */}
         <div className="p-8 luxury-panel">
-          <h3 className={`text-xl font-bold luxury-font uppercase mb-8 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Hourly Volume</h3>
+          <h3 className={`text-xl font-bold luxury-font uppercase mb-8 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{t('hourly_volume')}</h3>
           <div className="h-[250px] w-full">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={analytics.hourlySales}>
@@ -258,7 +261,7 @@ const AnalyticsPanel: React.FC<Props> = ({
 
         {/* Volume Distribution */}
         <div className="p-8 luxury-panel">
-          <h3 className={`text-xl font-bold luxury-font uppercase mb-8 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Volume Distribution</h3>
+          <h3 className={`text-xl font-bold luxury-font uppercase mb-8 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{t('volume_distribution')}</h3>
           <div className="h-[250px] w-full">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>

@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 /**
  * DashboardPanel — the "Home" tab of BakeryOS.
  *
@@ -50,6 +51,8 @@ const DashboardPanel: React.FC<Props> = ({
   handleResetSession,
   API_BASE,
 }) => {
+  const { t } = useTranslation();
+
   return (
     <div className="space-y-8">
       {/* KPI row */}
@@ -163,8 +166,8 @@ const DashboardPanel: React.FC<Props> = ({
         }`}>
           <div className="flex items-center justify-between mb-8">
             <div>
-              <h3 className={`text-xl font-bold luxury-font uppercase tracking-tight ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Market Performance</h3>
-              <p className={`text-[9px] font-black uppercase tracking-widest mt-1 ${isDarkMode ? 'text-cream/35' : 'text-slate-400'}`}>Live revenue & cost timeline analysis</p>
+              <h3 className={`text-xl font-bold luxury-font uppercase tracking-tight ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{t('market_performance')}</h3>
+              <p className={`text-[9px] font-black uppercase tracking-widest mt-1 ${isDarkMode ? 'text-cream/35' : 'text-slate-400'}`}>{t('live_revenue_cost_timeline_ana')}</p>
             </div>
             
             <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[9px] font-black uppercase tracking-widest ${
@@ -173,7 +176,7 @@ const DashboardPanel: React.FC<Props> = ({
                 : 'bg-amber-50 border-amber-200/60 text-amber-800'
             }`}>
               <Activity size={10} className="animate-pulse" />
-              <span>Holographic Telemetry</span>
+              <span>{t('holographic_telemetry')}</span>
             </div>
           </div>
 
@@ -212,16 +215,16 @@ const DashboardPanel: React.FC<Props> = ({
                           <p className={`text-[9px] font-black uppercase tracking-[0.2em] mb-2 ${isDarkMode ? 'text-gold' : 'text-amber-600'}`}>{label} Status</p>
                           <div className="space-y-1.5 text-[10px] font-bold">
                             <div className="flex justify-between gap-8">
-                              <span className="opacity-60 uppercase tracking-widest">Revenue:</span>
+                              <span className="opacity-60 uppercase tracking-widest">{t('revenue')}</span>
                               <span className="text-emerald-400 font-extrabold">{formatPrice(rev)}</span>
                             </div>
                             <div className="flex justify-between gap-8">
-                              <span className="opacity-60 uppercase tracking-widest">Cost:</span>
+                              <span className="opacity-60 uppercase tracking-widest">{t('cost')}</span>
                               <span className="text-rose-400 font-extrabold">{formatPrice(cost)}</span>
                             </div>
                             <div className={`h-[1px] my-1.5 ${isDarkMode ? 'bg-white/5' : 'bg-slate-100'}`} />
                             <div className="flex justify-between gap-8 text-[11px] font-black uppercase tracking-wider">
-                              <span>Net Profit:</span>
+                              <span>{t('net_profit')}</span>
                               <span className={profit >= 0 ? 'text-emerald-400' : 'text-rose-400'}>{formatPrice(profit)}</span>
                             </div>
                           </div>
@@ -262,7 +265,7 @@ const DashboardPanel: React.FC<Props> = ({
 
         {/* Shift Handoff Log */}
         <div className={`p-8 rounded-[2.5rem] border flex flex-col transition-colors ${isDarkMode ? 'bg-[#0a0a0b] border-white/5 shadow-glass backdrop-blur-xl' : 'bg-white border-slate-200 shadow-xl'}`}>
-          <h3 className={`text-xl font-bold luxury-font uppercase mb-6 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Shift Handoff Log</h3>
+          <h3 className={`text-xl font-bold luxury-font uppercase mb-6 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{t('shift_handoff_log')}</h3>
           <div className="flex-1 space-y-4 mb-6 max-h-[300px] overflow-y-auto pr-3 custom-scrollbar scroll-smooth">
             {shiftLogs.length > 0 ? (
               shiftLogs.map((log) => (
@@ -274,7 +277,7 @@ const DashboardPanel: React.FC<Props> = ({
                         {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • {new Date(log.timestamp).toLocaleDateString()}
                       </span>
                     </div>
-                    <button onClick={() => handleDeleteShiftLog(log.id)} className="p-1 rounded-md opacity-0 group-hover/log:opacity-100 text-rose-500/40 hover:text-rose-500 hover:bg-rose-500/10 transition-all" title="Delete note">
+                    <button onClick={() => handleDeleteShiftLog(log.id)} className="p-1 rounded-md opacity-0 group-hover/log:opacity-100 text-rose-500/40 hover:text-rose-500 hover:bg-rose-500/10 transition-all" title={t('delete_note')}>
                       <span className="text-xs">✕</span>
                     </button>
                   </div>
@@ -284,7 +287,7 @@ const DashboardPanel: React.FC<Props> = ({
             ) : (
               <div className="py-12 text-center opacity-10 flex flex-col items-center justify-center">
                 <MessageSquare size={32} className="mb-2" />
-                <p className="text-[10px] font-black uppercase tracking-widest">No entries yet</p>
+                <p className="text-[10px] font-black uppercase tracking-widest">{t('no_entries_yet')}</p>
               </div>
             )}
           </div>
@@ -294,7 +297,7 @@ const DashboardPanel: React.FC<Props> = ({
                 value={generalNote}
                 onChange={(e) => setGeneralNote(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSaveGeneralNote(); } }}
-                placeholder="Type a handoff note..."
+                placeholder={t('type_a_handoff_note')}
                 className={`w-full min-h-[100px] resize-none rounded-2xl border p-4 text-sm leading-relaxed outline-none transition-all ${isDarkMode ? 'bg-white/5 border-white/10 text-cream placeholder:text-cream/20 focus:border-gold/30' : 'bg-slate-50 border-slate-200 text-slate-900 placeholder:text-slate-400 focus:border-slate-400'}`}
               />
               <button
@@ -310,8 +313,8 @@ const DashboardPanel: React.FC<Props> = ({
 
         {/* Financial Intelligence */}
         <div className={`p-8 rounded-[2.5rem] border transition-colors ${isDarkMode ? 'bg-[#0a0a0b] border-white/5 shadow-glass backdrop-blur-xl' : 'bg-white border-slate-200 shadow-xl'}`}>
-          <h3 className={`text-xl font-bold luxury-font uppercase mb-8 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Financial Intelligence</h3>
-          <p className={`text-sm mb-6 ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>Generate executive summaries for accounting and performance review.</p>
+          <h3 className={`text-xl font-bold luxury-font uppercase mb-8 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{t('financial_intelligence')}</h3>
+          <p className={`text-sm mb-6 ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>{t('generate_executive_summaries_f')}</p>
           <div className="flex gap-4">
             <button
               onClick={async () => {
@@ -325,7 +328,7 @@ const DashboardPanel: React.FC<Props> = ({
               Generate {new Date().toLocaleString('default', { month: 'long' })} Report
             </button>
             <button onClick={handleResetSession} className="px-6 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest border border-gold/20 text-gold hover:bg-gold hover:text-charcoal transition-all">
-              Close Shift / Reset Session
+              {t('reset_session')}
             </button>
           </div>
         </div>

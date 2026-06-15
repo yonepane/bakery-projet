@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import React, { useMemo } from 'react';
 import { Edit2, Plus, Trash2, X } from 'lucide-react';
 import { DashboardSharedProps } from '../types';
@@ -14,6 +15,8 @@ const FichePanel: React.FC<Props> = ({
   setShowAddProduct, setSelectedProduct, handleUpdateProductField,
   simulatedInflations, simPrices, addToast, settings
 }) => {
+  const { t } = useTranslation();
+
 
   // Extract all unique ingredients across all products to populate the quick-add dropdown
   const allIngredients = useMemo(() => {
@@ -55,7 +58,7 @@ const FichePanel: React.FC<Props> = ({
                   <span className="text-4xl mb-2 block">{p.icon}</span>
                   <h3 className={`text-xl font-bold luxury-font ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{p.name}</h3>
                   <div>
-                    {isLowMargin && <span className="text-[8px] uppercase tracking-widest font-black text-rose-500 bg-rose-500/10 px-2 py-1 rounded-md mt-2 inline-block">Low Margin Warning</span>}
+                    {isLowMargin && <span className="text-[8px] uppercase tracking-widest font-black text-rose-500 bg-rose-500/10 px-2 py-1 rounded-md mt-2 inline-block">{t('low_margin_warning')}</span>}
                     {isLowMargin && editMode && (
                       <button onClick={() => {
                         const sorted = [...p.ingredients].sort((a,b) => {
@@ -73,19 +76,19 @@ const FichePanel: React.FC<Props> = ({
                           addToast(`AI Suggests: Substitute ${exp.name} to recover margin!`, 'success');
                         }
                       }} className="ml-2 text-[8px] uppercase tracking-widest font-black text-gold bg-gold/10 px-2 py-1 rounded-md mt-2 inline-block hover:bg-gold hover:text-black transition-all">
-                        ✨ AI Optimize
+                        {t('ai_optimize')}
                       </button>
                     )}
                   </div>
                 </div>
                 <div className="text-right flex flex-col items-end gap-2">
                   {editMode && (
-                    <button onClick={() => handleOpenEditProduct(p)} className="p-2 rounded-lg bg-gold/10 text-gold hover:bg-gold/20 transition-all" title="Edit Product">
+                    <button onClick={() => handleOpenEditProduct(p)} className="p-2 rounded-lg bg-gold/10 text-gold hover:bg-gold/20 transition-all" title={t('edit_product')}>
                       <Edit2 size={16} />
                     </button>
                   )}
                   <div>
-                    <p className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-gold' : 'text-slate-400'}`}>Unit Cost</p>
+                    <p className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-gold' : 'text-slate-400'}`}>{t('unit_cost')}</p>
                     <p className={`text-xl font-bold ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{formatPrice(materialCost)}</p>
                     {hourlyWage > 0 && (
                       <p className={`text-[9px] font-bold mt-1 ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>
@@ -97,9 +100,9 @@ const FichePanel: React.FC<Props> = ({
               </div>
 
               <div className="grid grid-cols-3 gap-2 mb-8 p-3 rounded-2xl bg-white/5 border border-white/5">
-                <div className="text-center"><p className="text-[8px] uppercase font-black opacity-40 mb-1">Prep</p><p className="text-xs font-bold">{p.prep_time}m</p></div>
-                <div className="text-center border-x border-white/5"><p className="text-[8px] uppercase font-black opacity-40 mb-1">Cook</p><p className="text-xs font-bold">{p.cook_time}m</p></div>
-                <div className="text-center"><p className="text-[8px] uppercase font-black opacity-40 mb-1">Yield</p><p className="text-xs font-bold">{p.yield_qty}</p></div>
+                <div className="text-center"><p className="text-[8px] uppercase font-black opacity-40 mb-1">{t('prep')}</p><p className="text-xs font-bold">{p.prep_time}m</p></div>
+                <div className="text-center border-x border-white/5"><p className="text-[8px] uppercase font-black opacity-40 mb-1">{t('cook')}</p><p className="text-xs font-bold">{p.cook_time}m</p></div>
+                <div className="text-center"><p className="text-[8px] uppercase font-black opacity-40 mb-1">{t('yield')}</p><p className="text-xs font-bold">{p.yield_qty}</p></div>
               </div>
 
               <div className="space-y-2 mb-4">
@@ -140,7 +143,7 @@ const FichePanel: React.FC<Props> = ({
                     className={`w-full appearance-none cursor-pointer px-4 py-2 text-[10px] font-black uppercase tracking-widest rounded-xl border transition-all outline-none ${isDarkMode ? 'bg-black/40 border-gold/20 text-gold/50 hover:text-gold hover:border-gold/40' : 'bg-slate-50 border-slate-200 text-slate-500 hover:text-slate-900'}`}
                     defaultValue=""
                   >
-                    <option value="" disabled className={isDarkMode ? 'bg-[#0a0a0b] text-gold/50' : ''}>+ Add Ingredient...</option>
+                    <option value="" disabled className={isDarkMode ? 'bg-[#0a0a0b] text-gold/50' : ''}>{t('add_ingredient')}</option>
                     {allIngredients.filter(ing => !p.ingredients.some(pi => pi.name === ing)).map(ing => (
                       <option key={ing} value={ing} className={isDarkMode ? 'bg-[#0a0a0b] text-gold' : ''}>{ing}</option>
                     ))}
@@ -151,7 +154,7 @@ const FichePanel: React.FC<Props> = ({
               <div className={`pt-6 border-t ${isDarkMode ? 'border-white/5' : 'border-slate-100'}`}>
                 <div className="flex justify-between items-start">
                   <div>
-                    <p className={`text-[10px] font-black uppercase tracking-widest ${isLowMargin ? 'text-rose-500' : (isDarkMode ? 'text-emerald-500/50' : 'text-emerald-600')}`}>True Net Margin</p>
+                    <p className={`text-[10px] font-black uppercase tracking-widest ${isLowMargin ? 'text-rose-500' : (isDarkMode ? 'text-emerald-500/50' : 'text-emerald-600')}`}>{t('true_net_margin')}</p>
                     <p className={`text-xl font-bold ${isLowMargin ? 'text-rose-500' : 'text-emerald-500'}`}>{margin}%</p>
                     {hourlyWage > 0 && (
                       <p className={`text-[9px] font-black uppercase tracking-widest mt-1 ${isDarkMode ? 'text-cream/30' : 'text-slate-400'}`}>
@@ -164,7 +167,7 @@ const FichePanel: React.FC<Props> = ({
               </div>
 
               <button onClick={() => setSelectedProduct(p)} className={`w-full mt-4 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest border transition-all ${isDarkMode ? 'border-gold/20 text-gold hover:bg-gold hover:text-charcoal' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
-                View Executive Protocol
+                {t('view_executive_protocol')}
               </button>
             </div>
           );
@@ -174,13 +177,13 @@ const FichePanel: React.FC<Props> = ({
           <>
             <div onClick={handleCleanupProducts} className={`p-8 rounded-[2.5rem] border border-dashed flex flex-col items-center justify-center cursor-pointer border-rose-500/20 hover:border-rose-500 group transition-all min-h-[300px] ${isDarkMode ? 'bg-rose-500/5' : 'bg-rose-50'}`}>
               <div className="w-16 h-16 rounded-full border-2 border-dashed border-rose-500/20 flex items-center justify-center group-hover:border-rose-500 group-hover:scale-110 transition-all mb-4 text-rose-500"><Trash2 size={24} /></div>
-              <p className="font-black text-[10px] uppercase tracking-[0.2em] text-rose-500 opacity-40 group-hover:opacity-100 transition-all text-center">Cleanup Broken Data<br /><span className="text-[8px] opacity-60">Removes empty IDs</span></p>
+              <p className="font-black text-[10px] uppercase tracking-[0.2em] text-rose-500 opacity-40 group-hover:opacity-100 transition-all text-center">{t('cleanup_broken_data')}<br /><span className="text-[8px] opacity-60">{t('removes_empty_ids')}</span></p>
             </div>
             <div onClick={() => setShowAddProduct(true)} className={`p-8 rounded-[2.5rem] border border-dashed flex flex-col items-center justify-center cursor-pointer hover:border-gold/40 group transition-all min-h-[300px] ${isDarkMode ? 'border-white/10 bg-black/5' : 'border-slate-300 bg-slate-50'}`}>
               <div className="w-16 h-16 rounded-full border-2 border-dashed border-white/10 flex items-center justify-center group-hover:border-gold/40 group-hover:scale-110 transition-all mb-4">
                 <Plus className="opacity-20 group-hover:opacity-100 group-hover:text-gold transition-all" />
               </div>
-              <p className="font-black text-[10px] uppercase tracking-[0.2em] opacity-20 group-hover:opacity-100 group-hover:text-gold transition-all">New Entity</p>
+              <p className="font-black text-[10px] uppercase tracking-[0.2em] opacity-20 group-hover:opacity-100 group-hover:text-gold transition-all">{t('new_entity')}</p>
             </div>
           </>
         )}

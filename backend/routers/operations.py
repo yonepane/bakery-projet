@@ -145,7 +145,7 @@ async def inventory(
 
     return JSONResponse(
         content={"materials": materials_dict, "products": products_list},
-        headers={"Cache-Control": "private, max-age=60"},
+        headers={"Cache-Control": "private, no-store"},
     )
 
 
@@ -276,6 +276,8 @@ async def get_prep_sheet(
     return HTMLResponse(content=html_content)
 
 
+import json
+
 @router.get("/api/history")
 async def get_history(
     db: sqlalchemy.orm.Session = Depends(get_db),
@@ -289,14 +291,15 @@ async def get_history(
             "id": tx.id,
             "timestamp": tx.timestamp.isoformat(),
             "type": tx.type,
+            "status": getattr(tx, "status", "completed") or "completed",
             "revenue": tx.total_revenue,
             "cost": tx.total_cost,
             "profit": tx.total_revenue - tx.total_cost,
-            "items": tx.items,
+            "items": tx.items if isinstance(tx.items, list) else json.loads(tx.items) if isinstance(tx.items, str) else [],
         }
         for tx in transactions
     ]
-    return JSONResponse(content=data, headers={"Cache-Control": "private, max-age=30"})
+    return JSONResponse(content=data, headers={"Cache-Control": "private, no-store"})
 
 
 @router.get("/api/planner")

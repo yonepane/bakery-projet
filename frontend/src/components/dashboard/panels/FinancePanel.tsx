@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 /**
  * FinancePanel — Month-end P&L accounting view.
  *
@@ -50,6 +51,8 @@ const FinancePanel: React.FC<Props> = ({
   setShowAddExpense, editingExpense, setEditingExpense, handleDeleteExpense,
   showConfirm, addToast
 }) => {
+  const { t } = useTranslation();
+
   const [isHT, setIsHT] = useState(false);
   const TAX_RATE = 1.20; // 20% standard TVA assumed
 
@@ -92,11 +95,6 @@ const FinancePanel: React.FC<Props> = ({
   };
 
   const applyTaxMode = (val: number) => isHT ? val / TAX_RATE : val;
-  const noTaxKeywords = ['labor', 'payroll', 'salary', 'salaire', 'wage', 'rent', 'loyer', 'insurance', 'assurance', 'tax', 'impot', 'taxes', 'other', 'others', 'autre', 'autres'];
-  const applyExpenseTaxMode = (val: number, category: string) => {
-    const isNoTax = noTaxKeywords.some(kw => (category || '').toLowerCase().includes(kw));
-    return (isHT && !isNoTax) ? val / TAX_RATE : val;
-  };
 
   const totalWasteLossRaw = filteredWaste.reduce((a: number, w: any) => a + (w.loss_cost || 0), 0);
   const totalCOGSRaw = filteredSales.reduce((a: number, s: any) => a + (s.cost || 0), 0);
@@ -145,19 +143,7 @@ const FinancePanel: React.FC<Props> = ({
     : monthlySales;
 
   const displayCOGS = applyTaxMode(totalCOGSRaw);
-  const displayExpenses = filteredExpenses.reduce((sum: number, exp: any) => {
-    if (isHT) {
-      if (exp.amount_ht !== undefined && exp.amount_ht !== null && exp.amount_ht > 0) {
-        return sum + exp.amount_ht;
-      }
-      return sum + applyExpenseTaxMode(Number(exp.amount) || 0, exp.category || '');
-    } else {
-      if (exp.amount_ttc !== undefined && exp.amount_ttc !== null && exp.amount_ttc > 0) {
-        return sum + exp.amount_ttc;
-      }
-      return sum + (Number(exp.amount) || 0);
-    }
-  }, 0);
+  const displayExpenses = monthlyExpensesTotal;
   const displayWaste = applyTaxMode(totalWasteLossRaw);
   
   const displayNetProfit = displayRevenue - displayCOGS - displayWaste - displayExpenses;
@@ -189,7 +175,7 @@ const FinancePanel: React.FC<Props> = ({
         <div className="flex items-center gap-8 flex-wrap">
           <div className="flex items-center gap-6">
             <div>
-              <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">From</label>
+              <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">{t('from')}</label>
               <input type="date" value={accountingRange.start} onChange={e => setAccountingRange({ ...accountingRange, start: e.target.value })}
                 className={`bg-transparent border-b py-2 outline-none font-bold text-sm ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`} />
             </div>
@@ -223,12 +209,12 @@ const FinancePanel: React.FC<Props> = ({
           <button
             onClick={() => openReport('pdf')}
             className={`flex items-center gap-3 px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${isDarkMode ? 'bg-gold text-charcoal shadow-gold-glow' : 'bg-slate-900 text-white'}`}>
-            <FileText size={16} /> Export PDF
+            <FileText size={16} /> {t('export_pdf')}
           </button>
           <button
             onClick={() => openReport('excel')}
             className={`flex items-center gap-3 px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${isDarkMode ? 'bg-emerald-500 text-white shadow-[0_0_15px_rgba(16,185,129,0.3)]' : 'bg-emerald-600 text-white'}`}>
-            <Table size={16} /> Export Excel
+            <Table size={16} /> {t('export_excel')}
           </button>
         </div>
       </div>
@@ -239,7 +225,7 @@ const FinancePanel: React.FC<Props> = ({
           { label: `Gross Revenue (${isHT ? 'HT' : 'TTC'})`, value: formatPrice(displayRevenue), color: isDarkMode ? 'text-emerald-400' : 'text-emerald-700', icon: <TrendingUp size={20} /> },
           { label: `Total COGS (${isHT ? 'HT' : 'TTC'})`, value: formatPrice(displayCOGS), color: 'text-amber-400', icon: <TrendingDown size={20} /> },
           { label: `Gross Margin %`, value: grossMarginPercent, color: 'text-gold', icon: <TrendingUp size={20} /> },
-          { label: `Operating Expenses (${isHT ? 'HT' : 'TTC'})`, value: formatPrice(displayExpenses), color: 'text-rose-400', icon: <TrendingDown size={20} /> },
+          { label: 'Operating Expenses', value: formatPrice(displayExpenses), color: 'text-rose-400', icon: <TrendingDown size={20} /> },
           { label: `Net Profit (${isHT ? 'HT' : 'TTC'})`, value: formatPrice(displayNetProfit), color: displayNetProfit >= 0 ? 'text-emerald-400' : 'text-rose-400', icon: displayNetProfit >= 0 ? <TrendingUp size={20} /> : <TrendingDown size={20} /> },
         ].map((stat, i) => (
           <div key={i} className={`p-5 rounded-[2rem] border transition-colors ${isDarkMode ? 'glass-panel' : 'bg-white border-slate-200 shadow-xl'}`}>
@@ -256,12 +242,12 @@ const FinancePanel: React.FC<Props> = ({
           <div>
             <div className="flex items-center gap-2 text-rose-400 mb-2">
               <Briefcase size={16} />
-              <p className="text-[10px] font-black uppercase tracking-widest">Masse Salariale (Labor)</p>
+              <p className="text-[10px] font-black uppercase tracking-widest">{t('masse_salariale_labor')}</p>
             </div>
             <p className="text-2xl font-bold text-rose-400">{formatPrice(displayLaborCosts)}</p>
           </div>
           <div className="text-right">
-            <p className="text-[10px] opacity-40 uppercase tracking-widest font-bold mb-1">% of Revenue</p>
+            <p className="text-[10px] opacity-40 uppercase tracking-widest font-bold mb-1">{t('of_revenue')}</p>
             <p className="text-sm font-bold text-rose-400/70">{displayRevenue > 0 ? ((displayLaborCosts / displayRevenue) * 100).toFixed(1) : 0}%</p>
           </div>
         </div>
@@ -270,13 +256,13 @@ const FinancePanel: React.FC<Props> = ({
           <div>
             <div className="flex items-center gap-2 text-sky-400 mb-2">
               <FileClock size={16} />
-              <p className="text-[10px] font-black uppercase tracking-widest">Accounts Receivable (Pending B2B)</p>
+              <p className="text-[10px] font-black uppercase tracking-widest">{t('accounts_receivable_pending_b2')}</p>
             </div>
             <p className="text-2xl font-bold text-sky-400">{formatPrice(displayPendingDebt)}</p>
           </div>
           <div className="text-right">
-            <p className="text-[10px] opacity-40 uppercase tracking-widest font-bold mb-1">Impact</p>
-            <p className="text-sm font-bold text-sky-400/70">Unpaid Invoices</p>
+            <p className="text-[10px] opacity-40 uppercase tracking-widest font-bold mb-1">{t('impact')}</p>
+            <p className="text-sm font-bold text-sky-400/70">{t('unpaid_invoices')}</p>
           </div>
         </div>
       </div>
@@ -285,21 +271,21 @@ const FinancePanel: React.FC<Props> = ({
       <div className={`p-6 rounded-[2rem] border transition-all ${isDarkMode ? 'glass-panel border-gold/20 bg-gold/5' : 'bg-slate-50 border-slate-200'}`}>
         <div className="flex justify-between items-center mb-6">
           <div>
-            <h4 className={`text-md font-bold luxury-font uppercase tracking-wider ${isDarkMode ? 'text-gold' : 'text-slate-900'}`}>Moroccan VAT (TVA) Settlement</h4>
-            <p className={`text-[11px] ${isDarkMode ? 'text-cream/40' : 'text-slate-500'}`}>Moroccan tax declaring simulations based on selected range</p>
+            <h4 className={`text-md font-bold luxury-font uppercase tracking-wider ${isDarkMode ? 'text-gold' : 'text-slate-900'}`}>{t('moroccan_vat_tva_settlement')}</h4>
+            <p className={`text-[11px] ${isDarkMode ? 'text-cream/40' : 'text-slate-500'}`}>{t('moroccan_tax_desc')}</p>
           </div>
-          <span className={`text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full ${isDarkMode ? 'bg-gold/10 text-gold' : 'bg-slate-900 text-white'}`}>Moroccan DGI Engine</span>
+          <span className={`text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full ${isDarkMode ? 'bg-gold/10 text-gold' : 'bg-slate-900 text-white'}`}>{t('moroccan_dgi_engine')}</span>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="space-y-1">
-            <p className={`text-[9px] font-black uppercase tracking-[0.15em] ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>TVA Collectée (Sales)</p>
+            <p className={`text-[9px] font-black uppercase tracking-[0.15em] ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>{t('tva_collect_e_sales')}</p>
             <p className="text-xl font-bold text-emerald-500">+{formatPrice(tvaCollectee)}</p>
-            <p className="text-[10px] opacity-40">20% on pastries, 0% on bread</p>
+            <p className="text-[10px] opacity-40">{t('20_on_pastries_0_on_bread')}</p>
           </div>
           <div className="space-y-1">
-            <p className={`text-[9px] font-black uppercase tracking-[0.15em] ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>TVA Déductible (Expenses)</p>
+            <p className={`text-[9px] font-black uppercase tracking-[0.15em] ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>{t('tva_d_ductible_expenses')}</p>
             <p className="text-xl font-bold text-rose-500">-{formatPrice(tvaDeductible)}</p>
-            <p className="text-[10px] opacity-40">From qualified taxable expenses</p>
+            <p className="text-[10px] opacity-40">{t('from_qualified_expenses')}</p>
           </div>
           <div className={`p-4 rounded-xl ${tvaAPayer >= 0 ? (isDarkMode ? 'bg-rose-500/10 border border-rose-500/20' : 'bg-rose-50 border border-rose-100') : (isDarkMode ? 'bg-emerald-500/10 border border-emerald-500/20' : 'bg-emerald-50 border border-emerald-100')}`}>
             <p className={`text-[9px] font-black uppercase tracking-[0.15em] ${tvaAPayer >= 0 ? 'text-rose-500' : 'text-emerald-500'} mb-1`}>
@@ -318,7 +304,7 @@ const FinancePanel: React.FC<Props> = ({
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Product Profitability */}
         <div className={`p-8 rounded-[2.5rem] border transition-colors ${isDarkMode ? 'glass-panel' : 'bg-white border-slate-200 shadow-xl'}`}>
-          <h3 className={`text-xl font-bold luxury-font uppercase mb-6 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Product Profitability</h3>
+          <h3 className={`text-xl font-bold luxury-font uppercase mb-6 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{t('product_profitability')}</h3>
           {productProfitability.length > 0 ? (
             <div className="h-[250px]">
               <ResponsiveContainer width="100%" height="100%">
@@ -333,31 +319,31 @@ const FinancePanel: React.FC<Props> = ({
               </ResponsiveContainer>
             </div>
           ) : (
-            <div className="py-20 text-center opacity-20"><FileText size={48} className="mx-auto mb-4" /><p className="text-[10px] font-black uppercase tracking-widest">No Sales Data</p></div>
+            <div className="py-20 text-center opacity-20"><FileText size={48} className="mx-auto mb-4" /><p className="text-[10px] font-black uppercase tracking-widest">{t('no_sales_data')}</p></div>
           )}
         </div>
 
         {/* Expense Breakdown */}
         <div className={`p-8 rounded-[2.5rem] border transition-colors ${isDarkMode ? 'glass-panel' : 'bg-white border-slate-200 shadow-xl'}`}>
-          <h3 className={`text-xl font-bold luxury-font uppercase mb-6 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Expense Breakdown</h3>
+          <h3 className={`text-xl font-bold luxury-font uppercase mb-6 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{t('expense_breakdown')}</h3>
           <div className="space-y-4">
             {expenseBreakdown.map(([cat, amount]) => (
               <div key={cat as string} className="flex justify-between items-center">
                 <span className="text-[10px] font-black uppercase tracking-widest opacity-40">{cat as string}</span>
                 <div className="flex items-center gap-3">
                   <div className={`h-1 rounded-full bg-rose-500/40 transition-all`} style={{ width: `${monthlyExpensesTotal > 0 ? ((amount as number) / monthlyExpensesTotal * 120) : 0}px` }} />
-                  <span className="font-bold text-sm text-rose-400">-{formatPrice(applyExpenseTaxMode(amount as number, cat as string))}</span>
+                  <span className="font-bold text-sm text-rose-400">-{formatPrice(amount as number)}</span>
                 </div>
               </div>
             ))}
-            {expenseBreakdown.length === 0 && <p className="text-[10px] uppercase tracking-widest opacity-20 font-bold text-center py-10">No expenses in range</p>}
+            {expenseBreakdown.length === 0 && <p className="text-[10px] uppercase tracking-widest opacity-20 font-bold text-center py-10">{t('no_expenses_in_range')}</p>}
           </div>
 
           {draftPurchaseCommitment > 0 && (
             <div className={`mt-6 p-4 rounded-2xl border border-amber-500/20 bg-amber-500/5`}>
-              <p className="text-[10px] font-black uppercase tracking-widest text-amber-500 mb-1">Pending PO Commitment</p>
+              <p className="text-[10px] font-black uppercase tracking-widest text-amber-500 mb-1">{t('pending_po_commitment')}</p>
               <p className="text-xl font-bold text-amber-500">{formatPrice(applyTaxMode(draftPurchaseCommitment))}</p>
-              <p className="text-[10px] opacity-40 mt-1">Orders awaiting receipt</p>
+              <p className="text-[10px] opacity-40 mt-1">{t('orders_awaiting_receipt')}</p>
             </div>
           )}
         </div>
@@ -366,7 +352,7 @@ const FinancePanel: React.FC<Props> = ({
       {/* Waste Ledger */}
       {wasteByProduct.length > 0 && (
         <div className={`p-8 rounded-[2.5rem] border transition-colors ${isDarkMode ? 'glass-panel' : 'bg-white border-slate-200 shadow-xl'}`}>
-          <h3 className={`text-xl font-bold luxury-font uppercase mb-6 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Waste Ledger</h3>
+          <h3 className={`text-xl font-bold luxury-font uppercase mb-6 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{t('waste_ledger')}</h3>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             {wasteByProduct.map((w: any) => (
               <div key={w.name} className={`p-4 rounded-2xl border ${isDarkMode ? 'bg-rose-500/5 border-rose-500/20' : 'bg-rose-50 border-rose-100'}`}>
@@ -383,8 +369,8 @@ const FinancePanel: React.FC<Props> = ({
       <div className="space-y-6">
         <div className="flex justify-between items-center">
           <div>
-            <h3 className={`text-3xl font-bold luxury-font uppercase tracking-tighter ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Overhead &amp; Bills</h3>
-            <p className={`text-sm mt-1 ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>Track business expenses, rent, payroll &amp; utilities</p>
+            <h3 className={`text-3xl font-bold luxury-font uppercase tracking-tighter ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{t('overhead_amp_bills')}</h3>
+            <p className={`text-sm mt-1 ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>{t('track_business_expenses_rent_p')}</p>
           </div>
           <button
             onClick={() => setShowAddExpense(true)}
@@ -392,7 +378,7 @@ const FinancePanel: React.FC<Props> = ({
               isDarkMode ? 'bg-gold text-charcoal shadow-gold-glow hover:opacity-90' : 'bg-slate-900 text-white hover:bg-slate-700'
             }`}
           >
-            <Plus size={16} /> Log New Expense
+            <Plus size={16} /> {t('log_new_expense')}
           </button>
         </div>
 
@@ -400,13 +386,13 @@ const FinancePanel: React.FC<Props> = ({
           <table className="w-full text-left">
             <thead>
               <tr className={`border-b text-[10px] font-black uppercase tracking-[0.2em] ${isDarkMode ? 'border-black/60 text-cream/40' : 'border-black/10 text-slate-400'}`}>
-                <th className="px-8 py-6">Date</th>
-                <th className="px-8 py-6">Supplier / Ref</th>
-                <th className="px-8 py-6">Category</th>
-                <th className="px-8 py-6">Tax / VAT</th>
-                <th className="px-8 py-6">Status</th>
-                <th className="px-8 py-6 text-right">Amount</th>
-                <th className="px-8 py-6 text-right">Actions</th>
+                <th className="px-8 py-6">{t('date')}</th>
+                <th className="px-8 py-6">{t('supplier_ref')}</th>
+                <th className="px-8 py-6">{t('category')}</th>
+                <th className="px-8 py-6">{t('tax_vat')}</th>
+                <th className="px-8 py-6">{t('status')}</th>
+                <th className="px-8 py-6 text-right">{t('amount')}</th>
+                <th className="px-8 py-6 text-right">{t('actions')}</th>
               </tr>
             </thead>
             <tbody>
@@ -439,9 +425,9 @@ const FinancePanel: React.FC<Props> = ({
                       <div className="text-sm font-semibold">{tvaRateStr} TVA</div>
                       <div className="text-[10px] mt-0.5">
                         {exp.is_tva_deductible ? (
-                          <span className="text-emerald-400 font-bold uppercase tracking-wider text-[9px]">Deductible</span>
+                          <span className="text-emerald-400 font-bold uppercase tracking-wider text-[9px]">{t('deductible')}</span>
                         ) : (
-                          <span className="text-white/30 uppercase tracking-wider text-[9px]">Non-Deductible</span>
+                          <span className="text-white/30 uppercase tracking-wider text-[9px]">{t('non_deductible')}</span>
                         )}
                       </div>
                     </td>
@@ -455,21 +441,21 @@ const FinancePanel: React.FC<Props> = ({
                         </div>
                       )}
                     </td>
-                    <td className="px-8 py-5 text-right">
-                      <div className="font-bold text-sm text-rose-500">
-                        -{formatPrice(isHT ? (exp.amount_ht || applyExpenseTaxMode(exp.amount, exp.category)) : (exp.amount_ttc || exp.amount))}
-                      </div>
-                      <div className="text-[10px] opacity-40 mt-0.5">
-                        {isHT ? `TTC: ${formatPrice(exp.amount_ttc || exp.amount)}` : `HT: ${formatPrice(exp.amount_ht || exp.amount / 1.20)}`}
-                      </div>
-                    </td>
+	                    <td className="px-8 py-5 text-right">
+	                      <div className="font-bold text-sm text-rose-500">
+	                        -{formatPrice(exp.amount_ttc || exp.amount)}
+	                      </div>
+	                      <div className="text-[10px] opacity-40 mt-0.5">
+	                        {`HT: ${formatPrice(exp.amount_ht || exp.amount / 1.20)}`}
+	                      </div>
+	                    </td>
                     <td className="px-8 py-5 text-right">
                       <div className="flex items-center justify-end gap-2">
                         <button
                           onClick={() => openEditExpense(exp)}
                           className="px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest bg-gold/10 text-gold hover:bg-gold/20 transition-all border border-gold/20"
                         >
-                          Edit
+                          {t('edit')}
                         </button>
                         <button
                           onClick={() => showConfirm({
@@ -481,7 +467,7 @@ const FinancePanel: React.FC<Props> = ({
                           })}
                           className="px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 transition-all border border-rose-500/20"
                         >
-                          Delete
+                          {t('delete')}
                         </button>
                       </div>
                     </td>
@@ -491,7 +477,7 @@ const FinancePanel: React.FC<Props> = ({
               {(!expenses || expenses.length === 0) && (
                 <tr>
                   <td colSpan={7} className="py-20 text-center opacity-20 font-black uppercase tracking-widest text-[10px]">
-                    No expenses logged yet
+                    {t('no_expenses_logged')}
                   </td>
                 </tr>
               )}

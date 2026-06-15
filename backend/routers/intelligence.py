@@ -29,6 +29,8 @@ except ImportError:
     from database import get_db
     from services.core import calculate_product_cost, get_user_settings
 
+import json
+
 router = APIRouter()
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -67,7 +69,7 @@ async def analytics(
     # Serve from in-process cache if fresh enough (saves a full DB scan).
     cached = _analytics_cache.get(owner_id)
     if cached and (time.time() - cached[0]) < _CACHE_TTL:
-        return JSONResponse(content=cached[1], headers={"Cache-Control": "private, max-age=300"})
+        return JSONResponse(content=cached[1], headers={"Cache-Control": "private, no-store"})
 
     # --- single bulk fetch for all three tables ---
     transactions = (
@@ -97,16 +99,22 @@ async def analytics(
         now = datetime.now()
         last_reset = datetime(now.year, now.month, now.day)
 
-    total_revenue = sum(t.total_revenue for t in transactions if t.type == "sale")
-    total_cost = sum(t.total_cost for t in transactions) + sum(
+    # Only count completed (non-refunded) sales in all financial summaries.
+    active_transactions = [
+        t for t in transactions
+        if not (t.type == "sale" and getattr(t, "status", "completed") == "refunded")
+    ]
+
+    total_revenue = sum(t.total_revenue for t in active_transactions if t.type == "sale")
+    total_cost = sum(t.total_cost for t in active_transactions if t.type == "sale") + sum(
         w.loss_cost for w in waste_records
     )
 
-    session_txs = [t for t in transactions if t.timestamp >= last_reset]
+    session_txs = [t for t in active_transactions if t.timestamp >= last_reset]
     session_waste = [w for w in waste_records if w.date >= last_reset]
 
     today_revenue = sum(t.total_revenue for t in session_txs if t.type == "sale")
-    today_cost = sum(t.total_cost for t in session_txs) + sum(
+    today_cost = sum(t.total_cost for t in session_txs if t.type == "sale") + sum(
         w.loss_cost for w in session_waste
     )
 
@@ -120,23 +128,24 @@ async def analytics(
         day = now - timedelta(days=i)
         s_day = datetime(day.year, day.month, day.day)
         e_day = s_day + timedelta(days=1)
-        day_txs = [t for t in transactions if s_day <= t.timestamp < e_day]
+        day_txs = [t for t in active_transactions if s_day <= t.timestamp < e_day]
         daily_data.append(
             {
                 "name": day.strftime("%a"),
                 "revenue": sum(t.total_revenue for t in day_txs if t.type == "sale"),
-                "cost": sum(t.total_cost for t in day_txs),
+                "cost": sum(t.total_cost for t in day_txs if t.type == "sale"),
             }
         )
 
     hourly_sales = [{"hour": f"{hour:02d}h", "value": 0} for hour in range(24)]
-    for tx in [t for t in transactions if t.type == "sale"]:
+    for tx in [t for t in active_transactions if t.type == "sale"]:
         hourly_sales[tx.timestamp.hour]["value"] += tx.total_revenue
 
     product_stats: dict[str, int] = {}
-    for tx in [t for t in transactions if t.type == "sale"]:
-        if tx.items:
-            for item in tx.items:
+    for tx in [t for t in active_transactions if t.type == "sale"]:
+        parsed_items = tx.items if isinstance(tx.items, list) else json.loads(tx.items) if isinstance(tx.items, str) else []
+        if parsed_items:
+            for item in parsed_items:
                 name = item.get("name", "Unknown")
                 qty = item.get("qty", 0)
                 product_stats[name] = product_stats.get(name, 0) + qty
@@ -174,7 +183,7 @@ async def analytics(
         },
     }
     _analytics_cache[owner_id] = (time.time(), result)
-    return JSONResponse(content=result, headers={"Cache-Control": "private, max-age=300"})
+    return JSONResponse(content=result, headers={"Cache-Control": "private, no-store"})
 
 
 @router.get("/api/alerts", dependencies=[Depends(requires_roles(["owner"]))])

@@ -38,7 +38,9 @@ export const displayUnit = (value: number, unit: string) => {
 
 const isWithinAccountingRange = (value: string | undefined, accountingRange: AccountingRange) => {
   if (!value) return false;
-  const date = new Date(value);
+  // Replace space with T for Safari compatibility
+  const safeValue = value.replace(' ', 'T');
+  const date = new Date(safeValue);
   const start = new Date(`${accountingRange.start}T00:00:00`);
   const end = new Date(`${accountingRange.end}T23:59:59`);
   return date >= start && date <= end;
@@ -60,7 +62,7 @@ export const deriveAccountingMetrics = ({
   accountingRange: AccountingRange;
 }) => {
   const filteredSales = history.filter(
-    (tx) => tx.type === 'sale' && isWithinAccountingRange(tx.timestamp, accountingRange),
+    (tx) => tx.type === 'sale' && tx.status !== 'refunded' && isWithinAccountingRange(tx.timestamp, accountingRange),
   );
   const filteredExpenses = expenses.filter((exp: any) => isWithinAccountingRange(exp.date, accountingRange));
   const filteredPurchaseOrders = purchaseOrders.filter((po: any) =>
@@ -121,7 +123,11 @@ export const deriveAccountingMetrics = ({
     .slice(0, 8);
   const productProfitability: AccountingMetricRow[] = Object.values(
     filteredSales.reduce((acc: Record<string, AccountingMetricRow>, tx) => {
-      (tx.items || []).forEach((item: any) => {
+      let items = tx.items || [];
+      if (typeof items === 'string') {
+        try { items = JSON.parse(items); } catch(e) { items = []; }
+      }
+      items.forEach((item: any) => {
         const key = item.name || 'Unknown';
         if (!acc[key]) {
           acc[key] = { name: key, qty: 0, revenue: 0, cost: 0, profit: 0 };

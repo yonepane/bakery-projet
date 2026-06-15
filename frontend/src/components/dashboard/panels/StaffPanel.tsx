@@ -1,16 +1,20 @@
 import React from 'react';
 import { Plus, Trash2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { DashboardSharedProps } from '../types';
 
 type Props = Pick<DashboardSharedProps,
-  'isDarkMode' | 'staff' | 't' | 'handleDeleteStaff' | 'setShowAddStaff'>;
+  'isDarkMode' | 'staff' | 'handleDeleteStaff' | 'setShowAddStaff'>;
 
-const StaffPanel: React.FC<Props> = ({ isDarkMode, staff, t, handleDeleteStaff, setShowAddStaff }) => (
+const StaffPanel: React.FC<Props> = ({ isDarkMode, staff, handleDeleteStaff, setShowAddStaff }) => {
+  const { t } = useTranslation();
+  
+  return (
   <div className="space-y-8 animate-in fade-in duration-500">
     <div className="flex justify-between items-center">
       <div>
         <h3 className={`text-4xl font-bold luxury-font uppercase tracking-tighter ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{t.staff}</h3>
-        <p className={`text-sm mt-1 ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>Manage your bakery team and access credentials</p>
+        <p className={`text-sm mt-1 ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>{t('manage_team_desc')}</p>
       </div>
       <button onClick={() => setShowAddStaff(true)} className={`px-8 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center gap-3 transition-all ${isDarkMode ? 'bg-gold text-charcoal shadow-gold-glow' : 'bg-slate-900 text-white'}`}>
         <Plus size={16} /> {t.add_staff}
@@ -21,7 +25,7 @@ const StaffPanel: React.FC<Props> = ({ isDarkMode, staff, t, handleDeleteStaff, 
         <thead>
           <tr className={`border-b text-[10px] font-black uppercase tracking-[0.2em] ${isDarkMode ? 'border-white/5 text-cream/40' : 'border-slate-100 text-slate-400'}`}>
             <th className="px-8 py-6">{t.username}</th>
-            <th className="px-8 py-6">Role</th>
+            <th className="px-8 py-6">{t('role')}</th>
             <th className="px-8 py-6 text-right">{t.actions}</th>
           </tr>
         </thead>
@@ -35,11 +39,12 @@ const StaffPanel: React.FC<Props> = ({ isDarkMode, staff, t, handleDeleteStaff, 
               </td>
             </tr>
           ))}
-          {staff.length === 0 && <tr><td colSpan={3} className="py-20 text-center opacity-10 font-black uppercase tracking-widest text-[10px]">No staff accounts created yet</td></tr>}
+          {staff.length === 0 && <tr><td colSpan={3} className="py-20 text-center opacity-10 font-black uppercase tracking-widest text-[10px]">{t('no_staff_yet')}</td></tr>}
         </tbody>
       </table>
     </div>
   </div>
-);
+  );
+};
 
 export default StaffPanel;

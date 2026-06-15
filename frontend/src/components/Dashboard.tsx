@@ -39,7 +39,8 @@ import {
   BarChart2,
   Users,
   Clock,
-  Bell
+  Bell,
+  ClipboardList
 } from 'lucide-react';
 
 // axios is consumed internally by api.ts and http.ts — no direct import needed here.
@@ -48,7 +49,8 @@ import { QRCodeSVG } from 'qrcode.react';
 import { api, processSyncQueue } from '../lib/api';
 import { calcAlerts, calcProfitReport } from '../lib/calculations';
 import http from '../lib/http';
-import { Language, translations } from '../lib/translations';
+import { Language } from '../lib/translations';
+import { useTranslation } from 'react-i18next';
 import { GoogleOAuthProvider, GoogleLogin } from '@react-oauth/google';
 import { GOOGLE_CLIENT_ID, PRODUCT_ICON_CHOICES } from './dashboard/constants';
 import { useBakeryData } from './dashboard/useBakeryData';
@@ -95,6 +97,7 @@ import {
 } from './dashboard/utils';
 
 const Dashboard: React.FC = () => {
+
   const API_BASE = '/api';
   // Login state and current user information.
   const [user, setUser] = useState<UserSession | null>(null);
@@ -105,11 +108,20 @@ const Dashboard: React.FC = () => {
   
   // UI state for navigation and language.
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [lang, setLang] = useState<Language>(() => getInitialLanguage(localStorage.getItem('bakery_lang')));
-  const t = translations[lang] || translations.en;
+  const { t, i18n } = useTranslation();
+  const [lang, setLangState] = useState<Language>(() => (i18n.language as Language) || 'en');
+  
+  const setLang = (newLang: Language) => {
+    setLangState(newLang);
+    i18n.changeLanguage(newLang);
+    localStorage.setItem('bakery_lang', newLang);
+  };
+  
   const isRTL = lang === 'ar';
   
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [sidebarHoverMode, setSidebarHoverMode] = useState(() => localStorage.getItem('bakery_sidebar_hover') === 'true');
+  const [isSidebarHovered, setIsSidebarHovered] = useState(false);
   const [showAlertsPopover, setShowAlertsPopover] = useState(false);
   const [isOperationsOpen, setIsOperationsOpen] = useState(false);
 
@@ -163,7 +175,7 @@ const Dashboard: React.FC = () => {
   const handleSaveBooking = async () => {
     // A booking can reuse the current cart or create a future pickup order.
     if (!bookingForm.name || !bookingForm.date) {
-        addToast("Name and Date are required", "error");
+        addToast(t('name_and_date_are_required'), "error");
         return;
     }
     
@@ -179,9 +191,9 @@ const Dashboard: React.FC = () => {
         if (bookingForm.source === 'pos') setCart([]);
         setShowBookingModal(false);
         fetchData();
-        addToast("Booking Confirmed", "success");
+        addToast(t('booking_confirmed'), "success");
     } catch (e) {
-        addToast("Failed to create booking", "error");
+        addToast(t('failed_to_create_booking'), "error");
     }
   };
 
@@ -316,19 +328,19 @@ const Dashboard: React.FC = () => {
   }, []);
 
   const allNavItems = [
-    { id: 'dashboard', label: t.dashboard },
+    { id: 'dashboard', label: t('dashboard') },
     { id: 'intelligence', label: 'Intelligence' },
-    { id: 'pos', label: t.pos },
-    { id: 'kitchen', label: t.kitchen },
-    { id: 'inventory', label: t.inventory },
-    { id: 'fiche', label: t.fiche },
-    { id: 'purchasing', label: t.purchasing },
-    { id: 'simulator', label: t.simulator },
-    { id: 'history', label: t.history },
-    { id: 'planner', label: t.planner },
-    { id: 'orders', label: t.orders },
-    { id: 'comptabilite', label: t.comptabilite },
-    { id: 'staff', label: t.staff },
+    { id: 'pos', label: t('pos') },
+    { id: 'kitchen', label: t('kitchen') },
+    { id: 'inventory', label: t('inventory') },
+    { id: 'fiche', label: t('fiche') },
+    { id: 'purchasing', label: t('purchasing') },
+    { id: 'simulator', label: t('simulator') },
+    { id: 'history', label: t('history') },
+    { id: 'planner', label: t('planner') },
+    { id: 'orders', label: t('orders') },
+    { id: 'comptabilite', label: t('comptabilite') },
+    { id: 'staff', label: t('staff') },
     { id: 'settings', label: 'Settings' },
     { id: 'customers', label: 'Customers' }
   ];
@@ -373,13 +385,13 @@ const Dashboard: React.FC = () => {
       await http.post('/staff', newStaff);
       setShowAddStaff(false);
       fetchData();
-      addToast(t.add_staff + " Success", "success");
-    } catch (e: any) { addToast("Failed to add staff", "error"); }
+      addToast(t('add_staff') + " Success", "success");
+    } catch (e: any) { addToast(t('failed_to_add_staff'), "error"); }
   };
 
   const handleAddSupplier = async () => {
     if (!newSupplier.name.trim()) {
-      addToast("Supplier name is required", "error");
+      addToast(t('supplier_name_is_required'), "error");
       return;
     }
     try {
@@ -417,9 +429,9 @@ const Dashboard: React.FC = () => {
         try {
           await http.delete(`/suppliers/${supplier.id}`);
           fetchData();
-          addToast("Supplier Deleted", "success");
+          addToast(t('supplier_deleted'), "success");
         } catch (e: any) {
-          addToast("Supplier has order history or could not be deleted", "error");
+          addToast(t('supplier_has_order_history_or'), "error");
         }
       }
     });
@@ -435,9 +447,9 @@ const Dashboard: React.FC = () => {
       });
       setGeneralNote(''); // Clear the input after posting
       fetchData();
-      addToast("Note posted to log", "success");
+      addToast(t('note_posted_to_log'), "success");
     } catch (e: any) {
-      addToast("Failed to post note", "error");
+      addToast(t('failed_to_post_note'), "error");
     } finally {
       setIsSavingGeneralNote(false);
     }
@@ -447,9 +459,9 @@ const Dashboard: React.FC = () => {
     try {
         await api.delete(`/shift-logs/${id}`);
         fetchData();
-        addToast("Note deleted", "success");
+        addToast(t('note_deleted'), "success");
     } catch (e) {
-        addToast("Delete failed", "error");
+        addToast(t('delete_failed'), "error");
     }
   };
 
@@ -463,8 +475,8 @@ const Dashboard: React.FC = () => {
             try {
                 await http.delete(`/staff/${username}`);
                 fetchData();
-                addToast("Staff Removed", "success");
-            } catch (e: any) { addToast("Failed to remove staff", "error"); }
+                addToast(t('staff_removed'), "success");
+            } catch (e: any) { addToast(t('failed_to_remove_staff'), "error"); }
         }
     });
   };
@@ -486,7 +498,7 @@ const Dashboard: React.FC = () => {
         addToast(`Smart Plan generated for ${date}`, 'success');
     } catch (e) {
         console.error(e);
-        addToast("Forecasting failed. Please check your data.", 'error');
+        addToast(t('forecasting_failed_please_chec'), 'error');
     } finally {
       setIsForecasting(false);
     }
@@ -525,7 +537,7 @@ const Dashboard: React.FC = () => {
       localStorage.setItem('bakery_user', JSON.stringify({ username, role }));
       setUser({ username, role });
     } catch (err) {
-      addToast("Invalid credentials", 'error');
+      addToast(t('invalid_credentials'), 'error');
     } finally {
       setIsAuthSubmitting(false);
     }
@@ -534,7 +546,7 @@ const Dashboard: React.FC = () => {
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     if (signupForm.password !== signupForm.confirmPassword) {
-      addToast("Passwords do not match", "error");
+      addToast(t('passwords_do_not_match'), "error");
       return;
     }
     
@@ -557,7 +569,7 @@ const Dashboard: React.FC = () => {
       if (refresh_token) localStorage.setItem('bakery_refresh_token', refresh_token);
       localStorage.setItem('bakery_user', JSON.stringify({ username, role }));
       setUser({ username, role });
-      addToast("Bakery Ready!", "success");
+      addToast(t('bakery_ready'), "success");
     } catch (err: any) {
       addToast(err.response?.data?.detail || "Signup failed", "error");
     } finally {
@@ -574,9 +586,9 @@ const Dashboard: React.FC = () => {
       if (refresh_token) localStorage.setItem('bakery_refresh_token', refresh_token);
       localStorage.setItem('bakery_user', JSON.stringify({ username, role }));
       setUser({ username, role });
-      addToast("Welcome back!", "success");
+      addToast(t('welcome_back'), "success");
     } catch (err) {
-      addToast("Google Sign-In failed", "error");
+      addToast(t('google_sign_in_failed'), "error");
     }
   };
 
@@ -636,17 +648,17 @@ const Dashboard: React.FC = () => {
         {/* Mobile View (Hidden on Desktop) */}
         <div className="lg:hidden flex w-full flex-col items-center justify-center min-h-screen min-h-[100dvh] p-6 relative">
           <div className="absolute inset-0 z-0">
-            <img src="/pain.png" alt="Premium Bakery Background" className="w-full h-full object-cover opacity-40 grayscale-[0.2]" />
+            <img src="/pain.png" alt={t('premium_bakery_background')} className="w-full h-full object-cover opacity-40 grayscale-[0.2]" />
             <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/80 to-[#060606]"></div>
             <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(212,175,55,0.15)_0%,transparent_80%)]"></div>
           </div>
           <div className="relative z-10 w-full max-w-sm rounded-[2rem] border border-white/10 bg-black/60 backdrop-blur-2xl p-8 shadow-[0_0_50px_rgba(0,0,0,0.5)]">
             <div className="flex flex-col items-center mb-10 text-center">
               <div className="h-16 w-16 rounded-full overflow-hidden border border-gold/40 shadow-[0_0_20px_rgba(212,175,55,0.4)] mb-6">
-                <img src="/columbina-login.jpg" alt="Crest" className="w-full h-full object-cover" />
+                <img src="/columbina-login.jpg" alt={t('crest')} className="w-full h-full object-cover" />
               </div>
               <h1 className="text-3xl font-light tracking-[0.2em] uppercase text-white font-serif leading-none">
-                Bakery<span className="font-bold text-gold">OS</span>
+                {t('bakery')}<span className="font-bold text-gold">OS</span>
               </h1>
             </div>
             {/* Mobile Form omitted for brevity, reusing the desktop form logic below but in single column */}
@@ -658,16 +670,16 @@ const Dashboard: React.FC = () => {
                 </div>
                 <div className="relative group">
                   <input id="mobile-password" type={showPassword ? 'text' : 'password'} value={authMode === 'login' ? loginForm.password : signupForm.password} onChange={(e) => authMode === 'login' ? setLoginForm({ ...loginForm, password: e.target.value }) : setSignupForm({ ...signupForm, password: e.target.value })} className="monolith-input peer pr-10" placeholder=" " required />
-                  <label htmlFor="mobile-password" className="monolith-label">Password</label>
+                  <label htmlFor="mobile-password" className="monolith-label">{t('password')}</label>
                   <div className="monolith-input-highlight" />
                 </div>
-                <button type="submit" disabled={isAuthSubmitting} className="monolith-btn mt-8 h-12 text-xs font-bold tracking-widest">{isAuthSubmitting ? <span className="flex items-center justify-center gap-2"><span className="login-spinner" /> Authenticating</span> : (authMode === 'login' ? 'Login' : 'Sign Up')}</button>
+                <button type="submit" disabled={isAuthSubmitting} className="monolith-btn mt-8 h-12 text-xs font-bold tracking-widest">{isAuthSubmitting ? <span className="flex items-center justify-center gap-2"><span className="login-spinner" /> {t('authenticating')}</span> : (authMode === 'login' ? 'Login' : 'Sign Up')}</button>
             </form>
             
             <div className="w-full mt-10">
               <div className="flex items-center gap-4 mb-6 opacity-50">
                 <div className="h-px flex-1 bg-gradient-to-r from-transparent to-white/50" />
-                <span className="text-[10px] tracking-[0.2em] uppercase font-bold text-white/70">External Protocol</span>
+                <span className="text-[10px] tracking-[0.2em] uppercase font-bold text-white/70">{t('external_protocol')}</span>
                 <div className="h-px flex-1 bg-gradient-to-l from-transparent to-white/50" />
               </div>
 
@@ -676,8 +688,8 @@ const Dashboard: React.FC = () => {
                   <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
                     <GoogleLogin
                       onSuccess={handleGoogleSuccess}
-                      onError={() => addToast('Link Failed', 'error')}
-                      theme="filled_black"
+                      onError={() => addToast(t('link_failed'), 'error')}
+                      theme={t('filled_black')}
                       shape="rectangular"
                       width="100%"
                       use_fedcm={false}
@@ -695,9 +707,9 @@ const Dashboard: React.FC = () => {
               &copy; {new Date().getFullYear()} BakeryOS
             </div>
             <div className="flex justify-center gap-4 text-[9px] uppercase tracking-wider text-white/40">
-              <a href="#" className="hover:text-gold transition-colors">Privacy Policy</a>
+              <a href="#" className="hover:text-gold transition-colors">{t('privacy_policy')}</a>
               <span className="text-white/10">•</span>
-              <a href="#" className="hover:text-gold transition-colors">Terms of Service</a>
+              <a href="#" className="hover:text-gold transition-colors">{t('terms_of_service')}</a>
             </div>
           </div>
         </div>
@@ -709,7 +721,7 @@ const Dashboard: React.FC = () => {
           <div className="col-span-8 relative rounded-[2rem] overflow-hidden border border-white/10 bg-[#0a0a0b] shadow-2xl flex flex-col justify-between p-16 group">
             {/* Premium Image Background */}
             <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden">
-               <img src="/pain.png" alt="Premium Bakery" className="w-full h-full object-cover opacity-60 mix-blend-luminosity scale-105 transition-transform duration-1000 group-hover:scale-110" />
+               <img src="/pain.png" alt={t('premium_bakery')} className="w-full h-full object-cover opacity-60 mix-blend-luminosity scale-105 transition-transform duration-1000 group-hover:scale-110" />
                <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0b] via-[#0a0a0b]/60 to-[#0a0a0b]/20"></div>
                <div className="absolute inset-0 bg-gradient-to-r from-[#0a0a0b]/80 via-transparent to-[#0d0d0f]"></div>
                <div className="absolute top-[-20%] left-[-10%] w-[70%] h-[70%] bg-[radial-gradient(circle,rgba(212,175,55,0.15)_0%,transparent_70%)] blur-3xl"></div>
@@ -721,25 +733,25 @@ const Dashboard: React.FC = () => {
             <div className="relative z-10 flex justify-between items-start">
               <div className="flex items-center gap-6">
                 <div className="h-16 w-16 rounded-full overflow-hidden border border-gold/40 shadow-[0_0_30px_rgba(212,175,55,0.5)]">
-                  <img src="/columbina-login.jpg" alt="Crest" className="w-full h-full object-cover" />
+                  <img src="/columbina-login.jpg" alt={t('crest')} className="w-full h-full object-cover" />
                 </div>
                 <div>
                   <h1 className="text-4xl font-light tracking-[0.2em] uppercase text-white font-serif leading-none">
-                    Bakery<span className="font-bold text-gold">OS</span>
+                    {t('bakery')}<span className="font-bold text-gold">OS</span>
                   </h1>
-                  <p className="text-[10px] tracking-[0.4em] uppercase text-gold/60 mt-2 font-semibold">Enterprise Terminal</p>
+                  <p className="text-[10px] tracking-[0.4em] uppercase text-gold/60 mt-2 font-semibold">{t('enterprise_terminal')}</p>
                 </div>
               </div>
               <div className="text-right flex gap-8">
                  <div>
-                    <div className="text-[9px] uppercase tracking-[0.2em] text-white/30 mb-2">Mainframe</div>
+                    <div className="text-[9px] uppercase tracking-[0.2em] text-white/30 mb-2">{t('mainframe')}</div>
                     <div className="flex items-center gap-2 text-sm font-light text-white/70">
-                      <div className="w-2 h-2 bg-green-500 rounded-full shadow-[0_0_10px_rgba(34,197,94,0.5)]" /> Active
+                      <div className="w-2 h-2 bg-green-500 rounded-full shadow-[0_0_10px_rgba(34,197,94,0.5)]" /> {t('active')}
                     </div>
                  </div>
                  <div>
-                    <div className="text-[9px] uppercase tracking-[0.2em] text-white/30 mb-2">Protocol</div>
-                    <div className="text-sm font-light text-white/70">AES-256</div>
+                    <div className="text-[9px] uppercase tracking-[0.2em] text-white/30 mb-2">{t('protocol')}</div>
+                    <div className="text-sm font-light text-white/70">{t('aes_256')}</div>
                  </div>
               </div>
             </div>
@@ -749,8 +761,8 @@ const Dashboard: React.FC = () => {
               {/* Desktop Footer */}
               <div className="flex items-center gap-6 text-[9px] uppercase tracking-widest text-white/40 w-fit">
                 <div>&copy; {new Date().getFullYear()} BakeryOS</div>
-                <a href="#" className="hover:text-gold transition-colors">Privacy Policy</a>
-                <a href="#" className="hover:text-gold transition-colors">Terms of Service</a>
+                <a href="#" className="hover:text-gold transition-colors">{t('privacy_policy')}</a>
+                <a href="#" className="hover:text-gold transition-colors">{t('terms_of_service')}</a>
               </div>
             </div>
           </div>
@@ -812,7 +824,7 @@ const Dashboard: React.FC = () => {
                     placeholder=" "
                     required
                   />
-                  <label htmlFor="desktop-password" className="monolith-label text-sm">Password</label>
+                  <label htmlFor="desktop-password" className="monolith-label text-sm">{t('password')}</label>
                   <div className="monolith-input-highlight" />
                   
                   <button
@@ -836,7 +848,7 @@ const Dashboard: React.FC = () => {
                       placeholder=" "
                       required
                     />
-                    <label htmlFor="desktop-confirm-password" className="monolith-label text-sm">Confirm Password</label>
+                    <label htmlFor="desktop-confirm-password" className="monolith-label text-sm">{t('confirm_password')}</label>
                     <div className="monolith-input-highlight" />
                   </div>
                 )}
@@ -847,7 +859,7 @@ const Dashboard: React.FC = () => {
                   className="monolith-btn mt-10 h-14 text-sm font-bold tracking-widest"
                 >
                   {isAuthSubmitting
-                    ? <span className="flex items-center justify-center gap-3"><span className="login-spinner" /> Authenticating</span>
+                    ? <span className="flex items-center justify-center gap-3"><span className="login-spinner" /> {t('authenticating')}</span>
                     : authMode === 'login' ? 'Login' : 'Sign Up'
                   }
                 </button>
@@ -857,7 +869,7 @@ const Dashboard: React.FC = () => {
               <div className="w-full mt-14">
                 <div className="flex items-center gap-4 mb-8 opacity-40">
                   <div className="h-px flex-1 bg-gradient-to-r from-transparent to-white" />
-                  <span className="text-[9px] tracking-[0.2em] uppercase font-bold">External Protocol</span>
+                  <span className="text-[9px] tracking-[0.2em] uppercase font-bold">{t('external_protocol')}</span>
                   <div className="h-px flex-1 bg-gradient-to-l from-transparent to-white" />
                 </div>
 
@@ -866,8 +878,8 @@ const Dashboard: React.FC = () => {
                     <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
                       <GoogleLogin
                         onSuccess={handleGoogleSuccess}
-                        onError={() => addToast('Link Failed', 'error')}
-                        theme="filled_black"
+                        onError={() => addToast(t('link_failed'), 'error')}
+                        theme={t('filled_black')}
                         shape="rectangular"
                         width="100%"
                         use_fedcm={false}
@@ -890,9 +902,9 @@ const Dashboard: React.FC = () => {
     try {
       await api.post('/produce', { product_id: productId, quantity: qty });
       fetchData();
-      addToast("Production Logged", "success");
+      addToast(t('production_logged'), "success");
     } catch (error: any) {
-      addToast("Production Failed", "error");
+      addToast(t('production_failed'), "error");
     }
   };
 
@@ -919,7 +931,7 @@ const Dashboard: React.FC = () => {
       setLastTransaction(data);
       setCart([]);
       fetchData();
-      addToast("Sale Completed", "success");
+      addToast(t('sale_completed'), "success");
     } catch (error: any) {
       const msg = error.response?.data?.detail || "Sale Failed";
       addToast(msg, "error");
@@ -940,7 +952,7 @@ const Dashboard: React.FC = () => {
       try {
           await http.post('/update_material_prices', simPrices);
           fetchData();
-          addToast("Material Prices Updated", 'success');
+          addToast(t('material_prices_updated'), 'success');
       } catch (e) { console.error(e); }
   };
 
@@ -955,9 +967,9 @@ const Dashboard: React.FC = () => {
             try {
                 await http.post('/maintenance/reset-session');
                 fetchData();
-                addToast("Shift Closed. New Session Started.", "success");
+                addToast(t('shift_closed_new_session_start'), "success");
             } catch (e: any) {
-                addToast("Reset Failed", "error");
+                addToast(t('reset_failed'), "error");
             }
         }
     });
@@ -967,10 +979,10 @@ const Dashboard: React.FC = () => {
     try {
       if (editingMaterialName) {
         await api.put(`/materials/${editingMaterialName}`, newMaterial);
-        addToast("Ingredient Updated", "success");
+        addToast(t('ingredient_updated'), "success");
       } else {
         await api.post('/materials', newMaterial);
-        addToast(t.add_material + " Success", "success");
+        addToast(t('add_material') + " Success", "success");
       }
       setShowAddMaterial(false);
       setEditingMaterialName(null);
@@ -1051,8 +1063,8 @@ const Dashboard: React.FC = () => {
           amount: 0,
         });
         fetchData();
-        addToast("Expense Logged", "success");
-    } catch (e: any) { addToast("Failed to log expense", "error"); }
+        addToast(t('expense_logged'), "success");
+    } catch (e: any) { addToast(t('failed_to_log_expense'), "error"); }
   };
 
   const handleUpdateExpense = async () => {
@@ -1075,16 +1087,16 @@ const Dashboard: React.FC = () => {
         status: 'paid', amount_paid: 0, amount: 0,
       });
       fetchData();
-      addToast("Expense Updated", "success");
-    } catch (e: any) { addToast("Failed to update expense", "error"); }
+      addToast(t('expense_updated'), "success");
+    } catch (e: any) { addToast(t('failed_to_update_expense'), "error"); }
   };
 
   const handleDeleteExpense = async (id: number) => {
     try {
       await api.delete(`/expenses/${id}`);
       fetchData();
-      addToast("Expense Deleted", "success");
-    } catch (e: any) { addToast("Failed to delete expense", "error"); }
+      addToast(t('expense_deleted'), "success");
+    } catch (e: any) { addToast(t('failed_to_delete_expense'), "error"); }
   };
 
   const handleAdjustStock = async (item_type: 'product' | 'material', id: string, amount: number) => {
@@ -1094,7 +1106,7 @@ const Dashboard: React.FC = () => {
         fetchData();
         addToast(`${amount > 0 ? '+' : ''}${amount} Updated`, "success");
     } catch (e) {
-        addToast("Adjustment Failed", "error");
+        addToast(t('adjustment_failed'), "error");
     }
   };
 
@@ -1108,8 +1120,8 @@ const Dashboard: React.FC = () => {
             try {
                 await api.delete(`/materials/${name}`);
                 fetchData();
-                addToast("Material Deleted", "success");
-            } catch (e: any) { addToast("Failed to delete material", "error"); }
+                addToast(t('material_deleted'), "success");
+            } catch (e: any) { addToast(t('failed_to_delete_material'), "error"); }
         }
     });
   };
@@ -1132,14 +1144,14 @@ const Dashboard: React.FC = () => {
 
   const handleAddProduct = async () => {
     if (!newProduct.id.trim() || !newProduct.name.trim()) {
-      addToast("ID and Name are required", "error");
+      addToast(t('id_and_name_are_required'), "error");
       return;
     }
     try {
       let data;
       if (editingProductId) {
         data = await api.put(`/products/${editingProductId}`, newProduct);
-        addToast("Product Updated", 'success');
+        addToast(t('product_updated'), 'success');
       } else {
         data = await api.post('/products', newProduct);
         addToast(data.message || "Product Created", 'success');
@@ -1167,8 +1179,8 @@ const Dashboard: React.FC = () => {
             try {
                 await api.delete(`/products/${id}`);
                 fetchData();
-                addToast("Product Deleted", "success");
-            } catch (e: any) { addToast("Failed to delete product", "error"); }
+                addToast(t('product_deleted'), "success");
+            } catch (e: any) { addToast(t('failed_to_delete_product'), "error"); }
         }
     });
   };
@@ -1184,8 +1196,8 @@ const Dashboard: React.FC = () => {
             try {
                 await http.post('/maintenance/delete-empty-products');
                 fetchData();
-                addToast("Cleanup Complete", "success");
-            } catch (e: any) { addToast("Cleanup Failed", "error"); }
+                addToast(t('cleanup_complete'), "success");
+            } catch (e: any) { addToast(t('cleanup_failed'), "error"); }
         }
     });
   };
@@ -1195,7 +1207,7 @@ const Dashboard: React.FC = () => {
     try {
       await api.put(`/products/${productId}`, { ingredients });
       fetchData();
-    } catch (e: any) { addToast("Failed to update recipe", "error"); }
+    } catch (e: any) { addToast(t('failed_to_update_recipe'), "error"); }
   };
 
   const handleUpdateProductPrice = async (productId: string, newPrice: number) => {
@@ -1203,8 +1215,8 @@ const Dashboard: React.FC = () => {
     try {
         await api.put(`/products/${productId}`, { price: newPrice });
         fetchData();
-        addToast("Price Updated", "success");
-    } catch (e: any) { addToast("Failed to update price", "error"); }
+        addToast(t('price_updated'), "success");
+    } catch (e: any) { addToast(t('failed_to_update_price'), "error"); }
   };
 
   const handleUpdateProductField = async (productId: string, field: string, value: any) => {
@@ -1218,14 +1230,14 @@ const Dashboard: React.FC = () => {
   const handleCreatePO = async (data: { supplier_id: number, items: any[] }) => {
     // A purchase order records what you plan to buy. Stock changes later, when goods are received.
     if (!suppliers.length) {
-        addToast("Add a supplier before generating a bulk purchase order", "error");
+        addToast(t('add_a_supplier_before_generati'), "error");
         return;
     }
     try {
         await api.post('/purchase-orders', data);
         fetchData();
-        addToast("Bulk Order Generated", "success");
-    } catch (e: any) { addToast("Failed to create bulk order", "error"); }
+        addToast(t('bulk_order_generated'), "success");
+    } catch (e: any) { addToast(t('failed_to_create_bulk_order'), "error"); }
   };
 
   const handleReceivePO = async (id: string, payload?: { items: any[] }) => {
@@ -1237,8 +1249,8 @@ const Dashboard: React.FC = () => {
             await http.patch(`/purchase-orders/${id}/status?status=received`);
         }
         fetchData();
-        addToast("Goods Received & Stock Updated", "success");
-    } catch (e: any) { addToast("Failed to receive goods", "error"); }
+        addToast(t('goods_received_stock_updated'), "success");
+    } catch (e: any) { addToast(t('failed_to_receive_goods'), "error"); }
   };
 
   const handleDeletePO = async (id: string) => {
@@ -1251,8 +1263,8 @@ const Dashboard: React.FC = () => {
             try {
                 await api.delete(`/purchase-orders/${id}`);
                 fetchData();
-                addToast("Order Archived", "success");
-            } catch (e: any) { addToast("Failed to archive order", "error"); }
+                addToast(t('order_archived'), "success");
+            } catch (e: any) { addToast(t('failed_to_archive_order'), "error"); }
         }
     });
   };
@@ -1286,10 +1298,10 @@ const Dashboard: React.FC = () => {
         items: selectedPO.items
       });
       fetchData();
-      addToast("Purchase order updated", "success");
+      addToast(t('purchase_order_updated'), "success");
       setShowPOModal(false);
     } catch (e: any) {
-      addToast("Failed to update purchase order", "error");
+      addToast(t('failed_to_update_purchase_orde'), "error");
     }
   };
 
@@ -1303,7 +1315,7 @@ const Dashboard: React.FC = () => {
       }))
       .filter((item: any) => item.qty > 0);
     if (!items.length) {
-      addToast("Enter received quantities first", "error");
+      addToast(t('enter_received_quantities_firs'), "error");
       return;
     }
     await handleReceivePO(selectedPO.id, { items });
@@ -1409,9 +1421,9 @@ const Dashboard: React.FC = () => {
         await api.post('/planner', newPlan);
         
         fetchData();
-        addToast("Batch Completed", "success");
+        addToast(t('batch_completed'), "success");
     } catch (e: any) {
-        addToast("Completion Failed", "error");
+        addToast(t('completion_failed'), "error");
     }
   };
 
@@ -1445,7 +1457,7 @@ const Dashboard: React.FC = () => {
   const panelProps: DashboardSharedProps = {
     user, API_BASE: http.defaults.baseURL || '', settings,
     isDarkMode, setIsDarkMode, activeCurrency, setActiveCurrency,
-    editMode, setEditMode, t, lang, setLang,
+    editMode, setEditMode, lang, setLang,
     inventory, analytics, history, planner, orders, expenses, suppliers,
     purchaseOrders, purchasingSuggestions, selectedSupplierId, setSelectedSupplierId,
     staff, shiftLogs, alerts, profitReport, wasteRecords, customers,
@@ -1473,7 +1485,7 @@ const Dashboard: React.FC = () => {
     handlePartialReceivePO, handleDeleteStaff, handleDeleteExpense, handleDeleteSupplier,
     handleAddSupplier, handleResetSession, handleCompletePlan,
     formatPrice, displayUnit: (v, u) => `${v}${u}`, openDocument, getDownloadToken, openSelector,
-    addToast, showConfirm, fetchData, api
+    addToast, showConfirm, fetchData, fetchTabData, api
   };
 
   if (loading) return (
@@ -1486,49 +1498,62 @@ const Dashboard: React.FC = () => {
          <div className="pinwheel__line"></div>
          <div className="pinwheel__line"></div>
        </div>
-       <p className="font-bold tracking-widest uppercase text-xs">Re-engaging Luxe Logiciel...</p>
+       <p className="font-bold tracking-widest uppercase text-xs">{t('re_engaging_luxe_logiciel')}</p>
     </div>
   );
 
   return (
-    <div dir={isRTL ? 'rtl' : 'ltr'} className={`flex min-h-screen w-full overflow-x-hidden selection:bg-gold/30 transition-colors duration-500 ${isDarkMode ? 'dark bg-[#0a0a0b] text-cream' : 'light bg-[#f8f9fa] text-slate-900'} ${isRTL ? 'font-arabic' : 'font-sans'}`}>
+    <div dir={isRTL ? 'rtl' : 'ltr'} className={`flex min-h-screen w-full overflow-x-hidden selection:bg-gold/30 transition-colors duration-500 ${isDarkMode ? 'dark bg-[#0a0a0b] text-cream' : 'light bg-slate-100 text-slate-900'} ${isRTL ? 'font-arabic' : 'font-sans'}`}>
       {/* Sidebar */}
       <motion.aside 
         initial={false}
-        animate={{ width: isSidebarCollapsed ? 80 : 288 }}
-        className={`fixed h-[calc(100vh-2rem)] top-4 left-4 z-50 flex flex-col overflow-y-auto overflow-x-hidden custom-scrollbar rounded-3xl transition-all duration-500 ${isDarkMode ? 'glass-sidebar' : 'bg-white/80 backdrop-blur-2xl border border-slate-200 shadow-xl'}`}
+        animate={{ 
+          width: sidebarHoverMode ? (isSidebarHovered ? 288 : 80) : (isSidebarCollapsed ? 80 : 288),
+          opacity: sidebarHoverMode ? (isSidebarHovered ? 1 : 0.3) : 1
+        }}
+        onMouseEnter={() => sidebarHoverMode && setIsSidebarHovered(true)}
+        onMouseLeave={() => sidebarHoverMode && setIsSidebarHovered(false)}
+        className={`fixed h-[calc(100vh-2rem)] top-4 left-4 z-50 flex flex-col overflow-y-auto overflow-x-hidden rounded-3xl transition-all duration-500 ${
+          (sidebarHoverMode ? isSidebarHovered : !isSidebarCollapsed) ? 'custom-scrollbar' : 'no-scrollbar'
+        } ${
+          sidebarHoverMode
+            ? (isSidebarHovered
+                ? (isDarkMode ? 'glass-sidebar' : 'bg-white/80 backdrop-blur-2xl border border-slate-200 shadow-xl')
+                : 'bg-transparent border-transparent shadow-none backdrop-blur-none')
+            : (isDarkMode ? 'glass-sidebar' : 'bg-white/80 backdrop-blur-2xl border border-slate-200 shadow-xl')
+        }`}
       >
         <div className="p-6">
           <div className="flex items-center gap-3 mb-10">
             <div className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-lg shrink-0 ${isDarkMode ? 'bg-gold shadow-gold-glow' : 'bg-slate-900 shadow-slate-200'}`}>
               <Box className={`${isDarkMode ? 'text-charcoal' : 'text-white'} w-6 h-6`} />
             </div>
-            {!isSidebarCollapsed && (
+            {!(sidebarHoverMode ? !isSidebarHovered : isSidebarCollapsed) && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
                   <h1 className="brand-title" style={{ ['--brand-hover' as any]: '#d4af37' }}>
                     <span className={`brand-title__base text-2xl font-bold luxury-font tracking-tight ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
-                      Bakery<span className="text-gold">Os</span>
+                      {t('bakery')}<span className="text-gold">Os</span>
                     </span>
                     <span aria-hidden="true" className="brand-title__hover text-2xl font-bold luxury-font tracking-tight">
-                      Bakery<span>Os</span>
+                      {t('bakery')}<span>Os</span>
                     </span>
                   </h1>
-                  <span className="inline-flex mt-3 text-[10px] bg-gold/10 text-gold px-2 py-0.5 rounded-full font-black">BETA 0.1</span>
+                  <span className="inline-flex mt-3 text-[10px] bg-gold/10 text-gold px-2 py-0.5 rounded-full font-black">{t('beta_0_1')}</span>
               </motion.div>
             )}
           </div>
 
           <nav className="space-y-1">
             {[
-              { id: 'dashboard', icon: LayoutDashboard, label: t.dashboard },
-              { id: 'intelligence', icon: Brain, label: 'Intelligence' },
-              { id: 'pos', icon: ShoppingCart, label: t.pos },
-              { id: 'kitchen', icon: ChefHat, label: t.kitchen },
-              { id: 'inventory', icon: Package, label: t.inventory },
-              { id: 'fiche', icon: FileText, label: t.fiche },
-              { id: 'purchasing', icon: Truck, label: t.purchasing },
-              { id: 'simulator', icon: Calculator, label: t.simulator },
-              { id: 'history', icon: HistoryIcon, label: t.history },
+              { id: 'dashboard', icon: LayoutDashboard, label: t('dashboard') },
+              { id: 'intelligence', icon: Brain, label: t('intelligence') },
+              { id: 'pos', icon: ShoppingCart, label: t('pos') },
+              { id: 'kitchen', icon: ClipboardList, label: t('kitchen') },
+              { id: 'inventory', icon: Package, label: t('inventory') },
+              { id: 'fiche', icon: FileText, label: t('fiche') },
+              { id: 'purchasing', icon: Truck, label: t('purchasing') },
+              { id: 'simulator', icon: Calculator, label: t('simulator') },
+              { id: 'history', icon: HistoryIcon, label: t('history') },
               ].filter(item => {
               if (user?.role === 'cashier' && ['simulator', 'inventory', 'purchasing', 'intelligence'].includes(item.id)) return false;
               return true;
@@ -1543,10 +1568,10 @@ const Dashboard: React.FC = () => {
                     ? (isDarkMode ? 'bg-gold/10 text-gold border border-gold/20 shadow-gold-glow' : 'bg-slate-100 text-slate-900 border border-slate-200 shadow-sm') 
                     : (isDarkMode ? 'text-cream/40 hover:bg-white/5 hover:text-cream' : 'text-slate-400 hover:bg-slate-50 hover:text-slate-700')
                 }`}
-                title={isSidebarCollapsed ? item.label : ''}
+                title={(sidebarHoverMode ? !isSidebarHovered : isSidebarCollapsed) ? item.label : ''}
               >
                 <item.icon size={20} className="shrink-0" />
-                {!isSidebarCollapsed && <span className="font-semibold text-sm whitespace-nowrap">{item.label}</span>}
+                {!(sidebarHoverMode ? !isSidebarHovered : isSidebarCollapsed) && <span className="font-semibold text-sm whitespace-nowrap">{item.label}</span>}
               </button>
             ))}
 
@@ -1558,9 +1583,9 @@ const Dashboard: React.FC = () => {
                 >
                     <div className="flex items-center gap-4">
                         <Settings size={20} />
-                        {!isSidebarCollapsed && <span className="font-bold text-[10px] uppercase tracking-[0.2em]">{t.operations}</span>}
+                        {!(sidebarHoverMode ? !isSidebarHovered : isSidebarCollapsed) && <span className="font-bold text-[10px] uppercase tracking-[0.2em]">{t('operations')}</span>}
                     </div>
-                    {!isSidebarCollapsed && (
+                    {!(sidebarHoverMode ? !isSidebarHovered : isSidebarCollapsed) && (
                         <motion.div animate={{ rotate: isOperationsOpen ? 180 : 0 }}>
                             <ChevronDown size={14} />
                         </motion.div>
@@ -1568,7 +1593,7 @@ const Dashboard: React.FC = () => {
                 </button>
                 
                 <AnimatePresence>
-                    {isOperationsOpen && !isSidebarCollapsed && (
+                    {isOperationsOpen && !(sidebarHoverMode ? !isSidebarHovered : isSidebarCollapsed) && (
                         <motion.div 
                             initial={{ height: 0, opacity: 0 }}
                             animate={{ height: 'auto', opacity: 1 }}
@@ -1576,12 +1601,12 @@ const Dashboard: React.FC = () => {
                             className="overflow-hidden space-y-1 mt-1 pl-4"
                         >
                             {[
-                                { id: 'comptabilite', icon: Coins, label: t.comptabilite },
-                                { id: 'planner', icon: Calendar, label: t.planner },
-                                { id: 'orders', icon: FileText, label: t.orders },
-                                { id: 'customers', icon: Users, label: 'Customers' },
-                                { id: 'staff', icon: Users, label: t.staff },
-                                { id: 'settings', icon: Settings, label: 'Settings' },
+                                { id: 'comptabilite', icon: Coins, label: t('comptabilite') },
+                                { id: 'planner', icon: Calendar, label: t('planner') },
+                                { id: 'orders', icon: FileText, label: t('orders') },
+                                { id: 'customers', icon: Users, label: t('customers') },
+                                { id: 'staff', icon: Users, label: t('staff') },
+                                { id: 'settings', icon: Settings, label: t('settings') },
                             ].filter(sub => {
                                 if (sub.id === 'staff' && user?.role !== 'owner') return false;
                                 return true;
@@ -1608,22 +1633,24 @@ const Dashboard: React.FC = () => {
         </div>
 
         <div className="mt-auto p-6 space-y-4">
+          {!sidebarHoverMode && (
           <button 
             onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
             className={`w-full py-3 rounded-xl border flex items-center justify-center gap-2 transition-all ${isDarkMode ? 'border-white/5 bg-white/5 text-gold hover:bg-white/10' : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'}`}
           >
             {isSidebarCollapsed ? <ChevronRight size={16}/> : <ChevronLeft size={16}/>}
-            {!isSidebarCollapsed && <span className="text-[10px] font-black uppercase tracking-widest">Collapse View</span>}
+            {!isSidebarCollapsed && <span className="text-[10px] font-black uppercase tracking-widest">{t('collapse_view')}</span>}
           </button>
+          )}
 
           {/* Action & Logout Controls */}
           <div className={`mt-4 pt-4 border-t ${isDarkMode ? 'border-white/5' : 'border-slate-100'} space-y-2`}>
             <button 
               onClick={() => setShowWasteModal(true)} 
               className={`w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-xs uppercase tracking-widest border border-rose-500/20 text-rose-500 hover:bg-rose-500/10 transition-all ${isSidebarCollapsed ? 'px-0' : ''}`}
-              title="Log Daily Waste"
+              title={t('log_daily_waste')}
             >
-              {isSidebarCollapsed ? <AlertTriangle size={16}/> : 'Log Daily Waste'}
+              {(sidebarHoverMode ? !isSidebarHovered : isSidebarCollapsed) ? <AlertTriangle size={16}/> : 'Log Daily Waste'}
             </button>
             <button 
                 onClick={() => { 
@@ -1633,10 +1660,10 @@ const Dashboard: React.FC = () => {
                   setUser(null); 
                 }} 
                 className={`w-full flex items-center justify-center gap-2 py-4 rounded-xl font-bold text-xs uppercase tracking-widest bg-rose-600 hover:bg-rose-700 text-white shadow-lg transition-all ${isSidebarCollapsed ? 'px-0' : ''}`}
-                title={t.logout}
+                title={t('logout')}
             >
                 <LogOut size={16}/>
-                {!isSidebarCollapsed && t.logout}
+                {!(sidebarHoverMode ? !isSidebarHovered : isSidebarCollapsed) && t('logout')}
             </button>
           </div>
 
@@ -1645,22 +1672,22 @@ const Dashboard: React.FC = () => {
 
       {/* Main Content */}
       <motion.main 
-        animate={{ marginLeft: isSidebarCollapsed ? 112 : 320 }}
+        animate={{ marginLeft: (sidebarHoverMode || isSidebarCollapsed) ? 112 : 320 }}
         className={`flex-1 p-10 min-h-screen min-w-0 transition-colors duration-500 bg-transparent`}
       >
         <header className="flex justify-between items-end mb-12">
           <div>
             <h2 className={`text-5xl font-bold luxury-font mb-2 tracking-tighter uppercase text-gold-gradient`}>
-                {activeTab === 'dashboard' && t.dashboard}
-                {activeTab === 'pos' && t.pos}
-                {activeTab === 'inventory' && t.inventory}
-                {activeTab === 'fiche' && t.fiche}
-                {activeTab === 'simulator' && t.simulator}
-                {activeTab === 'history' && t.history}
-                {activeTab === 'planner' && t.planner}
-                {activeTab === 'comptabilite' && t.comptabilite}
-                {activeTab === 'purchasing' && t.purchasing}
-                {activeTab === 'kitchen' && t.kitchen}
+                {activeTab === 'dashboard' && t('dashboard')}
+                {activeTab === 'pos' && t('pos')}
+                {activeTab === 'inventory' && t('inventory')}
+                {activeTab === 'fiche' && t('fiche')}
+                {activeTab === 'simulator' && t('simulator')}
+                {activeTab === 'history' && t('history')}
+                {activeTab === 'planner' && t('planner')}
+                {activeTab === 'comptabilite' && t('comptabilite')}
+                {activeTab === 'purchasing' && t('purchasing')}
+                {activeTab === 'kitchen' && t('kitchen')}
             </h2>
             <div className="luxury-accent-bar mb-6" />
             <div className="flex flex-wrap items-center gap-2">
@@ -1681,9 +1708,9 @@ const Dashboard: React.FC = () => {
           <div className="flex gap-4">
             <div className={`px-4 py-2 flex items-center gap-3 rounded-2xl ${isDarkMode ? 'glass-panel' : 'border border-slate-200 bg-white shadow-sm'}`}>
               <div className="text-right">
-                <p className={`text-[10px] uppercase tracking-widest font-black ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>{isOnline ? t.online : t.offline}</p>
+                <p className={`text-[10px] uppercase tracking-widest font-black ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>{isOnline ? t('online') : t('offline')}</p>
                 <p className={`text-xs font-bold ${isOnline ? 'text-emerald-500' : 'text-rose-500'}`}>
-                  {isOnline ? t.sync_active : t.offline_mode}
+                  {isOnline ? t('sync_active') : t('offline_mode')}
                 </p>
               </div>
               <div className={`w-3 h-3 rounded-full ${isOnline ? 'bg-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.8)]' : 'bg-rose-500 shadow-[0_0_15px_rgba(244,63,94,0.8)] animate-pulse'}`} />
@@ -1697,7 +1724,7 @@ const Dashboard: React.FC = () => {
                 localStorage.setItem('bakery_theme', newTheme ? 'dark' : 'light');
               }} 
               className={`p-3 rounded-2xl border transition-all flex items-center justify-center ${isDarkMode ? 'glass-panel hover:bg-white/5 border-gold/10 text-gold' : 'border-slate-200 bg-white shadow-sm text-slate-600 hover:bg-slate-50'}`}
-              title="Toggle Theme"
+              title={t('toggle_theme')}
             >
               {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
             </button>
@@ -1726,13 +1753,13 @@ const Dashboard: React.FC = () => {
                     className={`absolute right-0 mt-4 w-80 rounded-3xl border shadow-2xl z-[150] overflow-hidden ${isDarkMode ? 'bg-[#0a0a0b] border-white/10' : 'bg-white border-slate-200'}`}
                   >
                     <div className={`p-6 border-b ${isDarkMode ? 'border-white/5' : 'border-slate-100'}`}>
-                      <h4 className={`text-xs font-black uppercase tracking-widest ${isDarkMode ? 'text-gold' : 'text-slate-900'}`}>Live Alerts</h4>
+                      <h4 className={`text-xs font-black uppercase tracking-widest ${isDarkMode ? 'text-gold' : 'text-slate-900'}`}>{t('live_alerts')}</h4>
                     </div>
                     <div className="max-h-[400px] overflow-y-auto custom-scrollbar">
                       {alerts.length === 0 ? (
                         <div className="p-10 text-center">
                           <CheckCircle className="mx-auto mb-4 opacity-20" size={32} />
-                          <p className={`text-[10px] font-bold uppercase tracking-widest ${isDarkMode ? 'text-cream/30' : 'text-slate-400'}`}>System clear</p>
+                          <p className={`text-[10px] font-bold uppercase tracking-widest ${isDarkMode ? 'text-cream/30' : 'text-slate-400'}`}>{t('system_clear')}</p>
                         </div>
                       ) : (
                         <div className="divide-y divide-white/5">
@@ -1760,10 +1787,10 @@ const Dashboard: React.FC = () => {
             {user?.role === 'owner' && (
               <div className={`px-4 py-2 flex items-start gap-4 rounded-2xl ${isDarkMode ? 'glass-panel shadow-gold-glow border-gold/20' : 'border border-slate-200 bg-white shadow-sm'}`}>
                 <div className="text-right">
-                  <p className={`text-[10px] uppercase tracking-widest font-black ${isDarkMode ? 'text-gold' : 'text-slate-500'}`}>Master Control</p>
+                  <p className={`text-[10px] uppercase tracking-widest font-black ${isDarkMode ? 'text-gold' : 'text-slate-500'}`}>{t('master_control')}</p>
                   {editMode && (
                     <p className={`text-xs font-bold ${isDarkMode ? 'text-gold' : 'text-slate-500'}`}>
-                      Active
+                      {t('active')}
                     </p>
                   )}
                 </div>
@@ -1819,7 +1846,7 @@ const Dashboard: React.FC = () => {
 
             <div className={`px-3 py-1.5 flex items-center gap-3 border rounded-xl ${isDarkMode ? 'border-gold/10 bg-black/20' : 'border-slate-200 bg-white shadow-sm'}`}>
               <div className="text-right">
-                <p className={`text-[10px] uppercase tracking-widest font-black ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>{t.profit}</p>
+                <p className={`text-[10px] uppercase tracking-widest font-black ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>{t('profit')}</p>
                 <p className={`text-xl font-bold ${isDarkMode ? 'text-gold' : 'text-slate-900'}`}>{formatPrice(analytics.today_revenue - analytics.today_cost)}</p>
               </div>
               <div className={`p-2 rounded-lg ${isDarkMode ? 'bg-gold/10 text-gold' : 'bg-slate-100 text-slate-900'}`}><TrendingUp size={20} /></div>
@@ -1827,7 +1854,7 @@ const Dashboard: React.FC = () => {
           </div>
         </header>
 
-        <AnimatePresence mode="wait">
+        <AnimatePresence mode={t('wait')}>
           <motion.div
             key={activeTab}
             initial={{ opacity: 0, y: 10 }}
@@ -1861,7 +1888,7 @@ const Dashboard: React.FC = () => {
               {activeTab === 'purchasing' && <PurchasingPanel {...panelProps} />}
               {activeTab === 'comptabilite' && <FinancePanel {...panelProps} />}
               {activeTab === 'staff' && <StaffPanel {...panelProps} />}
-              {activeTab === 'settings' && <SettingsPanel {...panelProps} />}
+              {activeTab === 'settings' && <SettingsPanel {...panelProps} sidebarHoverMode={sidebarHoverMode} setSidebarHoverMode={setSidebarHoverMode} />}
               {activeTab === 'customers' && <CustomersPanel {...panelProps} showConfirm={showConfirm} />}
             </React.Suspense>
           </motion.div>
@@ -1876,25 +1903,25 @@ const Dashboard: React.FC = () => {
                 className="w-full max-w-md p-10 luxury-panel"
             >
                 <div className="flex justify-between items-center mb-10">
-                    <h3 className={`text-2xl font-bold luxury-font uppercase tracking-tighter ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Waste Log</h3>
+                    <h3 className={`text-2xl font-bold luxury-font uppercase tracking-tighter ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{t('waste_log')}</h3>
                     <button onClick={() => setShowWasteModal(false)} className="text-white/20 hover:text-white"><X size={24}/></button>
                 </div>
 
                 <div className="space-y-8">
                     <div>
-                        <label className="text-[10px] font-black uppercase tracking-widest text-gold mb-3 block">Product Entity</label>
+                        <label className="text-[10px] font-black uppercase tracking-widest text-gold mb-3 block">{t('product_entity')}</label>
                         <select 
                             value={wasteForm.product_id}
                             onChange={(e) => setWasteForm({...wasteForm, product_id: e.target.value})}
                             className={`w-full p-5 rounded-2xl border outline-none font-bold text-sm ${isDarkMode ? 'bg-white/5 border-white/10 text-cream focus:border-gold/40' : 'bg-slate-50 border-slate-200 text-slate-900'}`}
                         >
-                            <option value="" className={isDarkMode ? 'bg-[#0a0a0b] text-gold' : ''}>Select product...</option>
+                            <option value="" className={isDarkMode ? 'bg-[#0a0a0b] text-gold' : ''}>{t('select_product')}</option>
                             {inventory.products.map(p => <option key={p.id} value={p.id} className={isDarkMode ? 'bg-[#0a0a0b] text-gold' : ''}>{p.name}</option>)}
                         </select>
                     </div>
 
                     <div>
-                        <label className="text-[10px] font-black uppercase tracking-widest text-gold mb-3 block">Unsold Quantity</label>
+                        <label className="text-[10px] font-black uppercase tracking-widest text-gold mb-3 block">{t('unsold_quantity')}</label>
                         <div className="flex items-center gap-4">
                             <input 
                                 type="number" 
@@ -1902,7 +1929,7 @@ const Dashboard: React.FC = () => {
                                 onChange={(e) => setWasteForm({...wasteForm, quantity: parseInt(e.target.value)})}
                                 className={`flex-1 p-5 rounded-2xl border outline-none font-bold text-2xl ${isDarkMode ? 'bg-white/5 border-white/10 text-cream focus:border-gold/40' : 'bg-slate-50 border-slate-200 text-slate-900'}`}
                             />
-                            <span className="font-bold opacity-40">Units</span>
+                            <span className="font-bold opacity-40">{t('units')}</span>
                         </div>
                     </div>
 
@@ -1913,15 +1940,15 @@ const Dashboard: React.FC = () => {
                                 await api.post('/waste', wasteForm);
                                 setShowWasteModal(false);
                                 fetchData();
-                                addToast("Waste Logged", "success");
-                            } catch (e: any) { addToast("Log failed", "error"); }
+                                addToast(t('waste_logged'), "success");
+                            } catch (e: any) { addToast(t('log_failed'), "error"); }
                         }}
                         className={`w-full py-6 rounded-2xl font-black text-xs uppercase tracking-widest transition-all ${isDarkMode ? 'bg-rose-500 text-white shadow-lg' : 'bg-slate-900 text-white'}`}
                     >
 
-                        Confirm Loss
+                        {t('confirm_loss')}
                     </button>
-                    <p className="text-[10px] text-center opacity-40 font-bold uppercase tracking-widest">This will deduct stock and adjust Net ROI</p>
+                    <p className="text-[10px] text-center opacity-40 font-bold uppercase tracking-widest">{t('waste_deduct_notice')}</p>
                 </div>
             </motion.div>
         </div>
@@ -1936,23 +1963,23 @@ const Dashboard: React.FC = () => {
                 className="w-full max-w-md p-10 luxury-panel"
             >
                 <div className="flex justify-between items-start mb-10">
-                    <h3 className={`text-2xl font-bold luxury-font uppercase tracking-tighter ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{t.add_staff}</h3>
+                    <h3 className={`text-2xl font-bold luxury-font uppercase tracking-tighter ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{t('add_staff')}</h3>
                     <button onClick={() => setShowAddStaff(false)} className="p-4 rounded-full bg-white/5 hover:bg-white/10 transition-colors"><X size={24}/></button>
                 </div>
 
                 <div className="space-y-8">
                     <div>
-                        <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">{t.username}</label>
+                        <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">{t('username')}</label>
                         <input 
                             value={newStaff.username} 
                             onChange={(e) => setNewStaff({...newStaff, username: e.target.value})}
-                            placeholder="e.g. staff_name"
+                            placeholder={t('e_g_staff_name')}
                             className={`w-full bg-transparent border-b text-lg font-bold py-4 outline-none ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`}
                         />
                     </div>
 
                     <div>
-                        <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">{t.password}</label>
+                        <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">{t('password')}</label>
                         <input 
                             type="password"
                             value={newStaff.password} 
@@ -1966,7 +1993,7 @@ const Dashboard: React.FC = () => {
                         onClick={handleAddStaff}
                         className={`w-full py-6 rounded-[2rem] font-black text-xs uppercase tracking-[0.2em] transition-all ${isDarkMode ? 'bg-gold text-charcoal shadow-gold-glow hover:scale-105' : 'bg-slate-900 text-white shadow-xl'}`}
                     >
-                        Create Cashier Account
+                        {t('create_cashier_account')}
                     </button>
                 </div>
             </motion.div>
@@ -1989,7 +2016,7 @@ const Dashboard: React.FC = () => {
                 <div className="space-y-6">
                     {/* Category Selection */}
                     <div>
-                        <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-3">Expense Category</label>
+                        <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-3">{t('expense_category')}</label>
                         <div className="grid grid-cols-3 gap-2">
                             {['salary', 'rent', 'electricity', 'water', 'internet', 'raw_materials', 'other'].map(cat => (
                                 <button 
@@ -2008,13 +2035,13 @@ const Dashboard: React.FC = () => {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                             <div className="flex justify-between items-center mb-2">
-                                <label className="text-[10px] font-black uppercase tracking-widest text-gold">Supplier</label>
+                                <label className="text-[10px] font-black uppercase tracking-widest text-gold">{t('supplier')}</label>
                                 <button 
                                     type="button"
                                     onClick={() => setShowAddSupplier(true)}
                                     className="text-[9px] font-black uppercase tracking-widest text-gold bg-gold/10 px-2 py-0.5 rounded hover:bg-gold/20"
                                 >
-                                    + New
+                                    {t('new')}
                                 </button>
                             </div>
                             <select 
@@ -2022,16 +2049,16 @@ const Dashboard: React.FC = () => {
                                 onChange={e => updateExpenseCalculations({ supplier_id: e.target.value ? parseInt(e.target.value) : null })}
                                 className={`w-full bg-[#0d0d0f] border-b py-3 px-2 outline-none font-bold text-sm rounded ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`}
                             >
-                                <option value="">No Supplier</option>
+                                <option value="">{t('no_supplier')}</option>
                                 {suppliers.map((supp: any) => (
                                     <option key={supp.id} value={supp.id}>{supp.name}</option>
                                 ))}
                             </select>
                         </div>
                         <div>
-                            <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">Invoice Reference</label>
+                            <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">{t('invoice_reference')}</label>
                             <input 
-                                placeholder="e.g. FACT-2026-042"
+                                placeholder={t('e_g_fact_2026_042')}
                                 value={newExpense.invoice_ref} 
                                 onChange={(e) => updateExpenseCalculations({ invoice_ref: e.target.value })}
                                 className={`w-full bg-transparent border-b text-sm py-3 outline-none ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`}
@@ -2042,7 +2069,7 @@ const Dashboard: React.FC = () => {
                     {/* Accounting & Tax Engine */}
                     <div className="p-4 rounded-2xl bg-white/5 border border-white/5 space-y-4">
                         <div className="flex justify-between items-center border-b border-white/5 pb-2">
-                            <span className="text-[10px] font-black uppercase tracking-widest text-gold">Accounting Engine</span>
+                            <span className="text-[10px] font-black uppercase tracking-widest text-gold">{t('accounting_engine')}</span>
                             {/* Input Mode Toggle */}
                             <div className="flex gap-2 bg-white/5 p-0.5 rounded-full border border-white/10">
                                 <button
@@ -2084,17 +2111,17 @@ const Dashboard: React.FC = () => {
                                 />
                             </div>
                             <div>
-                                <label className="text-[9px] font-black uppercase tracking-widest text-cream/40 block mb-1">TVA Rate</label>
+                                <label className="text-[9px] font-black uppercase tracking-widest text-cream/40 block mb-1">{t('tva_rate')}</label>
                                 <select 
                                     value={newExpense.tva_rate} 
                                     onChange={(e) => updateExpenseCalculations({ tva_rate: parseFloat(e.target.value) })}
                                     className={`w-full bg-[#0d0d0f] border-b py-2 px-1 outline-none font-bold text-sm rounded ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`}
                                 >
-                                    <option value="0">0% (Exempt / Wages)</option>
-                                    <option value="7">7% (Water/Electricity)</option>
-                                    <option value="10">10% (Banking/Fees)</option>
-                                    <option value="14">14% (Electricity/Transport)</option>
-                                    <option value="20">20% (Raw Materials/COGS)</option>
+                                    <option value="0">{t('0_exempt_wages')}</option>
+                                    <option value="7">{t('7_water_electricity')}</option>
+                                    <option value="10">{t('10_banking_fees')}</option>
+                                    <option value="14">{t('14_electricity_transport')}</option>
+                                    <option value="20">{t('20_raw_materials_cogs')}</option>
                                 </select>
                             </div>
                         </div>
@@ -2108,7 +2135,7 @@ const Dashboard: React.FC = () => {
                                     onChange={(e) => updateExpenseCalculations({ is_tva_deductible: e.target.checked })}
                                     className="rounded border-white/10 bg-transparent text-gold focus:ring-gold"
                                 />
-                                <span className="text-[10px] font-black uppercase tracking-widest text-cream/60">TVA Deductible</span>
+                                <span className="text-[10px] font-black uppercase tracking-widest text-cream/60">{t('tva_deductible')}</span>
                             </label>
                             <div className="text-right">
                                 <div className="text-[10px] text-gold font-bold">
@@ -2123,18 +2150,18 @@ const Dashboard: React.FC = () => {
 
                     {/* Treasury / Payments Engine */}
                     <div className="p-4 rounded-2xl bg-white/5 border border-white/5 space-y-4">
-                        <span className="text-[10px] font-black uppercase tracking-widest text-gold block border-b border-white/5 pb-2">Treasury Engine</span>
+                        <span className="text-[10px] font-black uppercase tracking-widest text-gold block border-b border-white/5 pb-2">{t('treasury_engine')}</span>
                         <div className="grid grid-cols-2 gap-4">
                             <div>
-                                <label className="text-[9px] font-black uppercase tracking-widest text-cream/40 block mb-1">Payment Status</label>
+                                <label className="text-[9px] font-black uppercase tracking-widest text-cream/40 block mb-1">{t('payment_status')}</label>
                                 <select 
                                     value={newExpense.status} 
                                     onChange={(e) => updateExpenseCalculations({ status: e.target.value as any })}
                                     className={`w-full bg-[#0d0d0f] border-b py-2 px-1 outline-none font-bold text-sm rounded ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`}
                                 >
-                                    <option value="paid">Paid (Fully)</option>
-                                    <option value="partial">Partially Paid</option>
-                                    <option value="pending">Pending (Unpaid)</option>
+                                    <option value="paid">{t('paid_fully')}</option>
+                                    <option value="partial">{t('partially_paid')}</option>
+                                    <option value="pending">{t('pending_unpaid')}</option>
                                 </select>
                             </div>
                             {newExpense.status !== 'pending' && (
@@ -2159,11 +2186,11 @@ const Dashboard: React.FC = () => {
                     </div>
 
                     <div>
-                        <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">Description / Note</label>
+                        <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">{t('description_note')}</label>
                         <input 
                             value={newExpense.description} 
                             onChange={(e) => updateExpenseCalculations({ description: e.target.value })}
-                            placeholder="e.g. Electricity bill for March"
+                            placeholder={t('e_g_electricity_bill_for_march')}
                             className={`w-full bg-transparent border-b text-sm py-2 outline-none ${isDarkMode ? 'border-white/10 text-cream/60' : 'border-slate-200 text-slate-600'}`}
                         />
                     </div>
@@ -2193,9 +2220,9 @@ const Dashboard: React.FC = () => {
                         <div>
                             <h2 className="text-4xl font-bold luxury-font tracking-tight mb-2">{selectedProduct.name}</h2>
                             <div className="flex gap-4">
-                                <span className="text-[10px] font-black uppercase tracking-widest text-gold bg-gold/10 px-3 py-1 rounded-full">Protocol v1.0</span>
+                                <span className="text-[10px] font-black uppercase tracking-widest text-gold bg-gold/10 px-3 py-1 rounded-full">{t('protocol_v1_0')}</span>
                                 <div className="flex items-center gap-2">
-                                    <label className="text-[10px] font-black uppercase tracking-widest text-cream/40">Target Yield:</label>
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-cream/40">{t('target_yield')}</label>
                                     <input 
                                         type="number" 
                                         value={targetYield}
@@ -2214,7 +2241,7 @@ const Dashboard: React.FC = () => {
                 <div className="flex-1 overflow-y-auto p-10 grid grid-cols-1 md:grid-cols-3 gap-12 custom-scrollbar">
                     {/* Left: Ingredients */}
                     <div>
-                        <h3 className="text-xs font-black uppercase tracking-[0.3em] text-gold mb-8 opacity-40">Composition</h3>
+                        <h3 className="text-xs font-black uppercase tracking-[0.3em] text-gold mb-8 opacity-40">{t('composition')}</h3>
                         <div className="space-y-6">
                             {selectedProduct.ingredients.map((ing, i) => {
                                 const scaleMultiplier = (targetYield || 1) / (selectedProduct.yield_qty || 1);
@@ -2239,17 +2266,17 @@ const Dashboard: React.FC = () => {
                     <div className="md:col-span-2 space-y-10">
                         <div className="grid grid-cols-2 gap-8">
                             <div className="p-6 rounded-3xl bg-white/5 border border-white/5">
-                                <p className="text-[10px] font-black uppercase tracking-widest opacity-40 mb-2">Preparation Time</p>
-                                <p className="text-2xl font-bold">{selectedProduct.prep_time} <span className="text-xs opacity-40">minutes</span></p>
+                                <p className="text-[10px] font-black uppercase tracking-widest opacity-40 mb-2">{t('preparation_time')}</p>
+                                <p className="text-2xl font-bold">{selectedProduct.prep_time} <span className="text-xs opacity-40">{t('minutes')}</span></p>
                             </div>
                             <div className="p-6 rounded-3xl bg-white/5 border border-white/5">
-                                <p className="text-[10px] font-black uppercase tracking-widest opacity-40 mb-2">Cooking Time</p>
-                                <p className="text-2xl font-bold">{selectedProduct.cook_time} <span className="text-xs opacity-40">minutes</span></p>
+                                <p className="text-[10px] font-black uppercase tracking-widest opacity-40 mb-2">{t('cooking_time')}</p>
+                                <p className="text-2xl font-bold">{selectedProduct.cook_time} <span className="text-xs opacity-40">{t('minutes')}</span></p>
                             </div>
                         </div>
 
                         <div>
-                            <h3 className="text-xs font-black uppercase tracking-[0.3em] text-gold mb-8 opacity-40">Methodology</h3>
+                            <h3 className="text-xs font-black uppercase tracking-[0.3em] text-gold mb-8 opacity-40">{t('methodology')}</h3>
                             <div className="space-y-8">
                                 {selectedProduct.instructions && selectedProduct.instructions.length > 0 ? (
                                     selectedProduct.instructions.map((step, i) => (
@@ -2261,7 +2288,7 @@ const Dashboard: React.FC = () => {
                                 ) : (
                                     <div className="py-12 border-2 border-dashed border-white/5 rounded-[2.5rem] flex flex-col items-center justify-center opacity-20">
                                         <FileText size={48} className="mb-4" />
-                                        <p className="font-black text-xs uppercase tracking-widest">No Protocol Defined</p>
+                                        <p className="font-black text-xs uppercase tracking-widest">{t('no_protocol_defined')}</p>
                                     </div>
                                 )}
                             </div>
@@ -2270,7 +2297,7 @@ const Dashboard: React.FC = () => {
                 </div>
 
                 <div className="p-8 bg-white/5 flex justify-center border-t border-white/5">
-                    <p className="text-[10px] font-black uppercase tracking-[0.5em] opacity-20">BakeryOS Executive Protocol | Highly Confidential</p>
+                    <p className="text-[10px] font-black uppercase tracking-[0.5em] opacity-20">{t('bakeryos_executive_protocol_hi')}</p>
                 </div>
             </motion.div>
         </div>
@@ -2289,11 +2316,11 @@ const Dashboard: React.FC = () => {
                     <div className="space-y-6">
                         {!editingProductId ? (
                           <div className={`p-6 rounded-2xl border ${isDarkMode ? 'bg-white/5 border-white/10' : 'bg-slate-50 border-slate-200'}`}>
-                              <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-4">Search Online Catalogue</label>
+                              <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-4">{t('search_online_catalogue')}</label>
                               <div className="flex gap-2 mb-4">
                                   <input 
                                       type="text" 
-                                      placeholder="Search recipes..." 
+                                      placeholder={t('search_recipes')} 
                                       value={recipeSearchQuery}
                                       onChange={(e) => setRecipeSearchQuery(e.target.value)}
                                       onKeyDown={(e) => e.key === 'Enter' && handleSearchRecipes()}
@@ -2313,7 +2340,7 @@ const Dashboard: React.FC = () => {
                                         <div className="pinwheel__line"></div>
                                         <div className="pinwheel__line"></div>
                                       </div>
-                                      <div className="text-xs font-black uppercase tracking-widest">Querying Global Matrix...</div>
+                                      <div className="text-xs font-black uppercase tracking-widest">{t('querying_global_matrix')}</div>
                                     </div>
                                   )}
                                   {recipeSearchResults.map(recipe => (
@@ -2330,7 +2357,7 @@ const Dashboard: React.FC = () => {
                           </div>
                         ) : (
                           <div className={`p-6 rounded-2xl border flex flex-col items-center justify-center h-full opacity-40 ${isDarkMode ? 'bg-white/5 border-white/10' : 'bg-slate-50 border-slate-200'}`}>
-                             <p className="text-[10px] font-black uppercase tracking-widest text-center">Entity Locked<br/><span className="text-[8px]">ID cannot be changed after registration</span></p>
+                             <p className="text-[10px] font-black uppercase tracking-widest text-center">{t('entity_locked')}<br/><span className="text-[8px]">{t('id_cannot_change')}</span></p>
                           </div>
                         )}
                     </div>
@@ -2339,20 +2366,20 @@ const Dashboard: React.FC = () => {
                     <div className="space-y-6">
                         <div className="space-y-4">
                             <div>
-                                <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-1">Identifier</label>
-                                <input type="text" placeholder="e.g. p4" value={newProduct.id} readOnly={!!editingProductId} onChange={(e)=>setNewProduct({...newProduct, id: e.target.value})} className={`w-full bg-transparent border-b py-2 outline-none font-bold ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'} ${editingProductId ? 'opacity-40' : ''}`} />
+                                <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-1">{t('identifier')}</label>
+                                <input type="text" placeholder={t('e_g_p4')} value={newProduct.id} readOnly={!!editingProductId} onChange={(e)=>setNewProduct({...newProduct, id: e.target.value})} className={`w-full bg-transparent border-b py-2 outline-none font-bold ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'} ${editingProductId ? 'opacity-40' : ''}`} />
                             </div>
                             <div>
-                                <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-1">Display Name</label>
-                                <input type="text" placeholder="e.g. Baguette" value={newProduct.name} onChange={(e)=>setNewProduct({...newProduct, name: e.target.value})} className={`w-full bg-transparent border-b py-2 outline-none font-bold ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`} />
+                                <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-1">{t('display_name')}</label>
+                                <input type="text" placeholder={t('e_g_baguette')} value={newProduct.name} onChange={(e)=>setNewProduct({...newProduct, name: e.target.value})} className={`w-full bg-transparent border-b py-2 outline-none font-bold ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`} />
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-1">Price (MAD)</label>
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-1">{t('price_mad')}</label>
                                     <input type="number" value={newProduct.price} onChange={(e)=>setNewProduct({...newProduct, price: parseFloat(e.target.value) || 0})} className={`w-full bg-transparent border-b py-2 outline-none font-bold ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`} />
                                 </div>
                                 <div>
-                                    <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-1">Icon</label>
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-1">{t('icon')}</label>
                                     <div className="relative">
                                         <input
                                             type="text"
@@ -2360,7 +2387,7 @@ const Dashboard: React.FC = () => {
                                             onChange={(e)=>setNewProduct({...newProduct, icon: e.target.value})}
                                             className={`w-full bg-transparent border-b py-2 pr-10 outline-none font-bold ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`}
                                             placeholder="🥐"
-                                            autoComplete="off"
+                                            autoComplete={t('off')}
                                         />
                                         <button
                                             type="button"
@@ -2406,15 +2433,15 @@ const Dashboard: React.FC = () => {
                             
                             <div className="grid grid-cols-3 gap-4">
                                 <div>
-                                    <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-1">Prep (min)</label>
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-1">{t('prep_min')}</label>
                                     <input type="number" value={newProduct.prep_time} onChange={(e)=>setNewProduct({...newProduct, prep_time: parseInt(e.target.value) || 0})} className={`w-full bg-transparent border-b py-2 outline-none font-bold ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`} />
                                 </div>
                                 <div>
-                                    <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-1">Cook (min)</label>
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-1">{t('cook_min')}</label>
                                     <input type="number" value={newProduct.cook_time} onChange={(e)=>setNewProduct({...newProduct, cook_time: parseInt(e.target.value) || 0})} className={`w-full bg-transparent border-b py-2 outline-none font-bold ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`} />
                                 </div>
                                 <div>
-                                    <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-1">Yield (qty)</label>
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-1">{t('yield_qty')}</label>
                                     <input type="number" value={newProduct.yield_qty} onChange={(e)=>setNewProduct({...newProduct, yield_qty: parseInt(e.target.value) || 1})} className={`w-full bg-transparent border-b py-2 outline-none font-bold ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`} />
                                 </div>
                             </div>
@@ -2441,7 +2468,7 @@ const Dashboard: React.FC = () => {
                                         onClick={() => setNewProduct({...newProduct, instructions: [...newProduct.instructions, ""]})}
                                         className="w-full py-2 border border-dashed border-white/10 rounded-lg text-[10px] font-black uppercase tracking-widest opacity-40 hover:opacity-100 hover:border-gold/40 transition-all"
                                     >
-                                        + Add Instruction Step
+                                        {t('add_instruction_step')}
                                     </button>
                                 </div>
                             </div>
@@ -2472,26 +2499,26 @@ const Dashboard: React.FC = () => {
       {showAddMaterial && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
             <div className={`w-full max-w-md p-8 rounded-[2.5rem] border shadow-2xl ${isDarkMode ? 'bg-[#121214] border-white/10' : 'bg-white border-slate-200'}`}>
-                <h3 className={`text-2xl font-bold luxury-font mb-8 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>New Ingredient</h3>
+                <h3 className={`text-2xl font-bold luxury-font mb-8 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{t('new_ingredient')}</h3>
                 <div className="space-y-6">
                     <div>
-                        <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">Ingredient Name</label>
-                        <input type="text" placeholder="e.g. Milk" value={newMaterial.name} onChange={(e)=>setNewMaterial({...newMaterial, name: e.target.value})} className={`w-full bg-transparent border-b py-2 outline-none font-bold ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`} />
+                        <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">{t('ingredient_name')}</label>
+                        <input type="text" placeholder={t('e_g_milk')} value={newMaterial.name} onChange={(e)=>setNewMaterial({...newMaterial, name: e.target.value})} className={`w-full bg-transparent border-b py-2 outline-none font-bold ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`} />
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                         <div>
-                            <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">Base Unit</label>
+                            <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">{t('base_unit')}</label>
                             <select value={newMaterial.unit} onChange={(e)=>setNewMaterial({...newMaterial, unit: e.target.value})} className={`w-full bg-transparent border-b py-2 outline-none font-bold ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`}>
-                                <option value="g" className={isDarkMode ? 'bg-[#0a0a0b] text-gold' : ''}>Grams (g)</option>
-                                <option value="kg" className={isDarkMode ? 'bg-[#0a0a0b] text-gold' : ''}>Kilograms (kg)</option>
-                                <option value="ml" className={isDarkMode ? 'bg-[#0a0a0b] text-gold' : ''}>Milliliters (ml)</option>
-                                <option value="L" className={isDarkMode ? 'bg-[#0a0a0b] text-gold' : ''}>Liters (L)</option>
-                                <option value="unit" className={isDarkMode ? 'bg-[#0a0a0b] text-gold' : ''}>Unit</option>
+                                <option value="g" className={isDarkMode ? 'bg-[#0a0a0b] text-gold' : ''}>{t('grams_g')}</option>
+                                <option value="kg" className={isDarkMode ? 'bg-[#0a0a0b] text-gold' : ''}>{t('kilograms_kg')}</option>
+                                <option value="ml" className={isDarkMode ? 'bg-[#0a0a0b] text-gold' : ''}>{t('milliliters_ml')}</option>
+                                <option value="L" className={isDarkMode ? 'bg-[#0a0a0b] text-gold' : ''}>{t('liters_l')}</option>
+                                <option value="unit" className={isDarkMode ? 'bg-[#0a0a0b] text-gold' : ''}>{t('unit')}</option>
                             </select>
                         </div>
                         <div>
                             <div className="flex justify-between items-center mb-2">
-                                <label className="text-[10px] font-black uppercase tracking-widest text-gold block">Unit Price</label>
+                                <label className="text-[10px] font-black uppercase tracking-widest text-gold block">{t('unit_price')}</label>
                                 {['g', 'ml'].includes(newMaterial.unit) && (
                                     <button 
                                         onClick={() => {
@@ -2508,12 +2535,12 @@ const Dashboard: React.FC = () => {
                         </div>
                     </div>
                     <div>
-                        <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">Min. Threshold</label>
+                        <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">{t('min_threshold')}</label>
                         <input type="number" value={newMaterial.min_threshold} onChange={(e)=>setNewMaterial({...newMaterial, min_threshold: parseFloat(e.target.value)})} className={`w-full bg-transparent border-b py-2 outline-none font-bold ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`} />
                     </div>
                     <div className="flex gap-3 pt-6">
-                        <button onClick={() => setShowAddMaterial(false)} className={`flex-1 py-4 rounded-xl font-bold text-[10px] uppercase tracking-widest ${isDarkMode ? 'bg-white/5 text-white' : 'bg-slate-100 text-slate-900'}`}>Cancel</button>
-                        <button onClick={handleAddMaterial} className="flex-1 py-4 rounded-xl font-black text-[10px] uppercase tracking-widest bg-gold text-charcoal shadow-gold-glow">Register</button>
+                        <button onClick={() => setShowAddMaterial(false)} className={`flex-1 py-4 rounded-xl font-bold text-[10px] uppercase tracking-widest ${isDarkMode ? 'bg-white/5 text-white' : 'bg-slate-100 text-slate-900'}`}>{t('cancel')}</button>
+                        <button onClick={handleAddMaterial} className="flex-1 py-4 rounded-xl font-black text-[10px] uppercase tracking-widest bg-gold text-charcoal shadow-gold-glow">{t('register')}</button>
                     </div>
                 </div>
             </div>
@@ -2532,7 +2559,7 @@ const Dashboard: React.FC = () => {
                     <div className="w-20 h-20 bg-gold/10 rounded-full flex items-center justify-center mx-auto mb-6 text-gold">
                         <Zap size={40} fill="currentColor" />
                     </div>
-                    <h3 className={`text-2xl font-bold luxury-font uppercase tracking-tighter ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Digital Receipt</h3>
+                    <h3 className={`text-2xl font-bold luxury-font uppercase tracking-tighter ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{t('digital_receipt')}</h3>
                     <p className="text-[10px] font-black uppercase tracking-widest opacity-40 mt-2">Transaction {lastTransaction.transaction_id}</p>
                 </div>
 
@@ -2546,7 +2573,7 @@ const Dashboard: React.FC = () => {
                 </div>
 
                 <div className="space-y-4">
-                    <p className="text-center text-[10px] font-bold uppercase tracking-[0.2em] opacity-40 mb-8">Scan to open thermal ticket</p>
+                    <p className="text-center text-[10px] font-bold uppercase tracking-[0.2em] opacity-40 mb-8">{t('scan_to_open')}</p>
                     
                     <div className="grid grid-cols-2 gap-4">
                         <button 
@@ -2556,7 +2583,7 @@ const Dashboard: React.FC = () => {
                            }}
                             className={`py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest border transition-all ${isDarkMode ? 'border-white/10 text-white hover:bg-white/5' : 'border-slate-200 text-slate-900'}`}
                         >
-                            Print Ticket
+                            {t('print_ticket')}
                         </button>
                         <button 
                             onClick={() => {
@@ -2572,7 +2599,7 @@ const Dashboard: React.FC = () => {
                             }}
                             className="py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest bg-emerald-500 text-white shadow-lg shadow-emerald-500/20"
                         >
-                            WhatsApp
+                            {t('whatsapp')}
                         </button>
 
                     </div>
@@ -2581,7 +2608,7 @@ const Dashboard: React.FC = () => {
                         onClick={() => setShowReceiptModal(false)}
                         className={`w-full py-5 rounded-2xl font-black text-xs uppercase tracking-widest mt-4 transition-all ${isDarkMode ? 'bg-gold text-charcoal shadow-gold-glow' : 'bg-slate-900 text-white'}`}
                     >
-                        Close Terminal
+                        {t('close_terminal')}
                     </button>
                 </div>
             </motion.div>
@@ -2674,7 +2701,7 @@ const Dashboard: React.FC = () => {
                       </div>
 
                       <div className="pt-6 flex gap-4">
-                          <button onClick={() => setSelectorConfig(prev => ({...prev, isOpen: false}))} className="flex-1 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest border border-white/5 opacity-40 hover:opacity-100 transition-all">Cancel</button>
+                          <button onClick={() => setSelectorConfig(prev => ({...prev, isOpen: false}))} className="flex-1 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest border border-white/5 opacity-40 hover:opacity-100 transition-all">{t('cancel')}</button>
                           <button 
                               onClick={() => {
                                   selectorConfig.onConfirm(selectorConfig.value);
@@ -2682,7 +2709,7 @@ const Dashboard: React.FC = () => {
                               }} 
                               className="flex-[2] py-4 rounded-2xl bg-gold text-charcoal font-black text-[10px] uppercase tracking-widest shadow-gold-glow"
                           >
-                              Confirm
+                              {t('confirm')}
                           </button>
                       </div>
                   </div>
@@ -2705,9 +2732,9 @@ const Dashboard: React.FC = () => {
                   
                   <div className="space-y-6">
                       <div>
-                          <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">Supplier Name</label>
+                          <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">{t('supplier_name')}</label>
                           <input 
-                              placeholder="Atlas Flour Co."
+                              placeholder={t('atlas_flour_co')}
                               value={newSupplier.name}
                               onChange={e => setNewSupplier({...newSupplier, name: e.target.value})}
                               className={`w-full bg-transparent border-b py-3 outline-none font-bold ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`}
@@ -2716,9 +2743,9 @@ const Dashboard: React.FC = () => {
                       </div>
 
                       <div>
-                          <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">Contact Info</label>
+                          <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">{t('contact_info')}</label>
                           <input 
-                              placeholder="Address or general details"
+                              placeholder={t('address_or_general_details')}
                               value={newSupplier.contact_info || ''}
                               onChange={e => setNewSupplier({...newSupplier, contact_info: e.target.value})}
                               className={`w-full bg-transparent border-b py-3 outline-none font-bold ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`}
@@ -2726,9 +2753,9 @@ const Dashboard: React.FC = () => {
                       </div>
 
                       <div>
-                          <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">Identifiant Commun d'Entreprise (ICE)</label>
+                          <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">{t('identifiant_commun_d_entrepris')}</label>
                           <input 
-                              placeholder="15-digit Moroccan ICE"
+                              placeholder={t('15_digit_moroccan_ice')}
                               value={newSupplier.ice}
                               onChange={e => setNewSupplier({...newSupplier, ice: e.target.value})}
                               className={`w-full bg-transparent border-b py-3 outline-none font-bold ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`}
@@ -2737,18 +2764,18 @@ const Dashboard: React.FC = () => {
 
                       <div className="grid grid-cols-2 gap-4">
                           <div>
-                              <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">Email</label>
+                              <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">{t('email')}</label>
                               <input 
-                                  placeholder="vendor@company.ma"
+                                  placeholder={t('vendor_company_ma')}
                                   value={newSupplier.email}
                                   onChange={e => setNewSupplier({...newSupplier, email: e.target.value})}
                                   className={`w-full bg-transparent border-b py-3 outline-none font-bold ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`}
                               />
                           </div>
                           <div>
-                              <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">Phone</label>
+                              <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">{t('phone')}</label>
                               <input 
-                                  placeholder="+212 5XX XX XX XX"
+                                  placeholder={t('212_5xx_xx_xx_xx')}
                                   value={newSupplier.phone}
                                   onChange={e => setNewSupplier({...newSupplier, phone: e.target.value})}
                                   className={`w-full bg-transparent border-b py-3 outline-none font-bold ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`}
@@ -2765,7 +2792,7 @@ const Dashboard: React.FC = () => {
                               }}
                               className={`flex-1 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest border opacity-40 hover:opacity-100 transition-all ${isDarkMode ? 'border-white/5' : 'border-slate-200'}`}
                           >
-                              Cancel
+                              {t('cancel')}
                           </button>
                           <button onClick={handleAddSupplier} className="flex-[2] py-4 rounded-2xl bg-gold text-charcoal font-black text-[10px] uppercase tracking-widest shadow-gold-glow">
                               {editingSupplier ? 'Save Supplier' : 'Create Supplier'}
@@ -2788,10 +2815,10 @@ const Dashboard: React.FC = () => {
               >
                   <div className={`p-8 border-b flex items-start justify-between gap-4 ${isDarkMode ? 'border-white/10' : 'border-slate-200'}`}>
                       <div>
-                          <p className="text-[10px] font-black uppercase tracking-widest text-gold">Purchase Order</p>
+                          <p className="text-[10px] font-black uppercase tracking-widest text-gold">{t('purchase_order')}</p>
                           <h3 className="text-2xl font-bold luxury-font uppercase tracking-tighter mt-2">{selectedPO.id}</h3>
                           <p className={`text-sm mt-2 ${isDarkMode ? 'text-cream/40' : 'text-slate-500'}`}>
-                              Review supplier details, set delivery timing, and receive stock without overposting.
+                              {t('review_supplier_details_set_de')}
                           </p>
                       </div>
                       <button
@@ -2805,7 +2832,7 @@ const Dashboard: React.FC = () => {
                   <div className="p-8 overflow-y-auto max-h-[calc(90vh-112px)] space-y-8 custom-scrollbar">
                       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                           <div className={`rounded-3xl border p-5 space-y-3 ${isDarkMode ? 'border-white/5 bg-white/5' : 'border-slate-200 bg-slate-50'}`}>
-                              <label className="text-[10px] font-black uppercase tracking-widest text-gold block">Supplier</label>
+                              <label className="text-[10px] font-black uppercase tracking-widest text-gold block">{t('supplier')}</label>
                               <select
                                   value={selectedPO.supplier_id}
                                   onChange={(e) => setSelectedPO((prev: any) => ({ ...prev, supplier_id: Number(e.target.value) }))}
@@ -2821,18 +2848,18 @@ const Dashboard: React.FC = () => {
                           </div>
 
                           <div className={`rounded-3xl border p-5 space-y-3 ${isDarkMode ? 'border-white/5 bg-white/5' : 'border-slate-200 bg-slate-50'}`}>
-                              <label className="text-[10px] font-black uppercase tracking-widest text-gold block">Expected Delivery</label>
+                              <label className="text-[10px] font-black uppercase tracking-widest text-gold block">{t('expected_delivery')}</label>
                               <input
                                   type="date"
                                   value={selectedPO.expected_delivery_date || ''}
                                   onChange={(e) => setSelectedPO((prev: any) => ({ ...prev, expected_delivery_date: e.target.value }))}
                                   className={`w-full bg-transparent border-b py-3 outline-none font-bold ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`}
                               />
-                              <p className={`text-xs ${isDarkMode ? 'text-cream/40' : 'text-slate-500'}`}>Use this for delivery planning and receiving follow-up.</p>
+                              <p className={`text-xs ${isDarkMode ? 'text-cream/40' : 'text-slate-500'}`}>{t('use_this_for_delivery_planning')}</p>
                           </div>
 
                           <div className={`rounded-3xl border p-5 space-y-3 ${isDarkMode ? 'border-white/5 bg-white/5' : 'border-slate-200 bg-slate-50'}`}>
-                              <label className="text-[10px] font-black uppercase tracking-widest text-gold block">Status</label>
+                              <label className="text-[10px] font-black uppercase tracking-widest text-gold block">{t('status')}</label>
                               <div className="flex items-center justify-between gap-3">
                                   <span className={`px-3 py-2 rounded-full text-[10px] font-black uppercase tracking-widest ${selectedPO.status === 'received' ? 'bg-emerald-500/10 text-emerald-500' : selectedPO.status === 'partial' ? 'bg-amber-500/10 text-amber-500' : 'bg-gold/10 text-gold'}`}>
                                       {selectedPO.status}
@@ -2846,23 +2873,23 @@ const Dashboard: React.FC = () => {
                       </div>
 
                       <div className={`rounded-3xl border p-5 space-y-3 ${isDarkMode ? 'border-white/5 bg-white/5' : 'border-slate-200 bg-slate-50'}`}>
-                          <label className="text-[10px] font-black uppercase tracking-widest text-gold block">Order Notes</label>
+                          <label className="text-[10px] font-black uppercase tracking-widest text-gold block">{t('order_notes')}</label>
                           <textarea
                               rows={4}
                               value={selectedPO.notes || ''}
                               onChange={(e) => setSelectedPO((prev: any) => ({ ...prev, notes: e.target.value }))}
-                              placeholder="Delivery window, substitutions, vendor instructions..."
+                              placeholder={t('delivery_window_substitutions')}
                               className={`w-full resize-none rounded-2xl border px-4 py-4 outline-none text-sm ${isDarkMode ? 'bg-white/5 border-white/10 focus:bg-white/10 text-cream placeholder:text-cream/20' : 'bg-white border-slate-200 text-slate-900 placeholder:text-slate-400'}`}
                           />
                       </div>
 
                       <div className={`rounded-3xl border overflow-hidden ${isDarkMode ? 'border-white/5 bg-white/5' : 'border-slate-200 bg-slate-50'}`}>
                           <div className={`grid grid-cols-[minmax(0,2fr)_100px_100px_160px_160px] gap-4 px-5 py-4 text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-cream/40 border-b border-white/10' : 'text-slate-400 border-b border-slate-200'}`}>
-                              <span>Item</span>
-                              <span>Ordered</span>
-                              <span>Received</span>
-                              <span>Receive Now</span>
-                              <span>Unit Price</span>
+                              <span>{t('item')}</span>
+                              <span>{t('ordered')}</span>
+                              <span>{t('received')}</span>
+                              <span>{t('receive_now')}</span>
+                              <span>{t('unit_price')}</span>
                           </div>
                           <div className="divide-y divide-white/5">
                               {selectedPO.items.map((item: any, idx: number) => {
@@ -2925,13 +2952,13 @@ const Dashboard: React.FC = () => {
                               className={`px-6 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 transition-all ${isDarkMode ? 'bg-white/10 text-white hover:bg-white/15' : 'bg-slate-200 text-slate-900 hover:bg-slate-300'}`}
                           >
                               <Save size={14} />
-                              Save Order
+                              {t('save_order')}
                           </button>
                           <button
                               onClick={handlePartialReceivePO}
                               className="px-6 py-4 rounded-2xl bg-gold text-charcoal font-black text-[10px] uppercase tracking-widest shadow-gold-glow"
                           >
-                              Receive Selected Items
+                              {t('receive_selected_items')}
                           </button>
                           {selectedPO.status !== 'received' && (
                               <button
@@ -2941,7 +2968,7 @@ const Dashboard: React.FC = () => {
                                   }}
                                   className={`px-6 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${isDarkMode ? 'bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'}`}
                               >
-                                  Receive Remaining
+                                  {t('receive_remaining')}
                               </button>
                           )}
                       </div>
@@ -2961,13 +2988,13 @@ const Dashboard: React.FC = () => {
                   exit={{ y: 20, opacity: 0 }}
                   className={`w-full max-w-md p-10 rounded-[3.5rem] border shadow-2xl ${isDarkMode ? 'bg-[#0a0a0b] border-white/10' : 'bg-white border-slate-200'}`}
               >
-                  <h3 className="text-2xl font-bold luxury-font uppercase tracking-tighter mb-8">Customer Booking</h3>
+                  <h3 className="text-2xl font-bold luxury-font uppercase tracking-tighter mb-8">{t('customer_booking')}</h3>
                   
                   <div className="space-y-6">
                       <div>
-                          <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">Customer Identity</label>
+                          <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">{t('customer_identity')}</label>
                           <input 
-                              placeholder="Full Name"
+                              placeholder={t('full_name')}
                               value={bookingForm.name}
                               onChange={e => setBookingForm({...bookingForm, name: e.target.value})}
                               className={`w-full bg-transparent border-b py-3 outline-none font-bold ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`}
@@ -2975,7 +3002,7 @@ const Dashboard: React.FC = () => {
                       </div>
 
                       <div>
-                          <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">Contact Number</label>
+                          <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">{t('contact_number')}</label>
                           <input 
                               placeholder="+212..."
                               value={bookingForm.phone}
@@ -2985,9 +3012,9 @@ const Dashboard: React.FC = () => {
                       </div>
 
                       <div>
-                          <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">Order Details / Notes</label>
+                          <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">{t('order_details_notes')}</label>
                           <textarea 
-                              placeholder="Custom cakes, text on cake, special instructions..."
+                              placeholder={t('custom_cakes_text_on_cake_spec')}
                               value={bookingForm.notes || ''}
                               onChange={e => setBookingForm({...bookingForm, notes: e.target.value})}
                               className={`w-full bg-transparent border-b py-3 outline-none font-bold resize-none ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`}
@@ -2996,7 +3023,7 @@ const Dashboard: React.FC = () => {
                       </div>
 
                       <div>
-                          <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">Pickup Schedule</label>
+                          <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">{t('pickup_schedule')}</label>
                           <input 
                               type="datetime-local"
                               value={bookingForm.date.includes(' ') ? bookingForm.date.replace(' ', 'T') : bookingForm.date}
@@ -3006,8 +3033,8 @@ const Dashboard: React.FC = () => {
                       </div>
 
                       <div className="pt-6 flex gap-4">
-                          <button onClick={() => setShowBookingModal(false)} className="flex-1 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest border border-white/5 opacity-40 hover:opacity-100 transition-all">Cancel</button>
-                          <button onClick={handleSaveBooking} className="flex-[2] py-4 rounded-2xl bg-gold text-charcoal font-black text-[10px] uppercase tracking-widest shadow-gold-glow">Confirm Booking</button>
+                          <button onClick={() => setShowBookingModal(false)} className="flex-1 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest border border-white/5 opacity-40 hover:opacity-100 transition-all">{t('cancel')}</button>
+                          <button onClick={handleSaveBooking} className="flex-[2] py-4 rounded-2xl bg-gold text-charcoal font-black text-[10px] uppercase tracking-widest shadow-gold-glow">{t('confirm_booking')}</button>
                       </div>
                   </div>
               </motion.div>
@@ -3018,38 +3045,90 @@ const Dashboard: React.FC = () => {
       {/* Confirmation Modal */}
       <AnimatePresence>
         {confirmConfig.isOpen && (
-          <div className="fixed inset-0 z-[400] flex items-center justify-center p-6 bg-black/80 backdrop-blur-md animate-in fade-in duration-300">
+          <div className="fixed inset-0 z-[400] flex items-center justify-center p-6 bg-black/75 backdrop-blur-xl animate-in fade-in duration-200">
               <motion.div 
-                  initial={{ scale: 0.9, opacity: 0 }}
+                  initial={{ scale: 0.96, opacity: 0, y: 10 }}
                   animate={{ scale: 1, opacity: 1 }}
-                  exit={{ scale: 0.9, opacity: 0 }}
-                  className={`w-full max-w-md p-8 rounded-[3rem] border shadow-2xl ${isDarkMode ? 'bg-[#0f0f11] border-white/10' : 'bg-white border-slate-200'}`}
+                  exit={{ scale: 0.96, opacity: 0, y: 10 }}
+                  transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
+                  className={`w-full max-w-md overflow-hidden rounded-[2.5rem] border shadow-2xl ${
+                    isDarkMode
+                      ? confirmConfig.type === 'danger'
+                        ? 'bg-[#0a0a0b] border-rose-500/20 shadow-[0_0_60px_rgba(244,63,94,0.14)]'
+                        : 'bg-[#0a0a0b] border-gold/20 shadow-gold-glow'
+                      : 'bg-white border-slate-200 shadow-slate-900/10'
+                  }`}
               >
-                  <div className={`w-16 h-16 rounded-3xl mb-6 flex items-center justify-center ${confirmConfig.type === 'danger' ? 'bg-rose-500/20 text-rose-500' : 'bg-gold/20 text-gold'}`}>
-                      {confirmConfig.type === 'danger' ? <Trash2 size={32}/> : <CheckCircle size={32}/>}
+                <div className={`p-7 border-b ${isDarkMode ? 'border-white/5' : 'border-slate-100'}`}>
+                  <div className="flex items-start justify-between gap-5">
+                    <div className="flex items-center gap-4">
+                      <div className={`shrink-0 w-11 h-11 rounded-2xl flex items-center justify-center ${
+                        confirmConfig.type === 'danger' ? 'bg-rose-500/10 text-rose-500' : 'bg-gold/10 text-gold'
+                      }`}>
+                          {confirmConfig.type === 'danger' ? <Trash2 size={20}/> : <CheckCircle size={20}/>}
+                      </div>
+                      <div>
+                        <p className={`text-[10px] font-black uppercase tracking-[0.2em] mb-1 ${
+                          confirmConfig.type === 'danger' ? 'text-rose-400' : 'text-gold'
+                        }`}>
+                          {confirmConfig.type === 'danger' ? 'Permanent action' : 'Confirmation'}
+                        </p>
+                        <h3 className={`text-xl font-bold luxury-font uppercase tracking-tighter ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
+                          {confirmConfig.title}
+                        </h3>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setConfirmConfig(prev => ({ ...prev, isOpen: false }))}
+                      className={`shrink-0 p-2 rounded-xl transition-colors ${
+                        isDarkMode ? 'text-cream/30 hover:text-cream hover:bg-white/5' : 'text-slate-400 hover:text-slate-900 hover:bg-slate-100'
+                      }`}
+                      aria-label={t('cancel')}
+                    >
+                      <X size={18} />
+                    </button>
                   </div>
-                  <h3 className="text-2xl font-bold luxury-font mb-2 uppercase tracking-tight">{confirmConfig.title}</h3>
-                  <p className={`text-sm mb-10 leading-relaxed ${isDarkMode ? 'text-cream/60' : 'text-slate-500'}`}>{confirmConfig.message}</p>
+                </div>
+
+                <div className="p-7">
+                  <div className={`rounded-2xl border p-5 mb-6 ${
+                    confirmConfig.type === 'danger'
+                      ? isDarkMode
+                        ? 'bg-rose-500/[0.06] border-rose-500/15'
+                        : 'bg-rose-50 border-rose-100'
+                      : isDarkMode
+                      ? 'bg-white/[0.03] border-white/5'
+                      : 'bg-slate-50 border-slate-100'
+                  }`}>
+                    <p className={`text-sm leading-relaxed font-medium ${isDarkMode ? 'text-cream/70' : 'text-slate-600'}`}>
+                      {confirmConfig.message}
+                    </p>
+                  </div>
                   
-                  <div className="flex gap-4">
+                  <div className="flex gap-3">
                       <button 
                           onClick={() => setConfirmConfig(prev => ({ ...prev, isOpen: false }))}
-                          className={`flex-1 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest border transition-all ${isDarkMode ? 'border-white/10 text-white hover:bg-white/5' : 'border-slate-200 text-slate-900 hover:bg-slate-50'}`}
+                          className={`flex-1 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest border transition-all ${
+                            isDarkMode ? 'border-white/10 text-cream/60 hover:bg-white/5 hover:text-cream' : 'border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-900'
+                          }`}
                       >
-                          Cancel
+                          {t('cancel')}
                       </button>
                       <button 
                           onClick={() => {
                               confirmConfig.onConfirm();
                               setConfirmConfig(prev => ({ ...prev, isOpen: false }));
                           }}
-                          className={`flex-1 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl transition-all ${
-                              confirmConfig.type === 'danger' ? 'bg-rose-600 text-white hover:bg-rose-700' : 'bg-gold text-charcoal hover:scale-105'
+                          className={`flex-1 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl transition-all active:scale-95 ${
+                              confirmConfig.type === 'danger'
+                                ? 'bg-rose-500 text-white hover:bg-rose-600 shadow-[0_0_20px_rgba(244,63,94,0.28)]'
+                                : 'bg-gold text-charcoal hover:brightness-105 shadow-gold-glow'
                           }`}
                       >
                           {confirmConfig.confirmText}
                       </button>
                   </div>
+                </div>
               </motion.div>
           </div>
         )}

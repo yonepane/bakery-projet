@@ -40,6 +40,14 @@
     @apply bg-charcoal/50 backdrop-blur-2xl border-r border-white/5 shadow-2xl;
   }
 
+  .sidebar-transition {
+    transition: background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+                border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+                box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+                backdrop-filter 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+                -webkit-backdrop-filter 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
   .gold-border-glow {
     @apply border border-gold/30 hover:border-gold/60 transition-colors duration-300 shadow-gold-glow;
   }
@@ -112,6 +120,15 @@
   }
   .custom-scrollbar::-webkit-scrollbar-thumb:hover {
     background: rgba(212, 175, 55, 0.65);
+  }
+
+  /* Utility to hide scrollbar but keep element scrollable */
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
   }
 
   .brand-title {

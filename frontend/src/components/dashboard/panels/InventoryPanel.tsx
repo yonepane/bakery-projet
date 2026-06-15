@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import React from 'react';
 import { Edit2, Plus, Trash2 } from 'lucide-react';
 import { DashboardSharedProps } from '../types';
@@ -13,21 +14,23 @@ const InventoryPanel: React.FC<Props> = ({
   handleAdjustStock, openSelector, startEditingMaterial, handleDeleteMaterial,
   setShowAddProduct, setShowAddMaterial, setEditingMaterialName, setNewMaterial,
   handleUpdateProductPrice,
-}) => (
+}) => {
+  const { t } = useTranslation();
+  return (
   <div className="space-y-8 animate-in fade-in duration-500">
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
       {/* Finished Goods */}
       <div className={`rounded-[2rem] border overflow-hidden transition-colors ${isDarkMode ? 'bg-[#0a0a0b] border-white/5 shadow-glass backdrop-blur-xl' : 'bg-white border-slate-200 shadow-xl'}`}>
         <div className="p-8 border-b border-white/5 flex justify-between items-center">
-          <h3 className={`text-xl font-bold luxury-font uppercase ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Finished Goods</h3>
+          <h3 className={`text-xl font-bold luxury-font uppercase ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{t('finished_goods')}</h3>
           {editMode && <button onClick={() => setShowAddProduct(true)} className={`p-2 rounded-lg ${isDarkMode ? 'bg-gold/10 text-gold' : 'bg-slate-100 text-slate-900'}`}><Plus size={16} /></button>}
         </div>
         <table className="w-full text-left">
           <thead>
             <tr className={`border-b text-[10px] font-black uppercase tracking-[0.2em] ${isDarkMode ? 'border-white/5 text-cream/40' : 'border-slate-100 text-slate-400'}`}>
-              <th className="px-8 py-6">Entity</th>
-              <th className="px-8 py-6">Stock</th>
-              <th className="px-8 py-6 text-right">Price & Value</th>
+              <th className="px-8 py-6">{t('entity')}</th>
+              <th className="px-8 py-6">{t('stock')}</th>
+              <th className="px-8 py-6 text-right">{t('price_value')}</th>
             </tr>
           </thead>
           <tbody className={`divide-y ${isDarkMode ? 'divide-white/5' : 'divide-slate-100'}`}>
@@ -77,11 +80,11 @@ const InventoryPanel: React.FC<Props> = ({
                             })}
                             className="text-[8px] font-black uppercase tracking-widest px-2 py-1 rounded bg-gold/10 text-gold hover:bg-gold hover:text-black transition-all"
                           >
-                            Edit
+                            {t('edit')}
                           </button>
                         )}
                       </div>
-                      <span className={`text-[9px] uppercase tracking-widest font-bold ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>Total Value: <span className={isDarkMode ? 'text-cream' : 'text-slate-900'}>{formatPrice(totalValue)}</span></span>
+                      <span className={`text-[9px] uppercase tracking-widest font-bold ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>{t('total_value')} <span className={isDarkMode ? 'text-cream' : 'text-slate-900'}>{formatPrice(totalValue)}</span></span>
                     </div>
                   </td>
                 </tr>
@@ -94,7 +97,7 @@ const InventoryPanel: React.FC<Props> = ({
       {/* Raw Materials */}
       <div className={`rounded-[2rem] border overflow-hidden transition-colors ${isDarkMode ? 'bg-[#0a0a0b] border-white/5 shadow-glass backdrop-blur-xl' : 'bg-white border-slate-200 shadow-xl'}`}>
         <div className="p-8 border-b border-white/5 flex justify-between items-center">
-          <h3 className={`text-xl font-bold luxury-font uppercase ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Raw Materials</h3>
+          <h3 className={`text-xl font-bold luxury-font uppercase ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{t('raw_materials')}</h3>
           {editMode && (
             <button onClick={() => { setEditingMaterialName(null); setNewMaterial({ name: '', unit: 'g', price: 0, min_threshold: 0 }); setShowAddMaterial(true); }} className={`p-2 rounded-lg ${isDarkMode ? 'bg-gold/10 text-gold' : 'bg-slate-100 text-slate-900'}`}>
               <Plus size={16} />
@@ -110,10 +113,10 @@ const InventoryPanel: React.FC<Props> = ({
           </colgroup>
           <thead>
             <tr className={`border-b text-[10px] font-black uppercase tracking-[0.2em] ${isDarkMode ? 'border-white/5 text-cream/40' : 'border-slate-100 text-slate-400'}`}>
-              <th className="px-4 py-5 pl-8">Ingredient</th>
-              <th className="px-4 py-5">Stock Level</th>
-              <th className="px-4 py-5">Supplier</th>
-              {editMode && <th className="px-4 py-5 pr-6 text-right">Actions</th>}
+              <th className="px-4 py-5 pl-8">{t('ingredient')}</th>
+              <th className="px-4 py-5">{t('stock_level')}</th>
+              <th className="px-4 py-5">{t('supplier')}</th>
+              {editMode && <th className="px-4 py-5 pr-6 text-right">{t('actions')}</th>}
             </tr>
           </thead>
           <tbody className={`divide-y ${isDarkMode ? 'divide-white/5' : 'divide-slate-100'}`}>
@@ -152,14 +155,14 @@ const InventoryPanel: React.FC<Props> = ({
                       <button
                         onClick={() => startEditingMaterial(name, data)}
                         className={`p-2 rounded-lg transition-all ${isDarkMode ? 'bg-white/5 text-cream/40 hover:text-gold hover:bg-gold/10' : 'bg-slate-50 text-slate-400 hover:text-slate-900 hover:bg-slate-100'}`}
-                        title="Edit"
+                        title={t('edit')}
                       >
                         <Edit2 size={13} />
                       </button>
                       <button
                         onClick={() => handleDeleteMaterial(name)}
                         className={`p-2 rounded-lg transition-all ${isDarkMode ? 'bg-white/5 text-cream/40 hover:text-rose-400 hover:bg-rose-500/10' : 'bg-slate-50 text-slate-400 hover:text-rose-600 hover:bg-rose-50'}`}
-                        title="Delete"
+                        title={t('delete')}
                       >
                         <Trash2 size={13} />
                       </button>
@@ -173,6 +176,7 @@ const InventoryPanel: React.FC<Props> = ({
       </div>
     </div>
   </div>
-);
+  );
+};
 
 export default InventoryPanel;
