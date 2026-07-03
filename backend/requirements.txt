@@ -47,3 +47,8 @@ typing_extensions==4.15.0
 urllib3==2.6.3
 uvicorn==0.44.0
 xlsxwriter==3.2.0
+
+# Test dependencies (dev-only)
+pytest==8.3.5
+pytest-anyio==0.0.0
+anyio[trio]==4.6.0
