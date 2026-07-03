@@ -301,3 +301,10 @@ export interface Supplier {
   email?: string;
   phone?: string;
 }
+
+/** Minimal shared dependencies passed into every mutation hook. */
+export interface MutationDeps {
+  fetchData: () => void;
+  addToast: (msg: string, type?: 'success' | 'error' | 'info') => void;
+  showConfirm: (config: ConfirmConfig) => void;
+}

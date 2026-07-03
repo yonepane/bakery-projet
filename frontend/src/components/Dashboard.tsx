@@ -85,6 +85,14 @@ const StaffPanel = React.lazy(() => import('./dashboard/panels/StaffPanel'));
 const IntelligencePanel = React.lazy(() => import('./dashboard/panels/IntelligencePanel'));
 const KitchenPanel = React.lazy(() => import('./dashboard/panels/KitchenPanel'));
 const CustomersPanel = React.lazy(() => import('./dashboard/panels/CustomersPanel'));
+import {
+  useInventoryMutations,
+  useProductMutations,
+  useExpenseMutations,
+  usePurchasingMutations,
+  useStaffMutations,
+  usePlannerMutations,
+} from './dashboard/hooks';
 import { DashboardSharedProps } from './dashboard/types';
 
 import {
@@ -109,6 +117,30 @@ const Dashboard: React.FC = () => {
   // UI state for navigation and language.
   const [activeTab, setActiveTab] = useState('dashboard');
   const { t, i18n } = useTranslation();
+
+  const mutationDeps = { fetchData, addToast, showConfirm };
+
+  const { handleAdjustStock, handleAddMaterial, handleDeleteMaterial } =
+    useInventoryMutations(mutationDeps);
+
+  const {
+    handleAddProduct, handleDeleteProduct, handleUpdateProductPrice,
+    handleUpdateProductField, handleUpdateProductIngredients, handleCleanupProducts,
+  } = useProductMutations(mutationDeps);
+
+  const { handleAddExpense, handleUpdateExpense, handleDeleteExpense } =
+    useExpenseMutations(mutationDeps);
+
+  const {
+    handleAddSupplier, handleDeleteSupplier, handleCreatePO,
+    handleReceivePO, handleDeletePO,
+  } = usePurchasingMutations(mutationDeps);
+
+  const { handleAddStaff, handleDeleteStaff, handleDeleteShiftLog, handleSaveGeneralNote } =
+    useStaffMutations(mutationDeps);
+
+  const { handleProduce, handlePlanBatch, handleCompletePlan } =
+    usePlannerMutations(mutationDeps);
   const [lang, setLangState] = useState<Language>(() => (i18n.language as Language) || 'en');
   
   const setLang = (newLang: Language) => {
@@ -380,106 +412,11 @@ const Dashboard: React.FC = () => {
   const [showAddStaff, setShowAddStaff] = useState(false);
   const [newStaff, setNewStaff] = useState({ username: '', password: '' });
 
-  const handleAddStaff = async () => {
-    try {
-      await http.post('/staff', newStaff);
-      setShowAddStaff(false);
-      fetchData();
-      addToast(t('add_staff') + " Success", "success");
-    } catch (e: any) { addToast(t('failed_to_add_staff'), "error"); }
-  };
 
-  const handleAddSupplier = async () => {
-    if (!newSupplier.name.trim()) {
-      addToast(t('supplier_name_is_required'), "error");
-      return;
-    }
-    try {
-      const payload = {
-        name: newSupplier.name.trim(),
-        contact_info: newSupplier.contact_info.trim() || null,
-        ice: newSupplier.ice.trim() || null,
-        email: newSupplier.email.trim() || null,
-        phone: newSupplier.phone.trim() || null,
-      };
-      if (editingSupplier) {
-        await http.put(`/suppliers/${editingSupplier.id}`, payload);
-      } else {
-        await http.post('/suppliers', payload);
-      }
-      setShowAddSupplier(false);
-      setEditingSupplier(null);
-      setNewSupplier({ name: '', contact_info: '', ice: '', email: '', phone: '' });
-      fetchData();
-      addToast(editingSupplier ? "Supplier Updated" : "Supplier Added", "success");
-    } catch (e: any) {
-      addToast(editingSupplier ? "Failed to update supplier" : "Failed to add supplier", "error");
-    }
-  };
 
-  const handleDeleteSupplier = async (supplier: any) => {
-    // Use the shared confirmation modal before deleting a supplier because
-    // older purchase records may still refer to it.
-    showConfirm({
-      title: "Delete Supplier",
-      message: `Delete supplier ${supplier.name}?`,
-      type: 'danger',
-      confirmText: "Delete",
-      onConfirm: async () => {
-        try {
-          await http.delete(`/suppliers/${supplier.id}`);
-          fetchData();
-          addToast(t('supplier_deleted'), "success");
-        } catch (e: any) {
-          addToast(t('supplier_has_order_history_or'), "error");
-        }
-      }
-    });
-  };
 
-  const handleSaveGeneralNote = async () => {
-    if (!generalNote.trim()) return;
-    // Save a new shift log entry.
-    setIsSavingGeneralNote(true);
-    try {
-      await http.post('/shift-logs', {
-        content: generalNote
-      });
-      setGeneralNote(''); // Clear the input after posting
-      fetchData();
-      addToast(t('note_posted_to_log'), "success");
-    } catch (e: any) {
-      addToast(t('failed_to_post_note'), "error");
-    } finally {
-      setIsSavingGeneralNote(false);
-    }
-  };
 
-  const handleDeleteShiftLog = async (id: number) => {
-    try {
-        await api.delete(`/shift-logs/${id}`);
-        fetchData();
-        addToast(t('note_deleted'), "success");
-    } catch (e) {
-        addToast(t('delete_failed'), "error");
-    }
-  };
 
-  const handleDeleteStaff = async (username: string) => {
-    showConfirm({
-        title: "Remove Staff",
-        message: `Delete cashier account: ${username}?`,
-        type: 'danger',
-        confirmText: "Delete",
-        onConfirm: async () => {
-            try {
-                await http.delete(`/staff/${username}`);
-                fetchData();
-                addToast(t('staff_removed'), "success");
-            } catch (e: any) { addToast(t('failed_to_remove_staff'), "error"); }
-        }
-    });
-  };
 
   const handleSmartForecast = async (date: string) => {
     // Ask the backend for forecasted quantities, then convert the response
@@ -897,16 +834,6 @@ const Dashboard: React.FC = () => {
     );
   }
 
-  const handleProduce = async (productId: string, qty: number) => {
-    // Producing a batch consumes ingredients and increases product stock.
-    try {
-      await api.post('/produce', { product_id: productId, quantity: qty });
-      fetchData();
-      addToast(t('production_logged'), "success");
-    } catch (error: any) {
-      addToast(t('production_failed'), "error");
-    }
-  };
 
   const addToCart = (product: Product) => {
     // In edit mode, clicking a product should not add it to the cart.
@@ -975,20 +902,6 @@ const Dashboard: React.FC = () => {
     });
   };
 
-  const handleAddMaterial = async () => {
-    try {
-      if (editingMaterialName) {
-        await api.put(`/materials/${editingMaterialName}`, newMaterial);
-        addToast(t('ingredient_updated'), "success");
-      } else {
-        await api.post('/materials', newMaterial);
-        addToast(t('add_material') + " Success", "success");
-      }
-      setShowAddMaterial(false);
-      setEditingMaterialName(null);
-      fetchData();
-    } catch (e: any) { addToast(editingMaterialName ? "Failed to update" : "Failed to add material", "error"); }
-  };
 
   const startEditingMaterial = (name: string, data: any) => {
     // The same modal is used for both adding and editing a material.
@@ -1035,96 +948,10 @@ const Dashboard: React.FC = () => {
     });
   };
 
-  const handleAddExpense = async () => {
-    try {
-        const payload = {
-          ...newExpense,
-          payments: newExpense.amount_paid > 0 ? [{
-            amount: newExpense.amount_paid,
-            payment_method: 'cash'
-          }] : []
-        };
-        await api.post('/expenses', payload);
-        setShowAddExpense(false);
-        // Reset expense form state
-        setNewExpense({
-          category: 'other',
-          description: '',
-          input_mode: 'TTC',
-          amount_ht: 0,
-          amount_ttc: 0,
-          tva_rate: 20,
-          tva_amount: 0,
-          is_tva_deductible: true,
-          supplier_id: null,
-          invoice_ref: '',
-          status: 'paid',
-          amount_paid: 0,
-          amount: 0,
-        });
-        fetchData();
-        addToast(t('expense_logged'), "success");
-    } catch (e: any) { addToast(t('failed_to_log_expense'), "error"); }
-  };
 
-  const handleUpdateExpense = async () => {
-    if (!editingExpense) return;
-    try {
-      const payload = {
-        ...newExpense,
-        payments: newExpense.amount_paid > 0 ? [{
-          amount: newExpense.amount_paid,
-          payment_method: 'cash'
-        }] : []
-      };
-      await api.put(`/expenses/${editingExpense.id}`, payload);
-      setShowAddExpense(false);
-      setEditingExpense(null);
-      setNewExpense({
-        category: 'other', description: '', input_mode: 'TTC',
-        amount_ht: 0, amount_ttc: 0, tva_rate: 20, tva_amount: 0,
-        is_tva_deductible: true, supplier_id: null, invoice_ref: '',
-        status: 'paid', amount_paid: 0, amount: 0,
-      });
-      fetchData();
-      addToast(t('expense_updated'), "success");
-    } catch (e: any) { addToast(t('failed_to_update_expense'), "error"); }
-  };
 
-  const handleDeleteExpense = async (id: number) => {
-    try {
-      await api.delete(`/expenses/${id}`);
-      fetchData();
-      addToast(t('expense_deleted'), "success");
-    } catch (e: any) { addToast(t('failed_to_delete_expense'), "error"); }
-  };
 
-  const handleAdjustStock = async (item_type: 'product' | 'material', id: string, amount: number) => {
-    // This lets the owner adjust stock manually when needed.
-    try {
-        await api.post('/inventory/adjust', { item_type, id, amount });
-        fetchData();
-        addToast(`${amount > 0 ? '+' : ''}${amount} Updated`, "success");
-    } catch (e) {
-        addToast(t('adjustment_failed'), "error");
-    }
-  };
 
-  const handleDeleteMaterial = async (name: string) => {
-    showConfirm({
-        title: "Discard Material",
-        message: `Are you sure you want to delete ${name}? This cannot be undone.`,
-        type: 'danger',
-        confirmText: "Delete Forever",
-        onConfirm: async () => {
-            try {
-                await api.delete(`/materials/${name}`);
-                fetchData();
-                addToast(t('material_deleted'), "success");
-            } catch (e: any) { addToast(t('failed_to_delete_material'), "error"); }
-        }
-    });
-  };
 
   const handleOpenEditProduct = (product: Product) => {
     setEditingProductId(product.id);
@@ -1142,132 +969,14 @@ const Dashboard: React.FC = () => {
     setShowAddProduct(true);
   };
 
-  const handleAddProduct = async () => {
-    if (!newProduct.id.trim() || !newProduct.name.trim()) {
-      addToast(t('id_and_name_are_required'), "error");
-      return;
-    }
-    try {
-      let data;
-      if (editingProductId) {
-        data = await api.put(`/products/${editingProductId}`, newProduct);
-        addToast(t('product_updated'), 'success');
-      } else {
-        data = await api.post('/products', newProduct);
-        addToast(data.message || "Product Created", 'success');
-      }
-      setShowAddProduct(false);
-      setShowProductIconPicker(false);
-      setEditingProductId(null);
-      fetchData();
-      // Clear the form after a successful save.
-      setNewProduct({ id: '', name: '', price: 0, icon: '🥐', ingredients: [], prep_time: 0, cook_time: 0, yield_qty: 1, instructions: [] });
-    } catch (e: any) {
-      const detail = e.response?.data?.detail;
-      addToast(typeof detail === 'string' ? detail : "Action Failed", "error");
-    }
-  };
 
-  const handleDeleteProduct = async (id: string) => {
-    // Deleting a product also removes its recipe rows in the backend.
-    showConfirm({
-        title: "Delete Entity",
-        message: "Are you sure you want to remove this product and its recipe? This cannot be undone.",
-        type: 'danger',
-        confirmText: "Delete Product",
-        onConfirm: async () => {
-            try {
-                await api.delete(`/products/${id}`);
-                fetchData();
-                addToast(t('product_deleted'), "success");
-            } catch (e: any) { addToast(t('failed_to_delete_product'), "error"); }
-        }
-    });
-  };
 
-  const handleCleanupProducts = async () => {
-    // Small maintenance helper for cleaning older broken product rows.
-    showConfirm({
-        title: "Database Cleanup",
-        message: "Remove all broken product entries (empty IDs)?",
-        type: 'danger',
-        confirmText: "Clean Database",
-        onConfirm: async () => {
-            try {
-                await http.post('/maintenance/delete-empty-products');
-                fetchData();
-                addToast(t('cleanup_complete'), "success");
-            } catch (e: any) { addToast(t('cleanup_failed'), "error"); }
-        }
-    });
-  };
 
-  const handleUpdateProductIngredients = async (productId: string, ingredients: any[]) => {
-    if (!editMode) return;
-    try {
-      await api.put(`/products/${productId}`, { ingredients });
-      fetchData();
-    } catch (e: any) { addToast(t('failed_to_update_recipe'), "error"); }
-  };
 
-  const handleUpdateProductPrice = async (productId: string, newPrice: number) => {
-    if (!editMode) return;
-    try {
-        await api.put(`/products/${productId}`, { price: newPrice });
-        fetchData();
-        addToast(t('price_updated'), "success");
-    } catch (e: any) { addToast(t('failed_to_update_price'), "error"); }
-  };
 
-  const handleUpdateProductField = async (productId: string, field: string, value: any) => {
-    if (!editMode) return;
-    try {
-        await api.put(`/products/${productId}`, { [field]: value });
-        fetchData();
-    } catch (e: any) { addToast(`Failed to update ${field}`, "error"); }
-  };
 
-  const handleCreatePO = async (data: { supplier_id: number, items: any[] }) => {
-    // A purchase order records what you plan to buy. Stock changes later, when goods are received.
-    if (!suppliers.length) {
-        addToast(t('add_a_supplier_before_generati'), "error");
-        return;
-    }
-    try {
-        await api.post('/purchase-orders', data);
-        fetchData();
-        addToast(t('bulk_order_generated'), "success");
-    } catch (e: any) { addToast(t('failed_to_create_bulk_order'), "error"); }
-  };
 
-  const handleReceivePO = async (id: string, payload?: { items: any[] }) => {
-    // Receiving goods can be complete or partial depending on the payload.
-    try {
-        if (payload) {
-            await http.post(`/purchase-orders/${id}/receive`, payload);
-        } else {
-            await http.patch(`/purchase-orders/${id}/status?status=received`);
-        }
-        fetchData();
-        addToast(t('goods_received_stock_updated'), "success");
-    } catch (e: any) { addToast(t('failed_to_receive_goods'), "error"); }
-  };
 
-  const handleDeletePO = async (id: string) => {
-    showConfirm({
-        title: "Delete Order",
-        message: "Are you sure you want to remove this order? It will be archived but preserved for accounting history.",
-        type: 'danger',
-        confirmText: "Delete",
-        onConfirm: async () => {
-            try {
-                await api.delete(`/purchase-orders/${id}`);
-                fetchData();
-                addToast(t('order_archived'), "success");
-            } catch (e: any) { addToast(t('failed_to_archive_order'), "error"); }
-        }
-    });
-  };
 
   const openPOModal = (po: any) => {
     // Make a local editable copy so the owner can change notes, ETA, and
@@ -1393,39 +1102,7 @@ const Dashboard: React.FC = () => {
       setRecipeSearchQuery('');
     } catch (e) { console.error(e); }
   };
-  const handlePlanBatch = async (productId: string, qty: number, date: string) => {
-    // The planner is saved as one full schedule snapshot.
-    const newPlan = [...planner, {
-        id: Math.random().toString(36).substr(2, 9),
-        date,
-        product_id: productId,
-        quantity: qty,
-        status: 'pending' as const
-    }];
-    try {
-        await api.post('/planner', newPlan);
-        fetchData();
-    } catch (e) { console.error(e); }
-  };
 
-  const handleCompletePlan = async (planId: string) => {
-    const item = planner.find(p => p.id === planId);
-    if (!item) return;
-    
-    try {
-        // First, produce the batch so stock and cost history are updated.
-        await api.post('/produce', { product_id: item.product_id, quantity: item.quantity });
-        
-        // Then save the planner again with this item marked as completed.
-        const newPlan = planner.map(p => p.id === planId ? { ...p, status: 'completed' as const } : p);
-        await api.post('/planner', newPlan);
-        
-        fetchData();
-        addToast(t('batch_completed'), "success");
-    } catch (e: any) {
-        addToast(t('completion_failed'), "error");
-    }
-  };
 
   const now = new Date();
   const {
