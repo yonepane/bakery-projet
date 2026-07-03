@@ -21,7 +21,7 @@ class Ingredient(Base):
     # see each other's stock by accident.
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, index=True)
-    owner_id = Column(Integer, ForeignKey("users.id"))
+    owner_id = Column(Integer, ForeignKey("users.id"), index=True)
     stock = Column(Float, default=0)
     unit = Column(String)
     price = Column(Float, default=0)
@@ -35,7 +35,7 @@ class Product(Base):
     # A product is something the bakery sells or prepares.
     # The list of ingredients for that product lives in RecipeItem rows.
     id = Column(String, primary_key=True, index=True)
-    owner_id = Column(Integer, ForeignKey("users.id"))
+    owner_id = Column(Integer, ForeignKey("users.id"), index=True)
     name = Column(String, index=True)
     stock = Column(Integer, default=0)
     price = Column(Float, default=0)
@@ -67,7 +67,7 @@ class Transaction(Base):
     # A transaction records an important business event, such as a sale or a
     # production batch. The saved JSON keeps a historical copy of the items.
     id = Column(String, primary_key=True, index=True)
-    owner_id = Column(Integer, ForeignKey("users.id"))
+    owner_id = Column(Integer, ForeignKey("users.id"), index=True)
     timestamp = Column(DateTime, default=lambda: datetime.datetime.now(timezone.utc))
     type = Column(String) # 'sale' or 'production'
     total_revenue = Column(Float, default=0)
@@ -84,12 +84,12 @@ class User(Base):
     username = Column(String, unique=True, index=True)
     password = Column(String)
     role = Column(String) # The account type, usually 'owner' or 'cashier'.
-    parent_owner_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    parent_owner_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
 
 class Customer(Base):
     __tablename__ = "customers"
     id = Column(String, primary_key=True, index=True)
-    owner_id = Column(Integer, ForeignKey("users.id"))
+    owner_id = Column(Integer, ForeignKey("users.id"), index=True)
     name = Column(String, index=True)
     phone = Column(String, nullable=True)
     email = Column(String, nullable=True)
@@ -100,7 +100,7 @@ class Order(Base):
     __tablename__ = "orders"
     # Orders are planned pickups for later, not immediate cash register sales.
     id = Column(String, primary_key=True, index=True)
-    owner_id = Column(Integer, ForeignKey("users.id"))
+    owner_id = Column(Integer, ForeignKey("users.id"), index=True)
     customer_name = Column(String)
     customer_phone = Column(String, nullable=True)
     customer_id = Column(String, ForeignKey("customers.id"), nullable=True)
@@ -116,7 +116,7 @@ class WasteRecord(Base):
     __tablename__ = "waste_records"
     # Waste records show stock that was lost, spoiled, or thrown away.
     id = Column(Integer, primary_key=True, index=True)
-    owner_id = Column(Integer, ForeignKey("users.id"))
+    owner_id = Column(Integer, ForeignKey("users.id"), index=True)
     date = Column(DateTime, default=lambda: datetime.datetime.now(timezone.utc))
     product_id = Column(String, ForeignKey("products.id"))
     quantity = Column(Integer)
@@ -136,7 +136,7 @@ class Expense(Base):
     # Expenses are costs such as rent or salaries. They affect profit, but they
     # do not change ingredient stock.
     id = Column(Integer, primary_key=True, index=True)
-    owner_id = Column(Integer, ForeignKey("users.id"))
+    owner_id = Column(Integer, ForeignKey("users.id"), index=True)
     date = Column(DateTime, default=lambda: datetime.datetime.now(timezone.utc))
     category = Column(String) # The type of expense.
     amount = Column(Float)
@@ -166,7 +166,7 @@ class Supplier(Base):
     __tablename__ = "suppliers"
     # Suppliers are the companies or contacts the bakery buys from.
     id = Column(Integer, primary_key=True, index=True)
-    owner_id = Column(Integer, ForeignKey("users.id"))
+    owner_id = Column(Integer, ForeignKey("users.id"), index=True)
     name = Column(String, index=True)
     contact_info = Column(String, nullable=True)
     ice = Column(String, nullable=True)
@@ -178,7 +178,7 @@ class PurchaseOrder(Base):
     # A purchase order records what the bakery plans to buy before the goods
     # actually arrive.
     id = Column(String, primary_key=True, index=True)
-    owner_id = Column(Integer, ForeignKey("users.id"))
+    owner_id = Column(Integer, ForeignKey("users.id"), index=True)
     date = Column(DateTime, default=lambda: datetime.datetime.now(timezone.utc))
     supplier_id = Column(Integer, ForeignKey("suppliers.id"))
     items = Column(JSON) # List of purchased items with quantity and price.
@@ -191,7 +191,7 @@ class Planner(Base):
     __tablename__ = "planner"
     # The planner stores the bakery's production schedule for future dates.
     id = Column(String, primary_key=True, index=True)
-    owner_id = Column(Integer, ForeignKey("users.id"))
+    owner_id = Column(Integer, ForeignKey("users.id"), index=True)
     product_id = Column(String, ForeignKey("products.id"))
     date = Column(String) # Planned day, written as YYYY-MM-DD.
     quantity = Column(Integer)
@@ -200,7 +200,7 @@ class Planner(Base):
 class ShiftLog(Base):
     __tablename__ = "shift_logs"
     id = Column(Integer, primary_key=True, index=True)
-    owner_id = Column(Integer, ForeignKey("users.id"))
+    owner_id = Column(Integer, ForeignKey("users.id"), index=True)
     timestamp = Column(DateTime, default=lambda: datetime.datetime.now(timezone.utc))
     author = Column(String)
     content = Column(String)
@@ -208,7 +208,7 @@ class ShiftLog(Base):
 class ShiftRecord(Base):
     __tablename__ = "shift_records"
     id = Column(Integer, primary_key=True, index=True)
-    owner_id = Column(Integer, ForeignKey("users.id"))
+    owner_id = Column(Integer, ForeignKey("users.id"), index=True)
     start_time = Column(DateTime)
     end_time = Column(DateTime, default=lambda: datetime.datetime.now(timezone.utc))
     revenue = Column(Float)
