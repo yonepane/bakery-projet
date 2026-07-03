@@ -1,7 +1,7 @@
 """Expenses, exports, and shift-closing routes for BakeryOS."""
 
 import csv
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from io import StringIO
 
 import sqlalchemy.orm
@@ -57,7 +57,7 @@ async def add_expense(
                 expense_id=new_exp.id,
                 amount=p.amount,
                 payment_method=p.payment_method,
-                paid_at=datetime.fromisoformat(p.paid_at) if p.paid_at else datetime.utcnow()
+                paid_at=datetime.fromisoformat(p.paid_at) if p.paid_at else datetime.now(timezone.utc)
             )
             db.add(payment)
             
@@ -95,7 +95,7 @@ async def update_expense(
                 expense_id=expense_id,
                 amount=p.amount,
                 payment_method=p.payment_method,
-                paid_at=datetime.fromisoformat(p.paid_at) if p.paid_at else datetime.utcnow(),
+                paid_at=datetime.fromisoformat(p.paid_at) if p.paid_at else datetime.now(timezone.utc),
             )
             db.add(payment)
 

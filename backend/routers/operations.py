@@ -7,6 +7,7 @@ from typing import Dict, List
 import sqlalchemy.orm
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse
+from sqlalchemy import literal_column
 from sqlalchemy.orm import joinedload
 
 try:
@@ -283,22 +284,42 @@ async def get_history(
     db: sqlalchemy.orm.Session = Depends(get_db),
     owner_id: int = Depends(get_effective_owner_id),
 ):
-    transactions = db.query(models.Transaction).filter(
-        models.Transaction.owner_id == owner_id
-    ).order_by(models.Transaction.timestamp.desc()).all()
-    data = [
-        {
+    if db.bind and db.bind.dialect.name == "sqlite":
+        transactions = (
+            db.query(models.Transaction, literal_column("rowid").label("sort_index"))
+            .filter(models.Transaction.owner_id == owner_id)
+            .order_by(literal_column("rowid").desc())
+            .all()
+        )
+    else:
+        transactions = [
+            (tx, None)
+            for tx in (
+                db.query(models.Transaction)
+                .filter(models.Transaction.owner_id == owner_id)
+                .order_by(models.Transaction.timestamp.desc(), models.Transaction.id.desc())
+                .all()
+            )
+        ]
+    data = []
+    for tx, sort_index in transactions:
+        items = tx.items if isinstance(tx.items, list) else json.loads(tx.items) if isinstance(tx.items, str) else []
+        ui_type = "produce" if tx.type == "production" else tx.type
+        product_name = items[0].get("name") if items else None
+        data.append(
+            {
             "id": tx.id,
+            "sort_index": sort_index,
             "timestamp": tx.timestamp.isoformat(),
-            "type": tx.type,
+            "type": ui_type,
             "status": getattr(tx, "status", "completed") or "completed",
             "revenue": tx.total_revenue,
             "cost": tx.total_cost,
             "profit": tx.total_revenue - tx.total_cost,
-            "items": tx.items if isinstance(tx.items, list) else json.loads(tx.items) if isinstance(tx.items, str) else [],
+            "product": product_name,
+            "items": items,
         }
-        for tx in transactions
-    ]
+        )
     return JSONResponse(content=data, headers={"Cache-Control": "private, no-store"})
 
 

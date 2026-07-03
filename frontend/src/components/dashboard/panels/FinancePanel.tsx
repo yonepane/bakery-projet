@@ -54,7 +54,7 @@ const FinancePanel: React.FC<Props> = ({
   const { t } = useTranslation();
 
   const [isHT, setIsHT] = useState(false);
-  const TAX_RATE = 1.20; // 20% standard TVA assumed
+  const TAX_RATE = 1.10; // 10% Moroccan food TVA 2026
 
   // Helper: open expense modal pre-filled for editing
   const openEditExpense = (exp: any) => {
@@ -106,14 +106,14 @@ const FinancePanel: React.FC<Props> = ({
       tx.items.forEach((item: any) => {
         const name = (item.name || '').toLowerCase();
         const isBread = name.includes('pain') || name.includes('bread') || name.includes('baguette');
-        const rate = isBread ? 0 : 0.20;
+        const rate = isBread ? 0 : 0.10;
         const itemRevenue = (Number(item.qty) || 0) * (Number(item.price) || 0);
         const ht = itemRevenue / (1 + rate);
         totalTva += itemRevenue - ht;
       });
     } else {
       const totalRevenue = Number(tx.total_revenue) || 0;
-      totalTva = totalRevenue - (totalRevenue / 1.20);
+      totalTva = totalRevenue - (totalRevenue / 1.10);
     }
     return totalTva;
   };
@@ -131,20 +131,43 @@ const FinancePanel: React.FC<Props> = ({
           tx.items.forEach((item: any) => {
             const name = (item.name || '').toLowerCase();
             const isBread = name.includes('pain') || name.includes('bread') || name.includes('baguette');
-            const rate = isBread ? 0 : 0.20;
+            const rate = isBread ? 0 : 0.10;
             const itemRevenue = (Number(item.qty) || 0) * (Number(item.price) || 0);
             txHt += itemRevenue / (1 + rate);
           });
         } else {
-          txHt = (Number(tx.total_revenue) || 0) / 1.20;
+          txHt = (Number(tx.total_revenue) || 0) / 1.10;
         }
         return sum + txHt;
       }, 0)
     : monthlySales;
 
-  const displayCOGS = applyTaxMode(totalCOGSRaw);
-  const displayExpenses = monthlyExpensesTotal;
-  const displayWaste = applyTaxMode(totalWasteLossRaw);
+  const displayCOGS = isHT
+  ? filteredSales.reduce((sum: number, s: any) => {
+      const cost = Number(s.cost) || 0;
+      const name = (s.product_name || s.name || '').toLowerCase();
+      const isBread = name.includes('pain') || name.includes('bread') || name.includes('baguette');
+      const rate = isBread ? 0 : 0.10;
+      return sum + (cost / (1 + rate));
+    }, 0)
+  : totalCOGSRaw;
+  const displayExpenses = isHT 
+    ? filteredExpenses.reduce((sum: number, exp: any) => {
+        // If tax is deductible, the "real cost" is HT. If not, the full amount is a loss.
+        const tax = exp.is_tva_deductible ? (Number(exp.tva_amount) || 0) : 0;
+        return sum + (Number(exp.amount) - tax);
+      }, 0)
+    : monthlyExpensesTotal;
+
+  const displayWaste = isHT
+    ? filteredWaste.reduce((sum: number, w: any) => {
+        const loss = Number(w.loss_cost) || 0;
+        const name = (w.product_name || '').toLowerCase();
+        const isBread = name.includes('pain') || name.includes('bread') || name.includes('baguette');
+        const rate = isBread ? 0 : 0.10;
+        return sum + (loss / (1 + rate));
+      }, 0)
+    : totalWasteLossRaw;
   
   const displayNetProfit = displayRevenue - displayCOGS - displayWaste - displayExpenses;
   
@@ -223,7 +246,7 @@ const FinancePanel: React.FC<Props> = ({
       <div className="grid grid-cols-2 xl:grid-cols-5 gap-4 lg:gap-6">
         {[
           { label: `Gross Revenue (${isHT ? 'HT' : 'TTC'})`, value: formatPrice(displayRevenue), color: isDarkMode ? 'text-emerald-400' : 'text-emerald-700', icon: <TrendingUp size={20} /> },
-          { label: `Total COGS (${isHT ? 'HT' : 'TTC'})`, value: formatPrice(displayCOGS), color: 'text-amber-400', icon: <TrendingDown size={20} /> },
+          { label: 'Total COGS', value: formatPrice(displayCOGS), color: 'text-amber-400', icon: <TrendingDown size={20} /> },
           { label: `Gross Margin %`, value: grossMarginPercent, color: 'text-gold', icon: <TrendingUp size={20} /> },
           { label: 'Operating Expenses', value: formatPrice(displayExpenses), color: 'text-rose-400', icon: <TrendingDown size={20} /> },
           { label: `Net Profit (${isHT ? 'HT' : 'TTC'})`, value: formatPrice(displayNetProfit), color: displayNetProfit >= 0 ? 'text-emerald-400' : 'text-rose-400', icon: displayNetProfit >= 0 ? <TrendingUp size={20} /> : <TrendingDown size={20} /> },
@@ -280,7 +303,7 @@ const FinancePanel: React.FC<Props> = ({
           <div className="space-y-1">
             <p className={`text-[9px] font-black uppercase tracking-[0.15em] ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>{t('tva_collect_e_sales')}</p>
             <p className="text-xl font-bold text-emerald-500">+{formatPrice(tvaCollectee)}</p>
-            <p className="text-[10px] opacity-40">{t('20_on_pastries_0_on_bread')}</p>
+            <p className="text-[10px] opacity-40">{t('10_on_pastries_0_on_bread')}</p>
           </div>
           <div className="space-y-1">
             <p className={`text-[9px] font-black uppercase tracking-[0.15em] ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>{t('tva_d_ductible_expenses')}</p>
@@ -354,13 +377,19 @@ const FinancePanel: React.FC<Props> = ({
         <div className={`p-8 rounded-[2.5rem] border transition-colors ${isDarkMode ? 'glass-panel' : 'bg-white border-slate-200 shadow-xl'}`}>
           <h3 className={`text-xl font-bold luxury-font uppercase mb-6 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{t('waste_ledger')}</h3>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            {wasteByProduct.map((w: any) => (
-              <div key={w.name} className={`p-4 rounded-2xl border ${isDarkMode ? 'bg-rose-500/5 border-rose-500/20' : 'bg-rose-50 border-rose-100'}`}>
-                <p className="font-bold text-sm">{w.name}</p>
-                <p className="text-rose-500 font-black text-xs mt-1">-{formatPrice(applyTaxMode(w.loss_cost))}</p>
-                <p className="text-[10px] opacity-40 mt-1">{w.quantity} units</p>
-              </div>
-            ))}
+            {wasteByProduct.map((w: any) => {
+              const name = (w.name || '').toLowerCase();
+              const isBread = name.includes('pain') || name.includes('bread') || name.includes('baguette');
+              const rate = isBread ? 0 : 0.10;
+              const displayLoss = isHT ? (Number(w.loss_cost || w.loss) || 0) / (1 + rate) : (Number(w.loss_cost || w.loss) || 0);
+              return (
+                <div key={w.name} className={`p-4 rounded-2xl border ${isDarkMode ? 'bg-rose-500/5 border-rose-500/20' : 'bg-rose-50 border-rose-100'}`}>
+                  <p className="font-bold text-sm">{w.name}</p>
+                  <p className="text-rose-500 font-black text-xs mt-1">-{formatPrice(displayLoss)}</p>
+                  <p className="text-[10px] opacity-40 mt-1">{w.quantity || w.qty} units</p>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
@@ -446,7 +475,7 @@ const FinancePanel: React.FC<Props> = ({
 	                        -{formatPrice(exp.amount_ttc || exp.amount)}
 	                      </div>
 	                      <div className="text-[10px] opacity-40 mt-0.5">
-	                        {`HT: ${formatPrice(exp.amount_ht || exp.amount / 1.20)}`}
+	                        {`HT: ${formatPrice(exp.amount_ht || exp.amount / 1.10)}`}
 	                      </div>
 	                    </td>
                     <td className="px-8 py-5 text-right">

@@ -16,6 +16,17 @@ const PurchasingPanel: React.FC<Props> = ({
   setNewSupplier, handleDeleteSupplier,
 }) => {
   const { t } = useTranslation();
+  const getOrderTotal = (po: any) => (po.items || []).reduce((sum: number, item: any) => (
+    sum + (Number(item.qty) || 0) * (Number(item.price) || 0)
+  ), 0);
+  const getSupplierName = (supplierId: number | null | undefined) => (
+    suppliers.find(s => s.id === supplierId)?.name || 'No supplier'
+  );
+  const formatOrderDate = (date?: string | null) => {
+    if (!date) return 'No date';
+    const parsed = new Date(date);
+    return Number.isNaN(parsed.getTime()) ? date : parsed.toLocaleDateString();
+  };
   return (
   <div className="space-y-8 animate-in fade-in duration-500">
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -115,11 +126,24 @@ const PurchasingPanel: React.FC<Props> = ({
                   <div>
                     <p className="text-[10px] font-black uppercase tracking-widest opacity-40 mb-1">{t('order_id')}</p>
                     <p className="font-bold font-mono text-sm">{po.id}</p>
+                    <p className={`text-[10px] font-black uppercase tracking-widest mt-2 ${isDarkMode ? 'text-cream/35' : 'text-slate-400'}`}>
+                      {getSupplierName(po.supplier_id)} · {formatOrderDate(po.date)}
+                    </p>
                   </div>
                   <div className="flex flex-col items-end gap-2">
                     <span className={`text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full ${po.status === 'received' ? (isDarkMode ? 'bg-emerald-500/10 text-emerald-500' : 'bg-emerald-100 text-emerald-700') : (isDarkMode ? 'bg-gold/10 text-gold' : 'bg-amber-100 text-amber-700')}`}>{po.status}</span>
+                    <p className={`text-sm font-black ${isDarkMode ? 'text-gold' : 'text-slate-900'}`}>{formatPrice(getOrderTotal(po))}</p>
                     <button onClick={() => handleDeletePO(po.id)} className="p-1.5 rounded-lg text-rose-500/30 hover:text-rose-500 hover:bg-rose-500/10"><Trash2 size={14} /></button>
                   </div>
+                </div>
+                <div className={`mb-4 rounded-2xl px-4 py-3 ${isDarkMode ? 'bg-black/20' : 'bg-white'}`}>
+                  <p className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-cream/35' : 'text-slate-400'}`}>
+                    {(po.items || []).length} items received
+                  </p>
+                  <p className={`text-xs font-bold mt-1 truncate ${isDarkMode ? 'text-cream/70' : 'text-slate-600'}`}>
+                    {(po.items || []).slice(0, 3).map((item: any) => item.name).join(', ')}
+                    {(po.items || []).length > 3 ? ` +${(po.items || []).length - 3} more` : ''}
+                  </p>
                 </div>
                 <div className="space-y-2 mb-4">
                   <button onClick={() => openPOModal(po)} className={`w-full py-3 rounded-xl font-black text-[10px] uppercase tracking-widest ${isDarkMode ? 'bg-white/10 hover:bg-white/15' : 'bg-slate-200 text-slate-900'}`}>{t('manage_order')}</button>

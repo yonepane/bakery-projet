@@ -7,7 +7,7 @@ so the app stays functional even when the external API is unavailable.
 
 import json
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import httpx
 import sqlalchemy.orm
@@ -58,10 +58,12 @@ def _rates_from_db(db: sqlalchemy.orm.Session, owner_id: int) -> dict | None:
 
     try:
         cached_at = datetime.fromisoformat(ts_row.value)
+        if cached_at.tzinfo is None:
+            cached_at = cached_at.replace(tzinfo=timezone.utc)
     except ValueError:
         return None
 
-    if datetime.utcnow() - cached_at > timedelta(hours=CACHE_TTL_HOURS):
+    if datetime.now(timezone.utc) - cached_at > timedelta(hours=CACHE_TTL_HOURS):
         return None  # stale
 
     rates_row = db.query(models.SystemSetting).filter(
@@ -80,7 +82,7 @@ def _rates_from_db(db: sqlalchemy.orm.Session, owner_id: int) -> dict | None:
 
 def _save_rates_to_db(db: sqlalchemy.orm.Session, owner_id: int, rates: dict) -> None:
     """Persist rates and a timestamp into system_settings."""
-    now_str = datetime.utcnow().isoformat()
+    now_str = datetime.now(timezone.utc).isoformat()
     rates_json = json.dumps(rates)
 
     for key, value in [(CACHE_KEY_RATES, rates_json), (CACHE_KEY_TS, now_str)]:

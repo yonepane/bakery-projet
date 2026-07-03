@@ -6,7 +6,7 @@ so that main.py can stay focused on app setup and middleware.
 
 import os
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 import sqlalchemy.orm
@@ -119,7 +119,7 @@ async def produce(
     transaction = models.Transaction(
         id=tx_id,
         owner_id=owner_id,
-        timestamp=datetime.utcnow(),
+        timestamp=datetime.now(timezone.utc),
         type="production",
         total_revenue=0,
         total_cost=production_cost,
@@ -189,7 +189,7 @@ async def complete_sale(
     transaction = models.Transaction(
         id=tx_id,
         owner_id=owner_id,
-        timestamp=datetime.utcnow(),
+        timestamp=datetime.now(timezone.utc),
         type="sale",
         total_revenue=total_revenue,
         total_cost=total_cost,

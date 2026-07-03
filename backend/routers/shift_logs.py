@@ -1,6 +1,6 @@
 """Shift log routes for BakeryOS."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 import sqlalchemy.orm
 from fastapi import APIRouter, Depends, HTTPException
@@ -43,7 +43,7 @@ async def add_shift_log(
         content=log.content,
         author=user.username,
         owner_id=owner_id,
-        timestamp=datetime.utcnow(),
+        timestamp=datetime.now(timezone.utc),
     )
     db.add(new_log)
     db.commit()

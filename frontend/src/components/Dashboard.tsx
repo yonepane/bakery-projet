@@ -118,6 +118,43 @@ const Dashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const { t, i18n } = useTranslation();
 
+  // Main business data — delegated to useBakeryData hook.
+  // The hook owns all server-fetched state and the tab-aware lazy fetch strategy.
+  const {
+    inventory, analytics, profitReport, alerts, history, planner, setPlanner,
+    orders, settings, liveRates, customers, expenses, wasteRecords,
+    staff, suppliers, selectedSupplierId, setSelectedSupplierId,
+    purchaseOrders, purchasingSuggestions, shiftLogs, loading, setLoading,
+    setInventory, setAnalytics, setHistory, setOrders, setSettings,
+    setCustomers, setExpenses, setWasteRecords, setStaff,
+    setSuppliers, setPurchaseOrders, setPurchasingSuggestions, setShiftLogs,
+    fetchData, fetchTabData, applyInventory, applySettings,
+  } = useBakeryData(user, activeTab);
+
+  const [cart, setCart] = useState<CartItem[]>([]);
+  const [toasts, setToasts] = useState<Toast[]>([]);
+  const [confirmConfig, setConfirmConfig] = useState<ConfirmConfig>({
+      isOpen: false,
+      title: '',
+      message: '',
+      onConfirm: () => {},
+      type: 'info',
+      confirmText: 'Confirm'
+  });
+  
+  const addToast = (message: string, type: Toast['type'] = 'info') => {
+    // Toast messages disappear automatically after a few seconds.
+    const id = createToastId();
+    setToasts(prev => [...prev, { id, message, type }]);
+    setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== id));
+    }, 5000);
+  };
+
+  const showConfirm = (config: Omit<ConfirmConfig, 'isOpen'>) => {
+    setConfirmConfig({ ...config, isOpen: true });
+  };
+
   const mutationDeps = { fetchData, addToast, showConfirm };
 
   const { handleAdjustStock, handleAddMaterial, handleDeleteMaterial } =
@@ -141,6 +178,7 @@ const Dashboard: React.FC = () => {
 
   const { handleProduce, handlePlanBatch, handleCompletePlan } =
     usePlannerMutations(mutationDeps);
+
   const [lang, setLangState] = useState<Language>(() => (i18n.language as Language) || 'en');
   
   const setLang = (newLang: Language) => {
@@ -229,41 +267,8 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  // Main business data — delegated to useBakeryData hook.
-  // The hook owns all server-fetched state and the tab-aware lazy fetch strategy.
-  const {
-    inventory, analytics, profitReport, alerts, history, planner, setPlanner,
-    orders, settings, liveRates, customers, expenses, wasteRecords,
-    staff, suppliers, selectedSupplierId, setSelectedSupplierId,
-    purchaseOrders, purchasingSuggestions, shiftLogs, loading, setLoading,
-    setInventory, setAnalytics, setHistory, setOrders, setSettings,
-    setCustomers, setExpenses, setWasteRecords, setStaff,
-    setSuppliers, setPurchaseOrders, setPurchasingSuggestions, setShiftLogs,
-    fetchData, fetchTabData, applyInventory, applySettings,
-  } = useBakeryData(user, activeTab);
-  const [cart, setCart] = useState<CartItem[]>([]);
-  const [toasts, setToasts] = useState<Toast[]>([]);
-  const [confirmConfig, setConfirmConfig] = useState<ConfirmConfig>({
-      isOpen: false,
-      title: '',
-      message: '',
-      onConfirm: () => {},
-      type: 'info',
-      confirmText: 'Confirm'
-  });
-  
-  const addToast = (message: string, type: Toast['type'] = 'info') => {
-    // Toast messages disappear automatically after a few seconds.
-    const id = createToastId();
-    setToasts(prev => [...prev, { id, message, type }]);
-    setTimeout(() => {
-      setToasts(prev => prev.filter(t => t.id !== id));
-    }, 5000);
-  };
 
-  const showConfirm = (config: Omit<ConfirmConfig, 'isOpen'>) => {
-    setConfirmConfig({ ...config, isOpen: true });
-  };
+
   
   // Display preferences.
   const [isDarkMode, setIsDarkMode] = useState(true);

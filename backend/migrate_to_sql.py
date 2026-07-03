@@ -64,7 +64,7 @@ def migrate():
                     try:
                         ts = datetime.datetime.fromisoformat(tx['timestamp'])
                     except:
-                        ts = datetime.datetime.utcnow()
+                        ts = datetime.datetime.now(datetime.timezone.utc)
                         
                     transaction = Transaction(
                         id=tx['id'],

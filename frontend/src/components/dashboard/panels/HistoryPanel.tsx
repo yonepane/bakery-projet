@@ -107,12 +107,9 @@ const RefundModal: React.FC<RefundModalProps> = ({ tx, isDarkMode, formatPrice, 
 const HistoryPanel: React.FC<Props> = ({ isDarkMode, history, formatPrice, openDocument, getDownloadToken, openSelector, API_BASE, api, fetchData, fetchTabData, addToast, showConfirm }) => {
   const { t } = useTranslation();
 
-  const today = new Date().toISOString().slice(0, 10);
-
   const [search, setSearch] = useState('');
-  const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-  const [dateFrom, setDateFrom] = useState(ninetyDaysAgo);
-  const [dateTo, setDateTo] = useState(today);
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
   const [typeFilter, setTypeFilter] = useState<'all' | 'sale' | 'produce'>('all');
 
   // Refund modal state
@@ -120,10 +117,9 @@ const HistoryPanel: React.FC<Props> = ({ isDarkMode, history, formatPrice, openD
   const [refundLoading, setRefundLoading] = useState(false);
 
   const filtered = useMemo(() => {
-    // Backend already returns DESC (newest first) — do NOT reverse.
     return history.filter(tx => {
       const txDate = tx.timestamp?.slice(0, 10) || '';
-      const matchDate = txDate >= dateFrom && txDate <= dateTo;
+      const matchDate = (!dateFrom || txDate >= dateFrom) && (!dateTo || txDate <= dateTo);
       const matchType = typeFilter === 'all' || tx.type === typeFilter;
       const items = typeof tx.items === 'string' ? JSON.parse(tx.items) : tx.items;
       const matchSearch = !search ||
@@ -131,6 +127,14 @@ const HistoryPanel: React.FC<Props> = ({ isDarkMode, history, formatPrice, openD
         items?.some((i: any) => i.name?.toLowerCase().includes(search.toLowerCase())) ||
         tx.product?.toLowerCase().includes(search.toLowerCase());
       return matchDate && matchType && matchSearch;
+    }).sort((a, b) => {
+      const aSort = Number((a as any).sort_index);
+      const bSort = Number((b as any).sort_index);
+      if (Number.isFinite(aSort) && Number.isFinite(bSort) && aSort !== bSort) {
+        return bSort - aSort;
+      }
+      const byTime = new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime();
+      return byTime || String(b.id || '').localeCompare(String(a.id || ''));
     });
   }, [history, dateFrom, dateTo, typeFilter, search]);
 

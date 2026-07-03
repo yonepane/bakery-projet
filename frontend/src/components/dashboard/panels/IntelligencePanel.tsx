@@ -67,7 +67,7 @@ const IntelligencePanel: React.FC<Props> = ({ isDarkMode, profitReport, inventor
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-5">
         {[
           { 
-            label: 'Portfolio Cost', 
+            label: 'Inventory Cost', 
             value: formatPrice(analytics.intelligence.total_portfolio_cost), 
             color: 'text-rose-400',
             glowColor: 'hover:border-rose-500/30 hover:shadow-[0_0_30px_rgba(244,63,94,0.08)]',

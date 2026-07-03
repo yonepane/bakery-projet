@@ -4,6 +4,7 @@ Each class below becomes one table in the database.
 """
 
 import datetime
+from datetime import timezone
 
 from sqlalchemy import Column, Integer, String, Float, ForeignKey, DateTime, JSON, Boolean
 from sqlalchemy.orm import relationship
@@ -67,7 +68,7 @@ class Transaction(Base):
     # production batch. The saved JSON keeps a historical copy of the items.
     id = Column(String, primary_key=True, index=True)
     owner_id = Column(Integer, ForeignKey("users.id"))
-    timestamp = Column(DateTime, default=datetime.datetime.utcnow)
+    timestamp = Column(DateTime, default=lambda: datetime.datetime.now(timezone.utc))
     type = Column(String) # 'sale' or 'production'
     total_revenue = Column(Float, default=0)
     total_cost = Column(Float, default=0)
@@ -93,7 +94,7 @@ class Customer(Base):
     phone = Column(String, nullable=True)
     email = Column(String, nullable=True)
     points = Column(Integer, default=0)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.datetime.now(timezone.utc))
 
 class Order(Base):
     __tablename__ = "orders"
@@ -109,14 +110,14 @@ class Order(Base):
     pickup_date = Column(DateTime)
     status = Column(String, default="pending") # Current order state.
     notes = Column(String, nullable=True)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.datetime.now(timezone.utc))
 
 class WasteRecord(Base):
     __tablename__ = "waste_records"
     # Waste records show stock that was lost, spoiled, or thrown away.
     id = Column(Integer, primary_key=True, index=True)
     owner_id = Column(Integer, ForeignKey("users.id"))
-    date = Column(DateTime, default=datetime.datetime.utcnow)
+    date = Column(DateTime, default=lambda: datetime.datetime.now(timezone.utc))
     product_id = Column(String, ForeignKey("products.id"))
     quantity = Column(Integer)
     loss_cost = Column(Float)
@@ -136,7 +137,7 @@ class Expense(Base):
     # do not change ingredient stock.
     id = Column(Integer, primary_key=True, index=True)
     owner_id = Column(Integer, ForeignKey("users.id"))
-    date = Column(DateTime, default=datetime.datetime.utcnow)
+    date = Column(DateTime, default=lambda: datetime.datetime.now(timezone.utc))
     category = Column(String) # The type of expense.
     amount = Column(Float)
     description = Column(String, nullable=True)
@@ -178,7 +179,7 @@ class PurchaseOrder(Base):
     # actually arrive.
     id = Column(String, primary_key=True, index=True)
     owner_id = Column(Integer, ForeignKey("users.id"))
-    date = Column(DateTime, default=datetime.datetime.utcnow)
+    date = Column(DateTime, default=lambda: datetime.datetime.now(timezone.utc))
     supplier_id = Column(Integer, ForeignKey("suppliers.id"))
     items = Column(JSON) # List of purchased items with quantity and price.
     notes = Column(String, nullable=True)
@@ -200,7 +201,7 @@ class ShiftLog(Base):
     __tablename__ = "shift_logs"
     id = Column(Integer, primary_key=True, index=True)
     owner_id = Column(Integer, ForeignKey("users.id"))
-    timestamp = Column(DateTime, default=datetime.datetime.utcnow)
+    timestamp = Column(DateTime, default=lambda: datetime.datetime.now(timezone.utc))
     author = Column(String)
     content = Column(String)
 
@@ -209,7 +210,7 @@ class ShiftRecord(Base):
     id = Column(Integer, primary_key=True, index=True)
     owner_id = Column(Integer, ForeignKey("users.id"))
     start_time = Column(DateTime)
-    end_time = Column(DateTime, default=datetime.datetime.utcnow)
+    end_time = Column(DateTime, default=lambda: datetime.datetime.now(timezone.utc))
     revenue = Column(Float)
     cost = Column(Float)
 
@@ -218,7 +219,7 @@ class ExpensePayment(Base):
     id = Column(Integer, primary_key=True, index=True)
     expense_id = Column(Integer, ForeignKey("expenses.id"))
     amount = Column(Float)
-    paid_at = Column(DateTime, default=datetime.datetime.utcnow)
+    paid_at = Column(DateTime, default=lambda: datetime.datetime.now(timezone.utc))
     payment_method = Column(String, default="cash") # cash, bank_transfer, card, cheque
 
     expense = relationship("Expense", back_populates="payments")

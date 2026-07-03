@@ -10,7 +10,7 @@ Performance notes (cloud DB):
 
 import os
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from collections import defaultdict
 
 import sqlalchemy.orm
@@ -123,7 +123,7 @@ async def analytics(
     # stored by pos.py (which also uses utcnow). Mixing now() and utcnow() would
     # shift chart bars by the server's UTC offset.
     daily_data = []
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     for i in range(6, -1, -1):
         day = now - timedelta(days=i)
         s_day = datetime(day.year, day.month, day.day)
@@ -159,7 +159,11 @@ async def analytics(
 
     # One query for all products + recipes (joinedload = no N+1).
     products = _load_products_with_recipes(db, owner_id)
-    total_portfolio_cost = sum(calculate_product_cost(p) for p in products)
+    # This KPI is shown in the Intelligence panel as inventory cost. It should
+    # represent the value of produced stock on hand, not one sample unit of every
+    # recipe in the catalog. The latter looked like a cost even when nothing had
+    # been sold, which made the event account confusing.
+    total_inventory_cost = sum(calculate_product_cost(p) * (p.stock or 0) for p in products)
     margins = []
     for product in products:
         cost = calculate_product_cost(product)
@@ -177,9 +181,9 @@ async def analytics(
         "hourlySales": hourly_sales,
         "topProducts": top_products,
         "intelligence": {
-            "total_portfolio_cost": round(total_portfolio_cost, 2),
+            "total_portfolio_cost": round(total_inventory_cost, 2),
             "average_margin": f"{round(avg_margin, 2)}%",
-            "products_count": len(product_stats),
+            "products_count": len(products),
         },
     }
     _analytics_cache[owner_id] = (time.time(), result)
