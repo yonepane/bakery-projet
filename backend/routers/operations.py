@@ -116,6 +116,10 @@ async def inventory(
             "unit": ing.unit,
             "price": ing.price,
             "min_threshold": ing.min_threshold,
+            "allergens": ing.allergens,
+            "is_organic": ing.is_organic,
+            "purchase_unit": ing.purchase_unit,
+            "purchase_to_base_ratio": ing.purchase_to_base_ratio,
         }
         for ing in ingredients
     }

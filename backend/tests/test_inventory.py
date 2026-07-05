@@ -63,3 +63,29 @@ def test_tenant_isolation_owners_cannot_see_each_other(client, db):
     # Owner B must NOT see Owner A's material
     resp_b = client.get("/api/inventory", headers=headers_b)
     assert "Butter" not in resp_b.json()["materials"]
+
+
+def test_add_material_with_allergens_and_units(client, auth_headers):
+    """Allergen, organic flag, purchase unit, and ratio must round-trip through the API."""
+    resp = client.post("/api/materials", json={
+        "name": "Organic Milk",
+        "unit": "L",
+        "price": 1.2,
+        "min_threshold": 5,
+        "allergens": ["dairy"],
+        "is_organic": True,
+        "purchase_unit": "crate_12L",
+        "purchase_to_base_ratio": 12.0
+    }, headers=auth_headers)
+    assert resp.status_code == 200
+
+    # Verify the ingredient is retrievable with correct fields
+    inv = client.get("/api/inventory", headers=auth_headers)
+    assert inv.status_code == 200
+    materials = inv.json()["materials"]
+    assert "Organic Milk" in materials
+    milk = materials["Organic Milk"]
+    assert milk["allergens"] == ["dairy"]
+    assert milk["is_organic"] is True
+    assert milk["purchase_unit"] == "crate_12L"
+    assert milk["purchase_to_base_ratio"] == 12.0

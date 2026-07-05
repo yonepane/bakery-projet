@@ -56,6 +56,10 @@ async def add_material(
         unit=mat.unit,
         min_threshold=mat.min_threshold,
         stock=0,
+        allergens=mat.allergens,
+        is_organic=mat.is_organic,
+        purchase_unit=mat.purchase_unit,
+        purchase_to_base_ratio=mat.purchase_to_base_ratio,
     )
     db.add(new_ing)
     db.commit()

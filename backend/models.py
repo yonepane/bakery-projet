@@ -28,6 +28,10 @@ class Ingredient(Base):
     min_threshold = Column(Float, default=0)
     supplier = Column(String, nullable=True)
     last_purchase_price = Column(Float, nullable=True)
+    allergens = Column(JSON, nullable=True)          # e.g. ["gluten", "dairy"]
+    is_organic = Column(Boolean, default=False)
+    purchase_unit = Column(String, nullable=True)    # e.g. "crate_12L" or "sack_25kg"
+    purchase_to_base_ratio = Column(Float, default=1.0)  # qty in purchase_unit × ratio = base unit qty
 
 class Product(Base):
     __tablename__ = "products"

@@ -30,6 +30,10 @@ class MaterialCreate(BaseModel):
     price: float
     unit: str
     min_threshold: float
+    allergens: Optional[List[str]] = None
+    is_organic: Optional[bool] = False
+    purchase_unit: Optional[str] = None
+    purchase_to_base_ratio: Optional[float] = 1.0
 
 
 class SupplierCreate(BaseModel):
