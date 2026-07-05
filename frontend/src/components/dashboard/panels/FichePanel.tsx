@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next';
 import React, { useMemo } from 'react';
 import { Edit2, Plus, Trash2, X, Copy } from 'lucide-react';
 import { DashboardSharedProps } from '../types';
+import { parseQtyString } from '../utils';
 
 type Props = Pick<DashboardSharedProps,
   'isDarkMode' | 'inventory' | 'editMode' | 'formatPrice' |
@@ -139,9 +140,12 @@ const FichePanel: React.FC<Props> = ({
                       const mat = inventory.materials[e.target.value];
                       const promptUnit = mat && ['kg', 'g'].includes(mat.unit) ? 'grams' : (mat && ['L', 'l', 'ml'].includes(mat.unit) ? 'ml' : 'units');
                       const qty = prompt(`Enter quantity for ${e.target.value} in ${promptUnit}:`, "100");
-                      if (qty && !isNaN(Number(qty))) {
-                        const newIngredients = [...p.ingredients, { name: e.target.value, quantity: Number(qty) }];
-                        handleUpdateProductField(p.id, 'ingredients', newIngredients);
+                      if (qty) {
+                        const parsed = parseQtyString(qty, mat ? mat.unit : 'g');
+                        if (parsed > 0) {
+                          const newIngredients = [...p.ingredients, { name: e.target.value, quantity: parsed }];
+                          handleUpdateProductField(p.id, 'ingredients', newIngredients);
+                        }
                       }
                       e.target.value = '';
                     }}

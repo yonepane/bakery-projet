@@ -174,3 +174,30 @@ export const deriveAccountingMetrics = ({
     wasteByProduct,
   };
 };
+
+export const parseQtyString = (input: string, baseUnit: string): number => {
+  const cleaned = input.trim().toLowerCase();
+  const val = parseFloat(cleaned);
+  if (isNaN(val)) return 0;
+  
+  const suffix = cleaned.replace(val.toString(), '').trim();
+  if (!suffix) return val;
+
+  if (baseUnit === 'g') {
+    if (suffix === 'kg') return val * 1000;
+    if (suffix === 'g') return val;
+  }
+  if (baseUnit === 'ml') {
+    if (suffix === 'l') return val * 1000;
+    if (suffix === 'ml') return val;
+  }
+  if (baseUnit === 'L' || baseUnit === 'l') {
+    if (suffix === 'ml') return val / 1000;
+    if (suffix === 'l') return val;
+  }
+  if (baseUnit === 'kg') {
+    if (suffix === 'g') return val / 1000;
+    if (suffix === 'kg') return val;
+  }
+  return val;
+};

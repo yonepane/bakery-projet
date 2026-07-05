@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next';
 import React from 'react';
 import { Edit2, Plus, Trash2 } from 'lucide-react';
 import { DashboardSharedProps } from '../types';
+import { parseQtyString } from '../utils';
 
 type Props = Pick<DashboardSharedProps,
   'isDarkMode' | 'inventory' | 'sortedMaterialEntries' | 'editMode' |
@@ -154,8 +155,8 @@ const InventoryPanel: React.FC<Props> = ({
                         value: '1000',
                         type: 'text',
                         onConfirm: (val) => {
-                          const parsed = parseInt(val);
-                          if (!isNaN(parsed)) handleAdjustStock('material', name, parsed);
+                          const parsed = parseQtyString(val, data.unit);
+                          if (parsed !== 0) handleAdjustStock('material', name, parsed);
                         }
                       })}
                       className={`w-6 h-6 rounded-md flex items-center justify-center text-xs shrink-0 ${isDarkMode ? 'bg-white/5 hover:bg-emerald-500/20 text-emerald-500' : 'bg-slate-100 hover:bg-emerald-100 text-emerald-600'}`}
