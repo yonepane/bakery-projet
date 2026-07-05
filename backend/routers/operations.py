@@ -126,6 +126,10 @@ async def inventory(
 
     products_list = []
     for product in products:
+        product_allergens: set = set()
+        for item in product.recipe_items:
+            if item.ingredient and item.ingredient.allergens:
+                product_allergens.update(item.ingredient.allergens)
         products_list.append(
             {
                 "id": product.id,
@@ -138,6 +142,7 @@ async def inventory(
                 "yield_qty": product.yield_qty,
                 "instructions": product.instructions or [],
                 "live_cost": calculate_product_cost(product),
+                "allergens": sorted(product_allergens),
                 "ingredients": [
                     {
                         "name": item.ingredient.name if item.ingredient else "Unknown",
