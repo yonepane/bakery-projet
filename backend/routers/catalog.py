@@ -254,6 +254,56 @@ async def delete_product(
     return {"success": True}
 
 
+@router.post("/api/products/{id}/duplicate", dependencies=[Depends(requires_roles(["owner"]))])
+async def duplicate_product(
+    id: str,
+    db: sqlalchemy.orm.Session = Depends(get_db),
+    owner_id: int = Depends(get_effective_owner_id),
+):
+    original = db.query(models.Product).filter(
+        models.Product.id == id,
+        models.Product.owner_id == owner_id,
+    ).first()
+    if not original:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    new_id = f"{id}-copy"
+    new_name = f"{original.name} (Copy)"
+    
+    suffix = 1
+    while db.query(models.Product).filter(models.Product.id == new_id, models.Product.owner_id == owner_id).first():
+        new_id = f"{id}-copy-{suffix}"
+        new_name = f"{original.name} (Copy {suffix})"
+        suffix += 1
+
+    new_prod = models.Product(
+        id=new_id,
+        owner_id=owner_id,
+        name=new_name,
+        price=original.price,
+        icon=original.icon,
+        prep_time=original.prep_time,
+        cook_time=original.cook_time,
+        yield_qty=original.yield_qty,
+        instructions=original.instructions,
+        stock=0,
+    )
+    db.add(new_prod)
+    db.flush()
+
+    for item in original.recipe_items:
+        recipe_item = models.RecipeItem(
+            product_id=new_prod.id,
+            ingredient_id=item.ingredient_id,
+            quantity=item.quantity,
+        )
+        db.add(recipe_item)
+
+    db.commit()
+    return {"success": True, "new_product_id": new_prod.id}
+
+
+
 @router.post("/api/maintenance/delete-empty-products", dependencies=[Depends(requires_roles(["owner"]))])
 async def delete_empty_product(
     db: sqlalchemy.orm.Session = Depends(get_db),
