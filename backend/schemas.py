@@ -2,7 +2,7 @@
 
 from typing import Dict, List, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class IngredientItem(BaseModel):
@@ -31,9 +31,9 @@ class MaterialCreate(BaseModel):
     unit: str
     min_threshold: float
     allergens: Optional[List[str]] = None
-    is_organic: Optional[bool] = False
+    is_organic: bool = False
     purchase_unit: Optional[str] = None
-    purchase_to_base_ratio: Optional[float] = 1.0
+    purchase_to_base_ratio: Optional[float] = Field(default=1.0, gt=0)
 
 
 class SupplierCreate(BaseModel):

@@ -89,3 +89,52 @@ def test_add_material_with_allergens_and_units(client, auth_headers):
     assert milk["is_organic"] is True
     assert milk["purchase_unit"] == "crate_12L"
     assert milk["purchase_to_base_ratio"] == 12.0
+
+
+def test_update_material_preserves_allergens(client, auth_headers):
+    """PUT must not silently wipe allergen fields."""
+    client.post("/api/materials", json={
+        "name": "Butter",
+        "unit": "kg",
+        "price": 5.0,
+        "min_threshold": 2,
+        "allergens": ["dairy"],
+        "is_organic": True,
+        "purchase_unit": "box_10kg",
+        "purchase_to_base_ratio": 10.0
+    }, headers=auth_headers)
+
+    client.put("/api/materials/Butter", json={
+        "name": "Butter",
+        "unit": "kg",
+        "price": 6.0,
+        "min_threshold": 2,
+        "allergens": ["dairy"],
+        "is_organic": True,
+        "purchase_unit": "box_10kg",
+        "purchase_to_base_ratio": 10.0
+    }, headers=auth_headers)
+
+    inv = client.get("/api/inventory", headers=auth_headers)
+    butter = inv.json()["materials"]["Butter"]
+    assert butter["allergens"] == ["dairy"]
+    assert butter["is_organic"] is True
+    assert butter["purchase_unit"] == "box_10kg"
+    assert butter["purchase_to_base_ratio"] == 10.0
+
+
+def test_material_defaults_when_fields_omitted(client, auth_headers):
+    """New fields must have correct defaults when not provided."""
+    client.post("/api/materials", json={
+        "name": "Salt",
+        "unit": "kg",
+        "price": 0.5,
+        "min_threshold": 1,
+    }, headers=auth_headers)
+
+    inv = client.get("/api/inventory", headers=auth_headers)
+    salt = inv.json()["materials"]["Salt"]
+    assert salt["allergens"] is None
+    assert salt["is_organic"] is False
+    assert salt["purchase_unit"] is None
+    assert salt["purchase_to_base_ratio"] == 1.0

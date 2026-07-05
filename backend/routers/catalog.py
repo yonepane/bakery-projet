@@ -84,6 +84,10 @@ async def update_material(
     ing.price = mat.price
     ing.unit = mat.unit
     ing.min_threshold = mat.min_threshold
+    ing.allergens = mat.allergens
+    ing.is_organic = mat.is_organic
+    ing.purchase_unit = mat.purchase_unit
+    ing.purchase_to_base_ratio = mat.purchase_to_base_ratio
     db.commit()
     return {"success": True}
 
