@@ -116,6 +116,7 @@ const Dashboard: React.FC = () => {
   
   // UI state for navigation and language.
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [kitchenMode, setKitchenMode] = useState(false);
   const { t, i18n } = useTranslation();
 
   // Main business data — delegated to useBakeryData hook.
@@ -1167,7 +1168,7 @@ const Dashboard: React.FC = () => {
     handlePartialReceivePO, handleDeleteStaff, handleDeleteExpense, handleDeleteSupplier,
     handleAddSupplier, handleResetSession, handleCompletePlan,
     formatPrice, displayUnit: (v, u) => `${v}${u}`, openDocument, getDownloadToken, openSelector,
-    addToast, showConfirm, fetchData, fetchTabData, api
+    addToast, showConfirm, fetchData, fetchTabData, api, kitchenMode
   };
 
   if (loading) return (
@@ -1238,6 +1239,7 @@ const Dashboard: React.FC = () => {
               { id: 'history', icon: HistoryIcon, label: t('history') },
               ].filter(item => {
               if (user?.role === 'cashier' && ['simulator', 'inventory', 'purchasing', 'intelligence'].includes(item.id)) return false;
+              if (kitchenMode && ['simulator', 'intelligence', 'purchasing', 'history', 'pos', 'dashboard', 'comptabilite', 'orders', 'expenses', 'staff', 'customers', 'settings'].includes(item.id)) return false;
               return true;
               })
 .map((item) => (
@@ -1397,6 +1399,25 @@ const Dashboard: React.FC = () => {
               </div>
               <div className={`w-3 h-3 rounded-full ${isOnline ? 'bg-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.8)]' : 'bg-rose-500 shadow-[0_0_15px_rgba(244,63,94,0.8)] animate-pulse'}`} />
             </div>
+
+            {/* Kitchen Mode Toggle */}
+            <button 
+              onClick={() => {
+                const next = !kitchenMode;
+                setKitchenMode(next);
+                if (next) {
+                  setActiveTab('kitchen');
+                } else {
+                  setActiveTab('dashboard');
+                }
+                addToast(`Switched to ${next ? 'Kitchen' : 'Manager'} mode`, 'info');
+              }} 
+              className={`px-4 py-2 rounded-2xl border transition-all flex items-center justify-center gap-2 font-bold text-xs uppercase tracking-widest ${isDarkMode ? 'glass-panel hover:bg-white/5 border-gold/10 text-gold' : 'border-slate-200 bg-white shadow-sm text-slate-600 hover:bg-slate-50'}`}
+              title="Toggle Kitchen Mode"
+            >
+              <ClipboardList size={18} />
+              <span>{kitchenMode ? 'Kitchen Mode' : 'Manager Mode'}</span>
+            </button>
 
             {/* Theme Toggle */}
             <button 

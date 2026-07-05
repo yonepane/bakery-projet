@@ -93,6 +93,7 @@ const FichePanel: React.FC<Props> = ({
                       </button>
                     </div>
                   )}
+                  {!kitchenMode && (
                   <div>
                     <p className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-gold' : 'text-slate-400'}`}>{t('unit_cost')}</p>
                     <p className={`text-xl font-bold ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{formatPrice(materialCost)}</p>
@@ -102,6 +103,7 @@ const FichePanel: React.FC<Props> = ({
                       </p>
                     )}
                   </div>
+                  )}
                 </div>
               </div>
 
@@ -162,6 +164,7 @@ const FichePanel: React.FC<Props> = ({
 
               <div className={`pt-6 border-t ${isDarkMode ? 'border-white/5' : 'border-slate-100'}`}>
                 <div className="flex justify-between items-start">
+                  {!kitchenMode && (
                   <div>
                     <p className={`text-[10px] font-black uppercase tracking-widest ${isLowMargin ? 'text-rose-500' : (isDarkMode ? 'text-emerald-500/50' : 'text-emerald-600')}`}>{t('true_net_margin')}</p>
                     <p className={`text-xl font-bold ${isLowMargin ? 'text-rose-500' : 'text-emerald-500'}`}>{margin}%</p>
@@ -171,6 +174,7 @@ const FichePanel: React.FC<Props> = ({
                       </p>
                     )}
                   </div>
+                  )}
                   {editMode && <button onClick={() => handleDeleteProduct(p.id)} className="text-rose-500/20 hover:text-rose-500 transition-colors"><Trash2 size={16} /></button>}
                 </div>
               </div>

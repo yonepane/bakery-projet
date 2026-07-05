@@ -152,6 +152,7 @@ export interface DashboardSharedProps {
   fetchData: () => void;
   fetchTabData: (tab: string) => void;
   api: any;
+  kitchenMode?: boolean;
 }
 
 // ─── Re-export core types used across panels ──────────────────────────────────

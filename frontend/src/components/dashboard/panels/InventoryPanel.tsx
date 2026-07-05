@@ -8,13 +8,13 @@ type Props = Pick<DashboardSharedProps,
   'isDarkMode' | 'inventory' | 'sortedMaterialEntries' | 'editMode' |
   'formatPrice' | 'handleAdjustStock' | 'openSelector' | 'startEditingMaterial' |
   'handleDeleteMaterial' | 'setShowAddProduct' | 'setShowAddMaterial' |
-  'setEditingMaterialName' | 'setNewMaterial' | 'handleUpdateProductPrice'>;
+  'setEditingMaterialName' | 'setNewMaterial' | 'handleUpdateProductPrice' | 'kitchenMode'>;
 
 const InventoryPanel: React.FC<Props> = ({
   isDarkMode, inventory, sortedMaterialEntries, editMode, formatPrice,
   handleAdjustStock, openSelector, startEditingMaterial, handleDeleteMaterial,
   setShowAddProduct, setShowAddMaterial, setEditingMaterialName, setNewMaterial,
-  handleUpdateProductPrice,
+  handleUpdateProductPrice, kitchenMode,
 }) => {
   const { t } = useTranslation();
   return (
@@ -31,7 +31,7 @@ const InventoryPanel: React.FC<Props> = ({
             <tr className={`border-b text-[10px] font-black uppercase tracking-[0.2em] ${isDarkMode ? 'border-white/5 text-cream/40' : 'border-slate-100 text-slate-400'}`}>
               <th className="px-8 py-6">{t('entity')}</th>
               <th className="px-8 py-6">{t('stock')}</th>
-              <th className="px-8 py-6 text-right">{t('price_value')}</th>
+              {!kitchenMode && <th className="px-8 py-6 text-right">{t('price_value')}</th>}
             </tr>
           </thead>
           <tbody className={`divide-y ${isDarkMode ? 'divide-white/5' : 'divide-slate-100'}`}>
@@ -72,6 +72,7 @@ const InventoryPanel: React.FC<Props> = ({
                         className={`w-6 h-6 rounded-md flex items-center justify-center text-xs ${isDarkMode ? 'bg-white/5 hover:bg-emerald-500/20 text-emerald-500' : 'bg-slate-100 hover:bg-emerald-100 text-emerald-600'}`}>+</button>
                     </div>
                   </td>
+                  {!kitchenMode && (
                   <td className="px-8 py-6 text-right">
                     <div className="flex flex-col items-end gap-2">
                       <div className="flex items-center gap-3">
@@ -97,6 +98,7 @@ const InventoryPanel: React.FC<Props> = ({
                       <span className={`text-[9px] uppercase tracking-widest font-bold ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>{t('total_value')} <span className={isDarkMode ? 'text-cream' : 'text-slate-900'}>{formatPrice(totalValue)}</span></span>
                     </div>
                   </td>
+                  )}
                 </tr>
               );
             })}
@@ -134,7 +136,7 @@ const InventoryPanel: React.FC<Props> = ({
               <tr key={name} className="group hover:bg-white/[0.02] transition-colors">
                 <td className="px-4 py-5 pl-8">
                   <p className={`font-bold truncate ${isDarkMode ? 'text-cream' : 'text-slate-900'}`}>{name}</p>
-                  <p className={`text-[10px] uppercase font-bold tracking-widest ${isDarkMode ? 'text-gold/60' : 'text-slate-400'}`}>{formatPrice(data.price)}/{data.unit}</p>
+                  {!kitchenMode && <p className={`text-[10px] uppercase font-bold tracking-widest ${isDarkMode ? 'text-gold/60' : 'text-slate-400'}`}>{formatPrice(data.price)}/{data.unit}</p>}
                   {(data.is_organic || (data.allergens && data.allergens.length > 0)) && (
                     <div className="allergen-badges">
                       {data.is_organic && <span className="allergen-badge organic">🌿 Organic</span>}
