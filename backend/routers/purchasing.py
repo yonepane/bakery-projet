@@ -279,7 +279,8 @@ async def receive_po(
         if delta_received > 0:
             ing = ings_map.get(received.name)
             if ing:
-                ing.stock += delta_received
+                ratio = ing.purchase_to_base_ratio if ing.purchase_to_base_ratio else 1.0
+                ing.stock += delta_received * ratio
                 ing.price = float(item.get("price", ing.price))
                 ing.last_purchase_price = float(item.get("price", ing.price))
 
