@@ -161,7 +161,7 @@ const Dashboard: React.FC = () => {
     useInventoryMutations(mutationDeps);
 
   const {
-    handleAddProduct, handleDeleteProduct, handleUpdateProductPrice,
+    handleAddProduct, handleDeleteProduct, handleDuplicateProduct, handleUpdateProductPrice,
     handleUpdateProductField, handleUpdateProductIngredients, handleCleanupProducts,
   } = useProductMutations(mutationDeps);
 
@@ -1161,7 +1161,7 @@ const Dashboard: React.FC = () => {
     sortedMaterialEntries,
     sortedMaterialNames,
     handleAdjustStock, handleUpdateProductPrice, handleUpdateProductField,
-    handleOpenEditProduct, handleDeleteProduct, handleCleanupProducts,
+    handleOpenEditProduct, handleDeleteProduct, handleDuplicateProduct, handleCleanupProducts,
     handleDeleteMaterial, startEditingMaterial, handleCreatePO,
     handleReceivePO, handleDeletePO, openPOModal, handleSavePO,
     handlePartialReceivePO, handleDeleteStaff, handleDeleteExpense, handleDeleteSupplier,

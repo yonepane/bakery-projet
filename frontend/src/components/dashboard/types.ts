@@ -124,6 +124,7 @@ export interface DashboardSharedProps {
   handleUpdateProductField: (id: string, field: string, value: any) => void;
   handleOpenEditProduct: (p: Product) => void;
   handleDeleteProduct: (id: string) => void;
+  handleDuplicateProduct: (id: string) => void;
   handleCleanupProducts: () => void;
   handleDeleteMaterial: (name: string) => void;
   startEditingMaterial: (name: string, data: Ingredient) => void;

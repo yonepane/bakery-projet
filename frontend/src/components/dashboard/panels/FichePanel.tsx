@@ -1,19 +1,19 @@
 import { useTranslation } from 'react-i18next';
 import React, { useMemo } from 'react';
-import { Edit2, Plus, Trash2, X } from 'lucide-react';
+import { Edit2, Plus, Trash2, X, Copy } from 'lucide-react';
 import { DashboardSharedProps } from '../types';
 
 type Props = Pick<DashboardSharedProps,
   'isDarkMode' | 'inventory' | 'editMode' | 'formatPrice' |
   'handleOpenEditProduct' | 'handleDeleteProduct' | 'handleCleanupProducts' |
   'setShowAddProduct' | 'setSelectedProduct' | 'handleUpdateProductField' |
-  'simulatedInflations' | 'simPrices' | 'addToast' | 'settings'>;
+  'simulatedInflations' | 'simPrices' | 'addToast' | 'settings' | 'handleDuplicateProduct'>;
 
 const FichePanel: React.FC<Props> = ({
   isDarkMode, inventory, editMode, formatPrice,
   handleOpenEditProduct, handleDeleteProduct, handleCleanupProducts,
   setShowAddProduct, setSelectedProduct, handleUpdateProductField,
-  simulatedInflations, simPrices, addToast, settings
+  simulatedInflations, simPrices, addToast, settings, handleDuplicateProduct
 }) => {
   const { t } = useTranslation();
 
@@ -83,9 +83,14 @@ const FichePanel: React.FC<Props> = ({
                 </div>
                 <div className="text-right flex flex-col items-end gap-2">
                   {editMode && (
-                    <button onClick={() => handleOpenEditProduct(p)} className="p-2 rounded-lg bg-gold/10 text-gold hover:bg-gold/20 transition-all" title={t('edit_product')}>
-                      <Edit2 size={16} />
-                    </button>
+                    <div className="flex gap-2">
+                      <button onClick={() => handleDuplicateProduct(p.id)} className="p-2 rounded-lg bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20 transition-all" title="Duplicate Recipe">
+                        <Copy size={16} />
+                      </button>
+                      <button onClick={() => handleOpenEditProduct(p)} className="p-2 rounded-lg bg-gold/10 text-gold hover:bg-gold/20 transition-all" title={t('edit_product')}>
+                        <Edit2 size={16} />
+                      </button>
+                    </div>
                   )}
                   <div>
                     <p className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-gold' : 'text-slate-400'}`}>{t('unit_cost')}</p>

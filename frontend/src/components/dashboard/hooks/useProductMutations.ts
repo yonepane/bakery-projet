@@ -32,6 +32,21 @@ export function useProductMutations({ fetchData, addToast }: MutationDeps) {
     [fetchData, addToast]
   );
 
+  const handleDuplicateProduct = useCallback(
+    async (id: string) => {
+      try {
+        const res = await api.post(`/products/${id}/duplicate`);
+        if (res.data.success) {
+          addToast('Recipe duplicated successfully', 'success');
+          fetchData();
+        }
+      } catch {
+        addToast('Failed to duplicate recipe', 'error');
+      }
+    },
+    [fetchData, addToast]
+  );
+
   const handleUpdateProductPrice = useCallback(
     async (productId: string, newPrice: number) => {
       try {
@@ -81,6 +96,7 @@ export function useProductMutations({ fetchData, addToast }: MutationDeps) {
   return {
     handleAddProduct,
     handleDeleteProduct,
+    handleDuplicateProduct,
     handleUpdateProductPrice,
     handleUpdateProductField,
     handleUpdateProductIngredients,
