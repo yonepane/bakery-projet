@@ -169,6 +169,10 @@ export interface Ingredient {
   unit: string;
   min_threshold: number;
   supplier?: string;
+  allergens?: string[];
+  is_organic?: boolean;
+  purchase_unit?: string;
+  purchase_to_base_ratio?: number;
 }
 
 export interface Product {
@@ -184,6 +188,7 @@ export interface Product {
   cook_time: number;
   yield_qty: number;
   instructions: string[];
+  allergens?: string[];
 }
 
 export interface CartItem {

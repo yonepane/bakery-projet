@@ -2220,6 +2220,21 @@ const Dashboard: React.FC = () => {
                         <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">{t('min_threshold')}</label>
                         <input type="number" value={newMaterial.min_threshold} onChange={(e)=>setNewMaterial({...newMaterial, min_threshold: parseFloat(e.target.value)})} className={`w-full bg-transparent border-b py-2 outline-none font-bold ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`} />
                     </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">Purchase Unit (optional)</label>
+                            <input type="text" placeholder="e.g. crate_12L" value={newMaterial.purchase_unit || ''} onChange={(e)=>setNewMaterial({...newMaterial, purchase_unit: e.target.value})} className={`w-full bg-transparent border-b py-2 outline-none font-bold ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`} />
+                        </div>
+                        <div>
+                            <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">Qty per Unit</label>
+                            <input type="number" min="0.001" step="0.001" placeholder="e.g. 12" value={newMaterial.purchase_to_base_ratio || 1} onChange={(e)=>setNewMaterial({...newMaterial, purchase_to_base_ratio: parseFloat(e.target.value) || 1})} className={`w-full bg-transparent border-b py-2 outline-none font-bold ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`} />
+                        </div>
+                    </div>
+                    {newMaterial.purchase_unit && (newMaterial.purchase_to_base_ratio || 1) > 1 && (
+                      <p className="unit-conversion-preview">
+                        🔄 1 {newMaterial.purchase_unit} = {newMaterial.purchase_to_base_ratio || 1} {newMaterial.unit || 'base units'}
+                      </p>
+                    )}
                     <div className="flex gap-3 pt-6">
                         <button onClick={() => setShowAddMaterial(false)} className={`flex-1 py-4 rounded-xl font-bold text-[10px] uppercase tracking-widest ${isDarkMode ? 'bg-white/5 text-white' : 'bg-slate-100 text-slate-900'}`}>{t('cancel')}</button>
                         <button onClick={handleAddMaterial} className="flex-1 py-4 rounded-xl font-black text-[10px] uppercase tracking-widest bg-gold text-charcoal shadow-gold-glow">{t('register')}</button>

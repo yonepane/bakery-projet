@@ -41,7 +41,16 @@ const InventoryPanel: React.FC<Props> = ({
                   <td className="px-8 py-6">
                     <div className="flex items-center gap-4">
                       <span className="text-3xl">{p.icon}</span>
-                      <p className={`font-bold ${isDarkMode ? 'text-cream' : 'text-slate-900'}`}>{p.name}</p>
+                      <div>
+                        <p className={`font-bold ${isDarkMode ? 'text-cream' : 'text-slate-900'}`}>{p.name}</p>
+                        {p.allergens && p.allergens.length > 0 && (
+                          <div className="allergen-badges">
+                            {p.allergens.map((a: string) => (
+                              <span key={a} className="allergen-badge">{a}</span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </td>
                   <td className="px-8 py-6">
@@ -125,6 +134,14 @@ const InventoryPanel: React.FC<Props> = ({
                 <td className="px-4 py-5 pl-8">
                   <p className={`font-bold truncate ${isDarkMode ? 'text-cream' : 'text-slate-900'}`}>{name}</p>
                   <p className={`text-[10px] uppercase font-bold tracking-widest ${isDarkMode ? 'text-gold/60' : 'text-slate-400'}`}>{formatPrice(data.price)}/{data.unit}</p>
+                  {(data.is_organic || (data.allergens && data.allergens.length > 0)) && (
+                    <div className="allergen-badges">
+                      {data.is_organic && <span className="allergen-badge organic">🌿 Organic</span>}
+                      {data.allergens && data.allergens.map((a: string) => (
+                        <span key={a} className="allergen-badge">{a}</span>
+                      ))}
+                    </div>
+                  )}
                 </td>
                 <td className="px-4 py-5 font-bold">
                   <div className="flex items-center gap-2">

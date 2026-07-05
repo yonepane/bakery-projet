@@ -125,6 +125,13 @@ const POSPanel: React.FC<Props> = ({
               className={`p-4 rounded-[1.4rem] border transition-all duration-300 cursor-pointer group active:scale-95 ${isDarkMode ? 'glass-panel hover:-translate-y-1' : 'border-slate-200 bg-white hover:border-slate-400 shadow-sm'}`}>
               <div className="text-3xl mb-2.5 group-hover:scale-110 transition-transform">{p.icon}</div>
               <h4 className={`text-sm font-bold mb-0.5 leading-tight ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{p.name}</h4>
+              {p.allergens && p.allergens.length > 0 && (
+                <div className="allergen-badges mb-2">
+                  {p.allergens.map((a: string) => (
+                    <span key={a} className="allergen-badge">{a}</span>
+                  ))}
+                </div>
+              )}
               <p className={`text-[9px] font-black uppercase tracking-widest mb-2.5 ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>{p.stock} in stock</p>
               <div className={`flex justify-between items-center pt-2.5 border-t ${isDarkMode ? 'border-white/5' : 'border-slate-100'}`}>
                 <span className={`text-sm font-bold ${isDarkMode ? 'text-gold' : 'text-slate-900'}`}>{formatPrice(p.price)}</span>
