@@ -132,7 +132,7 @@ const Dashboard: React.FC = () => {
   // The hook owns all server-fetched state and the tab-aware lazy fetch strategy.
   const {
     inventory, analytics, profitReport, alerts, history, stockMovements,
-    stockLocations, stockLotBalances, planner, setPlanner,
+    stockLocations, stockLotBalances, kitchenBatches, planner, setPlanner,
     orders, settings, liveRates, customers, expenses, wasteRecords,
     staff, suppliers, selectedSupplierId, setSelectedSupplierId,
     purchaseOrders, purchasingSuggestions, shiftLogs, loading, setLoading,
@@ -1621,7 +1621,7 @@ const Dashboard: React.FC = () => {
               {activeTab === 'kitchen_board' && (
                 <KitchenBoardPanel
                   isDarkMode={isDarkMode}
-                  batches={bakeryData.kitchenBatches || []}
+                  batches={kitchenBatches || []}
                   onAdvanceStage={handleAdvanceStage}
                   isUpdating={isKitchenUpdating}
                 />
