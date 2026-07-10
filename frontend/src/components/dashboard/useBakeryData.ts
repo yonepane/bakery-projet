@@ -276,6 +276,12 @@ export function useBakeryData(user: UserSession | null, activeTab: string) {
           break;
         }
 
+        case 'kitchen_board': {
+          const batches = await safeGet('/kitchen/batches', []);
+          setKitchenBatches(batches || []);
+          break;
+        }
+
         case 'orders': {
           const [ordData, custData] = await Promise.all([
             safeGet('/orders', []),
