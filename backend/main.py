@@ -8,6 +8,8 @@ import logging
 import os
 import secrets
 import sys
+import time
+from collections import defaultdict, deque
 from contextlib import asynccontextmanager
 
 # Load .env file early so SECRET_KEY and other env vars are available
@@ -30,6 +32,7 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +63,7 @@ try:
     from .routers.staff import router as staff_router
     from .routers.currency import router as currency_router
     from .routers.customers import router as customers_router
+    from .routers.semi_finished import router as semi_finished_router
 
 
 except ImportError:
@@ -85,6 +89,7 @@ except ImportError:
     from routers.staff import router as staff_router
     from routers.currency import router as currency_router
     from routers.customers import router as customers_router
+    from routers.semi_finished import router as semi_finished_router
 
 
 
@@ -112,10 +117,87 @@ app = FastAPI(title="BakeryOS API", lifespan=lifespan)
 # Vercel handler alias.
 handler = app
 
-# Rate limiter — shared across routers via slowapi
-limiter = Limiter(key_func=get_remote_address)
+# Rate limiter — shared across routers via slowapi.
+limiter = Limiter(
+    key_func=get_remote_address,
+    default_limits=[os.getenv("API_DEFAULT_RATE_LIMIT", "300/minute")],
+    headers_enabled=True,
+    key_style="url",
+)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+
+class ApiSecurityMiddleware(BaseHTTPMiddleware):
+    """Apply baseline API abuse controls before route handlers run."""
+
+    def __init__(self, app):
+        super().__init__(app)
+        self.window_seconds = int(os.getenv("API_RATE_LIMIT_WINDOW_SECONDS", "60"))
+        self.read_limit = int(os.getenv("API_READ_RATE_LIMIT_PER_WINDOW", "300"))
+        self.write_limit = int(os.getenv("API_WRITE_RATE_LIMIT_PER_WINDOW", "90"))
+        self.auth_limit = int(os.getenv("API_AUTH_RATE_LIMIT_PER_WINDOW", "30"))
+        self.max_body_bytes = int(os.getenv("MAX_REQUEST_BODY_BYTES", str(1024 * 1024)))
+        self._hits: dict[str, deque[float]] = defaultdict(deque)
+
+    def _client_key(self, request: Request) -> str:
+        if os.getenv("TRUST_PROXY_HEADERS", "true").lower() == "true":
+            forwarded_for = request.headers.get("x-forwarded-for")
+            if forwarded_for:
+                return forwarded_for.split(",", 1)[0].strip()
+        return get_remote_address(request)
+
+    def _limit_for(self, request: Request) -> int:
+        if request.url.path.startswith("/api/auth"):
+            return self.auth_limit
+        if request.method in {"POST", "PUT", "PATCH", "DELETE"}:
+            return self.write_limit
+        return self.read_limit
+
+    def _prune(self, bucket: deque[float], now: float) -> None:
+        cutoff = now - self.window_seconds
+        while bucket and bucket[0] <= cutoff:
+            bucket.popleft()
+
+    async def dispatch(self, request: Request, call_next):
+        if not request.url.path.startswith("/api/") or request.method == "OPTIONS":
+            return await call_next(request)
+
+        content_length = request.headers.get("content-length")
+        try:
+            body_size = int(content_length) if content_length else 0
+        except ValueError:
+            return JSONResponse(
+                status_code=400,
+                content={"detail": "Invalid Content-Length header"},
+                headers={"Cache-Control": "no-store"},
+            )
+        if body_size > self.max_body_bytes:
+            return JSONResponse(
+                status_code=413,
+                content={"detail": "Request body too large"},
+                headers={"Cache-Control": "no-store"},
+            )
+
+        now = time.monotonic()
+        limit = self._limit_for(request)
+        key = f"{self._client_key(request)}:{request.method}:{request.url.path}"
+        bucket = self._hits[key]
+        self._prune(bucket, now)
+        if len(bucket) >= limit:
+            retry_after = max(1, int(self.window_seconds - (now - bucket[0])))
+            return JSONResponse(
+                status_code=429,
+                content={"detail": "Too many requests"},
+                headers={"Retry-After": str(retry_after), "Cache-Control": "no-store"},
+            )
+        bucket.append(now)
+
+        response = await call_next(request)
+        response.headers["X-RateLimit-Limit"] = str(limit)
+        response.headers["X-RateLimit-Remaining"] = str(max(0, limit - len(bucket)))
+        response.headers["Cache-Control"] = "no-store"
+        return response
 
 # ---------------------------------------------------------------------------
 # CORS
@@ -133,6 +215,16 @@ _CORS_ORIGINS = [
 _extra_origin = os.getenv("CORS_ORIGIN")
 if _extra_origin:
     _CORS_ORIGINS.append(_extra_origin)
+
+_allowed_hosts = [
+    host.strip()
+    for host in os.getenv("ALLOWED_HOSTS", "").split(",")
+    if host.strip()
+]
+if _allowed_hosts:
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=_allowed_hosts)
+
+app.add_middleware(ApiSecurityMiddleware)
 
 app.add_middleware(
     CORSMiddleware,
@@ -187,6 +279,7 @@ app.include_router(purchasing_router)
 app.include_router(shift_logs_router)
 app.include_router(customers_router)
 app.include_router(currency_router)
+app.include_router(semi_finished_router)
 
 @app.get("/api/health")
 async def health_check():

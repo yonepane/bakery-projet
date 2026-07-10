@@ -6,15 +6,27 @@ Uses an in-memory SQLite database so tests are:
 - Dependency-free (no external services needed)
 """
 
+import asyncio
+
+import httpx
 import pytest
-from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from database import Base, get_db
 from main import app
-from auth import get_password_hash
+from auth import create_access_token, get_password_hash
 import models
+
+try:
+    from routers.auth import limiter as auth_limiter
+except ImportError:
+    auth_limiter = None
+
+if hasattr(app.state, "limiter"):
+    app.state.limiter.enabled = False
+if auth_limiter is not None:
+    auth_limiter.enabled = False
 
 TEST_DATABASE_URL = "sqlite:///:memory:"
 
@@ -22,6 +34,48 @@ engine = create_engine(
     TEST_DATABASE_URL, connect_args={"check_same_thread": False}
 )
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+
+class SyncASGITestClient:
+    """Small sync facade over httpx ASGITransport.
+
+    Starlette's TestClient currently hangs in this Python 3.14 environment.
+    The app itself works with ASGITransport, so this wrapper keeps the tests
+    synchronous while avoiding the TestClient portal deadlock.
+    """
+
+    def __init__(self, app):
+        self.app = app
+        self.base_url = "http://testserver"
+        self.loop = asyncio.new_event_loop()
+        self.transport = httpx.ASGITransport(app=self.app)
+        self.client = httpx.AsyncClient(transport=self.transport, base_url=self.base_url)
+
+    def request(self, method: str, url: str, **kwargs):
+        async def _request():
+            return await self.client.request(method, url, **kwargs)
+
+        return self.loop.run_until_complete(_request())
+
+    def get(self, url: str, **kwargs):
+        return self.request("GET", url, **kwargs)
+
+    def post(self, url: str, **kwargs):
+        return self.request("POST", url, **kwargs)
+
+    def put(self, url: str, **kwargs):
+        return self.request("PUT", url, **kwargs)
+
+    def patch(self, url: str, **kwargs):
+        return self.request("PATCH", url, **kwargs)
+
+    def delete(self, url: str, **kwargs):
+        return self.request("DELETE", url, **kwargs)
+
+    def close(self):
+        self.loop.run_until_complete(self.client.aclose())
+        self.loop.run_until_complete(self.transport.aclose())
+        self.loop.close()
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -47,31 +101,29 @@ def db():
 @pytest.fixture()
 def client(db):
     """FastAPI TestClient with the real DB swapped for the in-memory test DB."""
-    def override_get_db():
+    async def override_get_db():
         yield db
 
     app.dependency_overrides[get_db] = override_get_db
-    with TestClient(app) as c:
-        yield c
+    test_client = SyncASGITestClient(app)
+    try:
+        yield test_client
+    finally:
+        test_client.close()
     app.dependency_overrides.clear()
 
 
 @pytest.fixture()
 def owner_token(client, db):
     """Create an owner user and return their JWT access token."""
-    db.add(models.User(
+    user = models.User(
         username="test_owner",
         password=get_password_hash("securepass123"),
         role="owner",
-    ))
+    )
+    db.add(user)
     db.commit()
-
-    resp = client.post("/api/auth/login", json={
-        "username": "test_owner",
-        "password": "securepass123",
-    })
-    assert resp.status_code == 200
-    return resp.json()["access_token"]
+    return create_access_token(data={"sub": user.username})
 
 
 @pytest.fixture()

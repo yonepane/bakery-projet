@@ -102,6 +102,15 @@ async def get_current_user(
     # Accept ?token= query param for legacy report URLs only.
     # New code should pass tokens via the Authorization header exclusively.
     token = request.query_params.get("token")
+    path = request.url.path
+    is_download_url = (
+        path.startswith("/api/reports")
+        or path.startswith("/api/planner/prep-sheet")
+        or "/receipt" in path
+    )
+
+    if token and not is_download_url:
+        raise HTTPException(status_code=401, detail="Query tokens are not accepted for this endpoint")
 
     if not token:
         auth_header = request.headers.get("Authorization")
@@ -114,11 +123,12 @@ async def get_current_user(
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         username = payload.get("sub")
-        # Reject download-only tokens from hitting regular API endpoints, except for reports and receipts
-        is_report = request.url.path.startswith("/api/reports")
-        is_receipt = "/receipt" in request.url.path
-        if payload.get("type") == "download" and not (is_report or is_receipt):
+        token_type = payload.get("type")
+        # Reject download-only tokens from hitting regular API endpoints.
+        if token_type == "download" and not is_download_url:
             raise HTTPException(status_code=401, detail="Download token cannot be used here")
+        if request.query_params.get("token") and token_type != "download":
+            raise HTTPException(status_code=401, detail="Only download tokens are accepted in URLs")
         if username is None:
             raise HTTPException(status_code=401, detail="Invalid token")
     except jwt.PyJWTError:
@@ -130,14 +140,14 @@ async def get_current_user(
     return user
 
 
-def get_effective_owner_id(current_user: models.User = Depends(get_current_user)) -> int | None:
+async def get_effective_owner_id(current_user: models.User = Depends(get_current_user)) -> int | None:
     if current_user.role == "owner":
         return current_user.id
     return current_user.parent_owner_id
 
 
 def requires_roles(roles: list[str]) -> Callable:
-    def role_checker(current_user: models.User = Depends(get_current_user)):
+    async def role_checker(current_user: models.User = Depends(get_current_user)):
         if current_user.role not in roles:
             raise HTTPException(
                 status_code=403,

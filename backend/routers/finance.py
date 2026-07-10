@@ -23,6 +23,16 @@ except ImportError:
 router = APIRouter()
 
 
+def _csv_safe(value):
+    """Prevent spreadsheet formula injection in exported CSV cells."""
+    if not isinstance(value, str):
+        return value
+    value = value.replace("\x00", "").strip()
+    if value.startswith(("=", "+", "-", "@")):
+        return "'" + value
+    return value
+
+
 @router.get("/api/expenses", dependencies=[Depends(requires_roles(["owner"]))])
 async def get_expenses(
     db: sqlalchemy.orm.Session = Depends(get_db),
@@ -155,7 +165,14 @@ async def export_accounting(
     for tx in transactions:
         writer.writerow([tx.timestamp.date().isoformat(), "sale", tx.id, "POS revenue", "posted", tx.total_revenue])
     for exp in expenses:
-        writer.writerow([exp.date.date().isoformat(), "expense", exp.id, exp.description or exp.category, exp.category, -exp.amount])
+        writer.writerow([
+            exp.date.date().isoformat(),
+            "expense",
+            exp.id,
+            _csv_safe(exp.description or exp.category),
+            _csv_safe(exp.category),
+            -exp.amount,
+        ])
     for po in purchase_orders:
         total = sum(float(item.get("qty", 0)) * float(item.get("price", 0)) for item in po.items)
         writer.writerow([po.date.date().isoformat(), "purchase_order", po.id, f"Supplier #{po.supplier_id}", po.status, -total])

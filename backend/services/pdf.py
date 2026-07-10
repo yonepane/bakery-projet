@@ -6,6 +6,7 @@ focused on HTTP concerns rather than document layout details.
 
 from datetime import datetime
 from io import BytesIO
+from xml.sax.saxutils import escape
 
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
@@ -28,6 +29,10 @@ from reportlab.platypus import (
 
 def format_money(value: float, currency: str) -> str:
     return f"{value:,.2f} {currency}"
+
+
+def safe_pdf_text(value) -> str:
+    return escape(str(value or ""))
 
 
 def report_styles() -> dict:
@@ -193,7 +198,7 @@ def build_receipt_pdf(tx, currency: str, paper: str = "80mm", bakery_name: str =
     story = [
         Paragraph("BAKERY OS", styles["receipt_header"]),
         Spacer(1, 2 * mm),
-        Paragraph(bakery_name, styles["receipt_meta"]),
+        Paragraph(safe_pdf_text(bakery_name), styles["receipt_meta"]),
         Spacer(1, 3 * mm),
         HRFlowable(width="100%", thickness=1, color=colors.black, dash=[3, 2]),
         Spacer(1, 3 * mm),
@@ -208,7 +213,7 @@ def build_receipt_pdf(tx, currency: str, paper: str = "80mm", bakery_name: str =
     if tx.items:
         for item in tx.items:
             qty = item.get("qty", 1)
-            name = item.get("name", "Product")
+            name = safe_pdf_text(item.get("name", "Product"))
             price = float(item.get("price", 0))
             line_rows.append([
                 Paragraph(f"{name}<br/><font size='8' color='#71717a'>x{qty} @ {price:.2f} {currency}</font>", styles["receipt_body"]),

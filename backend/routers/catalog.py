@@ -6,14 +6,16 @@ from sqlalchemy import text
 
 try:
     from .. import models
-    from ..auth import get_effective_owner_id, requires_roles
+    from ..auth import get_current_user, get_effective_owner_id, requires_roles
     from ..database import get_db
     from ..schemas import MaterialCreate, ProductCreate, ProductUpdate, StockAdjust
+    from ..services.stock import apply_stock_delta, find_movements_by_client_mutation
 except ImportError:
     import models
-    from auth import get_effective_owner_id, requires_roles
+    from auth import get_current_user, get_effective_owner_id, requires_roles
     from database import get_db
     from schemas import MaterialCreate, ProductCreate, ProductUpdate, StockAdjust
+    from services.stock import apply_stock_delta, find_movements_by_client_mutation
 
 router = APIRouter()
 
@@ -338,7 +340,17 @@ async def adjust_stock(
     adj: StockAdjust,
     db: sqlalchemy.orm.Session = Depends(get_db),
     owner_id: int = Depends(get_effective_owner_id),
+    current_user: models.User = Depends(get_current_user),
 ):
+    prior = find_movements_by_client_mutation(
+        db,
+        owner_id=owner_id,
+        client_mutation_id=adj.client_mutation_id,
+        movement_type="adjustment",
+    )
+    if prior:
+        return {"success": True, "new_stock": prior[-1].after_qty, "idempotent": True}
+
     if adj.item_type == "product":
         item = db.query(models.Product).filter(
             models.Product.id == adj.id,
@@ -352,6 +364,18 @@ async def adjust_stock(
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
 
-    item.stock = max(0, item.stock + adj.amount)
+    movement_item_type = "product" if adj.item_type == "product" else "ingredient"
+    movement = apply_stock_delta(
+        db,
+        owner_id=owner_id,
+        item_type=movement_item_type,
+        item=item,
+        quantity_delta=adj.amount,
+        movement_type="adjustment",
+        source_type="manual_adjustment",
+        reason=adj.reason,
+        created_by_user_id=current_user.id,
+        client_mutation_id=adj.client_mutation_id,
+    )
     db.commit()
-    return {"success": True, "new_stock": item.stock}
+    return {"success": True, "new_stock": movement.after_qty}

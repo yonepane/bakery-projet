@@ -28,6 +28,7 @@ export interface DashboardSharedProps {
   stockMovements: StockMovement[];
   stockLocations: StockLocation[];
   stockLotBalances: StockLotBalance[];
+  semiFinishedItems: SemiFinishedItem[];
   planner: PlanItem[];
   orders: any[];
   expenses: Expense[];
@@ -297,6 +298,30 @@ export interface StockLotBalance {
     status: string;
     created_at?: string | null;
   } | null;
+}
+
+export interface SemiFinishedItem {
+  id: number;
+  name: string;
+  unit: string;
+  stock: number;
+  min_threshold: number;
+  shelf_life_hours?: number | null;
+  allergens?: string[] | null;
+  is_active: boolean;
+  created_at?: string | null;
+}
+
+export interface SemiFinishedRecipeLine {
+  ingredient_id: number;
+  ingredient_name: string;
+  quantity: number;
+  unit: string;
+}
+
+export interface SemiFinishedRecipe {
+  semi_finished_id: number;
+  items: SemiFinishedRecipeLine[];
 }
 
 export interface DashboardAlert {

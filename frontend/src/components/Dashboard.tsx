@@ -97,6 +97,10 @@ import {
 } from './dashboard/hooks';
 import { DashboardSharedProps } from './dashboard/types';
 import { TransferModal } from './dashboard/modals/TransferModal';
+import { RecipeBuilderModal } from './dashboard/modals/RecipeBuilderModal';
+import { ProduceBatchModal } from './dashboard/modals/ProduceBatchModal';
+import { useSemiFinishedMutations } from './dashboard/hooks/useSemiFinishedMutations';
+import type { SemiFinishedItem } from './dashboard/types';
 
 import {
   createToastId,
@@ -182,6 +186,9 @@ const Dashboard: React.FC = () => {
 
   const { handleProduce, handlePlanBatch, handleCompletePlan } =
     usePlannerMutations(mutationDeps);
+
+  const { handleSaveRecipe, handleProduceBatch, handleCreateSemiFinished } =
+    useSemiFinishedMutations({ fetchTabData, addToast });
 
   const [lang, setLangState] = useState<Language>(() => (i18n.language as Language) || 'en');
   
@@ -298,6 +305,9 @@ const Dashboard: React.FC = () => {
   const [editingSupplier, setEditingSupplier] = useState<any>(null);
   const [showPOModal, setShowPOModal] = useState(false);
   const [showTransferModal, setShowTransferModal] = useState(false);
+  const [showRecipeModal, setShowRecipeModal] = useState(false);
+  const [showProduceModal, setShowProduceModal] = useState(false);
+  const [activeSFItem, setActiveSFItem] = useState<SemiFinishedItem | null>(null);
   const [selectedPO, setSelectedPO] = useState<any>(null);
   const [poReceiveDraft, setPoReceiveDraft] = useState<Record<string, {
     qty: number;
@@ -1167,6 +1177,7 @@ const Dashboard: React.FC = () => {
     isDarkMode, setIsDarkMode, activeCurrency, setActiveCurrency,
     editMode, setEditMode, lang, setLang,
     inventory, analytics, history, stockMovements, stockLocations, stockLotBalances,
+    semiFinishedItems,
     planner, orders, expenses, suppliers,
     purchaseOrders, purchasingSuggestions, selectedSupplierId, setSelectedSupplierId,
     staff, shiftLogs, alerts, profitReport, wasteRecords, customers,
@@ -1589,7 +1600,13 @@ const Dashboard: React.FC = () => {
             }>
               {activeTab === 'dashboard' && <DashboardPanel {...panelProps} />}
               {activeTab === 'pos' && <POSPanel {...panelProps} />}
-              {activeTab === 'inventory' && <InventoryPanel {...panelProps} onOpenTransferModal={() => setShowTransferModal(true)} />}
+              {activeTab === 'inventory' && <InventoryPanel
+                {...panelProps}
+                onOpenTransferModal={() => setShowTransferModal(true)}
+                onAddSemiFinished={() => { /* TODO: create modal */ addToast('Use Recipe to set up a new item', 'info'); }}
+                onEditRecipe={(item) => { setActiveSFItem(item); setShowRecipeModal(true); }}
+                onProduceBatch={(item) => { setActiveSFItem(item); setShowProduceModal(true); }}
+              />}
               {activeTab === 'fiche' && <FichePanel {...panelProps} />}
               {activeTab === 'simulator' && <AnalyticsPanel {...panelProps} />}
               {activeTab === 'history' && <HistoryPanel {...panelProps} />}
@@ -2839,6 +2856,29 @@ const Dashboard: React.FC = () => {
           locations={stockLocations || []}
           inventory={inventory}
           onTransfer={handleTransferStock}
+          isDarkMode={isDarkMode}
+        />
+      )}
+
+      {/* Recipe Builder Modal */}
+      {showRecipeModal && (
+        <RecipeBuilderModal
+          isOpen={showRecipeModal}
+          onClose={() => setShowRecipeModal(false)}
+          item={activeSFItem}
+          rawMaterials={inventory.materials}
+          onSave={handleSaveRecipe}
+          isDarkMode={isDarkMode}
+        />
+      )}
+
+      {/* Produce Batch Modal */}
+      {showProduceModal && (
+        <ProduceBatchModal
+          isOpen={showProduceModal}
+          onClose={() => setShowProduceModal(false)}
+          item={activeSFItem}
+          onProduce={handleProduceBatch}
           isDarkMode={isDarkMode}
         />
       )}

@@ -18,6 +18,7 @@ import type {
   Ingredient,
   PlanItem,
   Product,
+  SemiFinishedItem,
   StockLocation,
   StockLotBalance,
   StockMovement,
@@ -69,6 +70,7 @@ export function useBakeryData(user: UserSession | null, activeTab: string) {
   const [stockMovements, setStockMovements] = useState<StockMovement[]>([]);
   const [stockLocations, setStockLocations] = useState<StockLocation[]>([]);
   const [stockLotBalances, setStockLotBalances] = useState<StockLotBalance[]>([]);
+  const [semiFinishedItems, setSemiFinishedItems] = useState<SemiFinishedItem[]>([]);
   const [planner, setPlanner] = useState<PlanItem[]>([]);
   const [orders, setOrders] = useState<any[]>([]);
   const [settings, setSettings] = useState<any>({ currency: 'MAD' });
@@ -157,14 +159,16 @@ export function useBakeryData(user: UserSession | null, activeTab: string) {
         }
 
         case 'inventory': {
-          const [invData, locRes, balRes] = await Promise.all([
+          const [invData, locRes, balRes, sfRes] = await Promise.all([
             safeGet('/inventory'),
             safeGet('/stock-locations', []),
-            safeGet('/stock-locations/balances', [])
+            safeGet('/stock-locations/balances', []),
+            safeGet('/semi-finished', []),
           ]);
           applyInventory(invData);
           setStockLocations(locRes);
           setStockLotBalances(balRes);
+          setSemiFinishedItems(sfRes ?? []);
           break;
         }
 
@@ -343,7 +347,7 @@ export function useBakeryData(user: UserSession | null, activeTab: string) {
   return {
     // State
     inventory, analytics, profitReport, alerts, history, stockMovements,
-    stockLocations, stockLotBalances, planner, setPlanner,
+    stockLocations, stockLotBalances, semiFinishedItems, planner, setPlanner,
     orders, settings, liveRates, customers, expenses, wasteRecords,
     staff, suppliers, selectedSupplierId, setSelectedSupplierId,
     purchaseOrders, purchasingSuggestions, shiftLogs, loading, setLoading,

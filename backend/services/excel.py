@@ -2,6 +2,16 @@ import io
 import xlsxwriter
 from datetime import datetime
 
+
+def excel_safe(value):
+    """Prevent formula injection for user-controlled Excel text cells."""
+    if not isinstance(value, str):
+        return value
+    value = value.replace("\x00", "").strip()
+    if value.startswith(("=", "+", "-", "@")):
+        return "'" + value
+    return value
+
 def build_monthly_report_excel(
     start_date,
     transactions,
@@ -70,7 +80,7 @@ def build_monthly_report_excel(
     
     row = 1
     for t in sorted([tx for tx in transactions if tx.type == 'sale'], key=lambda x: x.timestamp):
-        ws_tx.write(row, 0, t.id)
+        ws_tx.write(row, 0, excel_safe(t.id))
         ws_tx.write(row, 1, t.timestamp.strftime('%Y-%m-%d %H:%M:%S'))
         ws_tx.write(row, 2, t.total_revenue, currency_format)
         ws_tx.write(row, 3, t.total_cost, currency_format)
@@ -96,8 +106,8 @@ def build_monthly_report_excel(
     row = 1
     for e in sorted(expenses, key=lambda x: x.date):
         ws_exp.write(row, 0, e.date.strftime('%Y-%m-%d'))
-        ws_exp.write(row, 1, e.category)
-        ws_exp.write(row, 2, e.description or '')
+        ws_exp.write(row, 1, excel_safe(e.category))
+        ws_exp.write(row, 2, excel_safe(e.description or ''))
         ws_exp.write(row, 3, e.amount, currency_format)
         row += 1
         
@@ -108,7 +118,7 @@ def build_monthly_report_excel(
     row = 1
     for w in sorted(waste_records, key=lambda x: x.date):
         ws_waste.write(row, 0, w.date.strftime('%Y-%m-%d'))
-        ws_waste.write(row, 1, w.product_id)
+        ws_waste.write(row, 1, excel_safe(w.product_id))
         ws_waste.write(row, 2, w.quantity)
         ws_waste.write(row, 3, w.loss_cost, currency_format)
         row += 1

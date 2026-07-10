@@ -7,10 +7,11 @@ so that main.py can stay focused on app setup and middleware.
 import os
 import uuid
 from datetime import datetime, timezone
+from html import escape
 from typing import Optional
 
 import sqlalchemy.orm
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
 from fastapi.responses import FileResponse, HTMLResponse, Response
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import joinedload
@@ -21,6 +22,7 @@ try:
     from ..database import get_db
     from ..schemas import ProductionBatch, SaleRequest
     from ..services.core import calculate_product_cost, get_user_settings
+    from ..services.stock import apply_stock_delta, find_movements_by_client_mutation
     from ..services.pdf import build_monthly_report_pdf, build_receipt_pdf
     from ..services.excel import build_monthly_report_excel
     from ..routers.intelligence import _analytics_cache
@@ -30,6 +32,7 @@ except ImportError:
     from database import get_db
     from schemas import ProductionBatch, SaleRequest
     from services.core import calculate_product_cost, get_user_settings
+    from services.stock import apply_stock_delta, find_movements_by_client_mutation
     from services.pdf import build_monthly_report_pdf, build_receipt_pdf
     from services.excel import build_monthly_report_excel
     try:
@@ -64,6 +67,14 @@ def _excel_response(buffer, filename: str) -> Response:
     )
 
 
+def _build_whatsapp_receipt(tx: models.Transaction, currency: str) -> str:
+    whatsapp_text = f"BAKERY OS: Receipt {tx.id}\n"
+    for item in tx.items or []:
+        whatsapp_text += f"- {item.get('name', 'Product')} x{item.get('qty', 1)}\n"
+    whatsapp_text += f"\nTOTAL: {tx.total_revenue} {currency}\nMerci de votre visite! 🥐"
+    return whatsapp_text
+
+
 # ---------------------------------------------------------------------------
 # Production
 # ---------------------------------------------------------------------------
@@ -73,8 +84,20 @@ async def produce(
     batch: ProductionBatch,
     db: sqlalchemy.orm.Session = Depends(get_db),
     owner_id: int = Depends(get_effective_owner_id),
+    current_user: models.User = Depends(get_current_user),
+    x_client_mutation_id: str | None = Header(default=None, alias="X-Client-Mutation-Id"),
 ):
     """Produce a batch: consume ingredients, add product stock, log transaction."""
+    client_mutation_id = batch.client_mutation_id or x_client_mutation_id
+    prior = find_movements_by_client_mutation(
+        db,
+        owner_id=owner_id,
+        client_mutation_id=client_mutation_id,
+        movement_type="production_output",
+    )
+    if prior:
+        return {"success": True, "new_stock": prior[-1].after_qty, "idempotent": True}
+
     product = (
         db.query(models.Product)
         .options(
@@ -89,33 +112,109 @@ async def produce(
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
 
-    # Collect required ingredient IDs and bulk-fetch them in one query.
-    ingredient_ids = [item.ingredient_id for item in product.recipe_items]
+    # Collect required ingredient and semi-finished IDs
+    ingredient_ids = [item.ingredient_id for item in product.recipe_items if item.ingredient_id]
+    semi_finished_ids = [item.semi_finished_id for item in product.recipe_items if item.semi_finished_id]
+
     ingredients_map = {
         ing.id: ing
         for ing in db.query(models.Ingredient).filter(
             models.Ingredient.id.in_(ingredient_ids),
             models.Ingredient.owner_id == owner_id,
         ).all()
-    }
+    } if ingredient_ids else {}
+
+    sf_map = {
+        sf.id: sf
+        for sf in db.query(models.SemiFinishedItem).filter(
+            models.SemiFinishedItem.id.in_(semi_finished_ids),
+            models.SemiFinishedItem.owner_id == owner_id,
+        ).all()
+    } if semi_finished_ids else {}
 
     production_cost = 0
+    required_inputs = []  # tuples of (item_type, db_item, required_qty)
     for item in product.recipe_items:
-        ing = ingredients_map.get(item.ingredient_id)
-        factor = 1000.0 if ing and ing.unit in ['kg', 'L', 'l'] else 1.0
-        required = (item.quantity / factor) * batch.quantity
-        if not ing or ing.stock < required:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Insufficient {item.ingredient.name if item.ingredient else 'Ingredient'}",
-            )
-        ing.stock -= required
-        production_cost += required * ing.price
-
-    product.stock += batch.quantity
+        if item.ingredient_id:
+            ing = ingredients_map.get(item.ingredient_id)
+            factor = 1000.0 if ing and ing.unit in ['kg', 'L', 'l'] else 1.0
+            required = (item.quantity / factor) * batch.quantity
+            if not ing or ing.stock < required:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Insufficient {ing.name if ing else 'Ingredient'}",
+                )
+            required_inputs.append(("ingredient", ing, required))
+            production_cost += required * ing.price
+        elif item.semi_finished_id:
+            sf = sf_map.get(item.semi_finished_id)
+            factor = 1000.0 if sf and sf.unit in ['kg', 'L', 'l'] else 1.0
+            required = (item.quantity / factor) * batch.quantity
+            if not sf or sf.stock < required:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Insufficient {sf.name if sf else 'Semi-finished component'}",
+                )
+            required_inputs.append(("semi_finished", sf, required))
+            production_cost += required * (getattr(sf, "cost", 0.0) or 0.0)
 
     # Record the production event in transaction history.
     tx_id = str(uuid.uuid4())[:12].upper()
+    for item_type, db_item, required in required_inputs:
+        apply_stock_delta(
+            db,
+            owner_id=owner_id,
+            item_type=item_type,
+            item=db_item,
+            quantity_delta=-required,
+            movement_type=f"{item_type}_input" if item_type == "semi_finished" else "production_input",
+            source_type="transaction",
+            source_id=tx_id,
+            reason=f"Consumed for production {tx_id}",
+            created_by_user_id=current_user.id,
+            client_mutation_id=client_mutation_id,
+            picking_strategy="fefo",
+        )
+
+    kitchen = db.query(models.StockLocation).filter(
+        models.StockLocation.owner_id == owner_id,
+        models.StockLocation.type == "kitchen",
+        models.StockLocation.is_active == True,
+    ).first()
+
+    out_lot = None
+    if kitchen:
+        out_lot = models.StockLot(
+            owner_id=owner_id,
+            item_type="product",
+            item_id=str(product.id),
+            item_name_snapshot=product.name,
+            lot_code=f"BATCH-{tx_id}",
+            unit_snapshot="unit",
+            status="active",
+            source_type="transaction",
+            source_id=tx_id,
+            produced_at=datetime.now(timezone.utc),
+        )
+        db.add(out_lot)
+        db.flush()
+
+    output_movement = apply_stock_delta(
+        db,
+        owner_id=owner_id,
+        item_type="product",
+        item=product,
+        quantity_delta=batch.quantity,
+        movement_type="production_output",
+        source_type="transaction",
+        source_id=tx_id,
+        reason=f"Produced batch {tx_id}",
+        created_by_user_id=current_user.id,
+        client_mutation_id=client_mutation_id,
+        location_id=kitchen.id if kitchen else None,
+        lot_id=out_lot.id if out_lot else None,
+    )
+
     transaction = models.Transaction(
         id=tx_id,
         owner_id=owner_id,
@@ -128,7 +227,7 @@ async def produce(
     db.add(transaction)
     db.commit()
 
-    return {"success": True, "new_stock": product.stock}
+    return {"success": True, "new_stock": output_movement.after_qty}
 
 
 # ---------------------------------------------------------------------------
@@ -140,12 +239,33 @@ async def complete_sale(
     req: SaleRequest,
     db: sqlalchemy.orm.Session = Depends(get_db),
     owner_id: int = Depends(get_effective_owner_id),
+    current_user: models.User = Depends(get_current_user),
+    x_client_mutation_id: str | None = Header(default=None, alias="X-Client-Mutation-Id"),
 ):
     """Process a sale: deduct stock, create a transaction, return receipt text."""
     total_revenue = 0
     total_cost = 0
     items_snapshot = []
     settings = get_user_settings(db, owner_id)
+    client_mutation_id = req.client_mutation_id or x_client_mutation_id
+    prior = find_movements_by_client_mutation(
+        db,
+        owner_id=owner_id,
+        client_mutation_id=client_mutation_id,
+        movement_type="sale",
+    )
+    if prior:
+        tx = db.query(models.Transaction).filter(
+            models.Transaction.id == prior[0].source_id,
+            models.Transaction.owner_id == owner_id,
+        ).first()
+        if tx:
+            return {
+                "success": True,
+                "transaction_id": tx.id,
+                "whatsapp_text": _build_whatsapp_receipt(tx, settings.get("currency", "MAD")),
+                "idempotent": True,
+            }
 
     # Bulk-fetch all cart products in ONE query instead of one per item.
     cart_ids = [item.id for item in req.cart]
@@ -164,6 +284,7 @@ async def complete_sale(
         )
     }
 
+    sale_lines = []
     for item in req.cart:
         product = products_map.get(item.id)
         if not product:
@@ -172,7 +293,6 @@ async def complete_sale(
         if product.stock < item.qty:
             raise HTTPException(status_code=400, detail=f"Insufficient stock for {product.name}")
 
-        product.stock -= item.qty
         cost = calculate_product_cost(product)
 
         total_revenue += product.price * item.qty
@@ -184,8 +304,24 @@ async def complete_sale(
             "price": product.price,
             "cost": cost,
         })
+        sale_lines.append((product, item.qty))
 
     tx_id = str(uuid.uuid4())[:12].upper()
+    for product, qty in sale_lines:
+        apply_stock_delta(
+            db,
+            owner_id=owner_id,
+            item_type="product",
+            item=product,
+            quantity_delta=-qty,
+            movement_type="sale",
+            source_type="transaction",
+            source_id=tx_id,
+            reason=f"Sold in transaction {tx_id}",
+            created_by_user_id=current_user.id,
+            client_mutation_id=client_mutation_id,
+        )
+
     transaction = models.Transaction(
         id=tx_id,
         owner_id=owner_id,
@@ -215,10 +351,7 @@ async def complete_sale(
 
     # Build a WhatsApp-friendly text receipt the frontend can share directly.
     currency = settings.get("currency", "MAD")
-    whatsapp_text = f"BAKERY OS: Receipt {tx_id}\n"
-    for item in items_snapshot:
-        whatsapp_text += f"- {item['name']} x{item['qty']}\n"
-    whatsapp_text += f"\nTOTAL: {total_revenue} {currency}\nMerci de votre visite! 🥐"
+    whatsapp_text = _build_whatsapp_receipt(transaction, currency)
 
     return {"success": True, "transaction_id": tx_id, "whatsapp_text": whatsapp_text}
 
@@ -232,6 +365,8 @@ async def refund_transaction(
     id: str,
     db: sqlalchemy.orm.Session = Depends(get_db),
     owner_id: int = Depends(get_effective_owner_id),
+    current_user: models.User = Depends(get_current_user),
+    x_client_mutation_id: str | None = Header(default=None, alias="X-Client-Mutation-Id"),
 ):
     """Cancel a completed sale: restore product stock and mark it refunded."""
     tx = db.query(models.Transaction).filter(
@@ -242,6 +377,14 @@ async def refund_transaction(
         raise HTTPException(status_code=404, detail="Transaction not found")
     if tx.type != "sale":
         raise HTTPException(status_code=400, detail="Only sales can be refunded")
+    prior = find_movements_by_client_mutation(
+        db,
+        owner_id=owner_id,
+        client_mutation_id=x_client_mutation_id,
+        movement_type="refund",
+    )
+    if prior and getattr(tx, "status", "completed") == "refunded":
+        return {"success": True, "refunded_id": id, "idempotent": True}
     if getattr(tx, "status", "completed") == "refunded":
         raise HTTPException(status_code=400, detail="Transaction already refunded")
 
@@ -258,7 +401,20 @@ async def refund_transaction(
         for item in tx.items:
             product = products_map.get(item.get("id"))
             if product:
-                product.stock += item.get("qty", 0)
+                qty = item.get("qty", 0)
+                apply_stock_delta(
+                    db,
+                    owner_id=owner_id,
+                    item_type="product",
+                    item=product,
+                    quantity_delta=qty,
+                    movement_type="refund",
+                    source_type="transaction",
+                    source_id=tx.id,
+                    reason=f"Refunded transaction {tx.id}",
+                    created_by_user_id=current_user.id,
+                    client_mutation_id=x_client_mutation_id,
+                )
 
     # Deduct loyalty points that were awarded at time of sale.
     if tx.customer_id:
@@ -343,6 +499,8 @@ async def get_receipt(
     currency = settings.get("currency", "MAD")
     # Use the tenant's bakery name so every receipt is personalised.
     bakery_name = settings.get("bakery_name", "BakeryOS")
+    safe_bakery_name = escape(str(bakery_name))
+    safe_currency = escape(str(currency))
     normalized_paper = "58mm" if paper.lower() == "58mm" else "80mm"
 
     if format.lower() == "pdf":
@@ -378,7 +536,7 @@ async def get_receipt(
         </div>
         <div class="center">
             <div class="header">BAKERY OS</div>
-            <div>{bakery_name}</div>
+            <div>{safe_bakery_name}</div>
             <div class="separator"></div>
             <div>ID: {tx.id}</div>
             <div>{tx.timestamp.strftime('%Y-%m-%d %H:%M:%S')}</div>
@@ -391,8 +549,8 @@ async def get_receipt(
         for item in tx.items:
             html_content += f"""
             <div class="item">
-                <span>{item.get('name', 'Product')} x{item.get('qty', 1)}</span>
-                <span>{round(item.get('price', 0) * item.get('qty', 1), 2)} {currency}</span>
+                <span>{escape(str(item.get('name', 'Product')))} x{item.get('qty', 1)}</span>
+                <span>{round(item.get('price', 0) * item.get('qty', 1), 2)} {safe_currency}</span>
             </div>
             """
 
@@ -401,7 +559,7 @@ async def get_receipt(
         <div class="separator"></div>
         <div class="total">
             <span>TOTAL</span>
-            <span>{round(tx.total_revenue, 2)} {currency}</span>
+            <span>{round(tx.total_revenue, 2)} {safe_currency}</span>
         </div>
         <div class="separator"></div>
         <div class="center footer">

@@ -10,6 +10,23 @@ const getTableName = (endpoint: string) => {
     return table || '';
 };
 
+const createMutationId = () => {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+    return crypto.randomUUID();
+  }
+  return `mut-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+};
+
+const prepareMutationBody = (body: any) => {
+  if (body && typeof body === 'object' && !(body instanceof FormData)) {
+    return {
+      ...body,
+      client_mutation_id: body.client_mutation_id || createMutationId(),
+    };
+  }
+  return body ?? { client_mutation_id: createMutationId() };
+};
+
 export const api = {
   async get(endpoint: string) {
     const table = getTableName(endpoint);
@@ -63,13 +80,15 @@ export const api = {
   },
 
   async request(method: string, endpoint: string, body: any = null) {
+    const preparedBody = prepareMutationBody(body);
+    const clientMutationId = preparedBody?.client_mutation_id;
     if (!navigator.onLine) {
       // If the device is offline, save the change in a queue instead of
       // rejecting it right away.
       await db.syncQueue.add({
         endpoint,
         method: method as any,
-        body,
+        body: preparedBody,
         timestamp: Date.now()
       });
       return { success: true, offline: true };
@@ -77,7 +96,8 @@ export const api = {
     return http({
         url: endpoint,
         method,
-        data: body
+        data: preparedBody,
+        headers: clientMutationId ? { 'X-Client-Mutation-Id': clientMutationId } : undefined
     }).then(res => res.data);
   },
 
@@ -98,7 +118,8 @@ export const processSyncQueue = async () => {
       await http({
         url: op.endpoint,
         method: op.method,
-        data: op.body
+        data: op.body,
+        headers: op.body?.client_mutation_id ? { 'X-Client-Mutation-Id': op.body.client_mutation_id } : undefined
       });
       await db.syncQueue.delete(op.id!);
     } catch (err) {

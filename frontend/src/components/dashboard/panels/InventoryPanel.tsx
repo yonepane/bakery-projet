@@ -1,21 +1,28 @@
 import { useTranslation } from 'react-i18next';
 import React from 'react';
 import { Edit2, Plus, Trash2 } from 'lucide-react';
-import { DashboardSharedProps } from '../types';
+import { DashboardSharedProps, SemiFinishedItem } from '../types';
 import { parseQtyString } from '../utils';
+import SemiFinishedPanel from './SemiFinishedPanel';
 
 type Props = Pick<DashboardSharedProps,
   'isDarkMode' | 'inventory' | 'sortedMaterialEntries' | 'editMode' |
   'formatPrice' | 'handleAdjustStock' | 'openSelector' | 'startEditingMaterial' |
   'handleDeleteMaterial' | 'setShowAddProduct' | 'setShowAddMaterial' |
   'setEditingMaterialName' | 'setNewMaterial' | 'handleUpdateProductPrice' |
-  'stockLocations' | 'stockLotBalances'> & { onOpenTransferModal: () => void };
+  'stockLocations' | 'stockLotBalances' | 'semiFinishedItems'> & {
+  onOpenTransferModal: () => void;
+  onAddSemiFinished: () => void;
+  onEditRecipe: (item: SemiFinishedItem) => void;
+  onProduceBatch: (item: SemiFinishedItem) => void;
+};
 
 const InventoryPanel: React.FC<Props> = ({
   isDarkMode, inventory, sortedMaterialEntries, editMode, formatPrice,
   handleAdjustStock, openSelector, startEditingMaterial, handleDeleteMaterial,
   setShowAddProduct, setShowAddMaterial, setEditingMaterialName, setNewMaterial,
-  handleUpdateProductPrice, stockLocations, stockLotBalances, onOpenTransferModal
+  handleUpdateProductPrice, stockLocations, stockLotBalances, semiFinishedItems,
+  onOpenTransferModal, onAddSemiFinished, onEditRecipe, onProduceBatch,
 }) => {
   const { t } = useTranslation();
   return (
@@ -246,6 +253,16 @@ const InventoryPanel: React.FC<Props> = ({
         </div>
       </div>
     </div>
+
+    {/* Semi-Finished Goods */}
+    <SemiFinishedPanel
+      isDarkMode={isDarkMode}
+      semiFinishedItems={semiFinishedItems}
+      editMode={editMode}
+      onAddItem={onAddSemiFinished}
+      onEditRecipe={onEditRecipe}
+      onProduceBatch={onProduceBatch}
+    />
   </div>
   );
 };

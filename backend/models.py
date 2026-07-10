@@ -6,7 +6,7 @@ Each class below becomes one table in the database.
 import datetime
 from datetime import timezone
 
-from sqlalchemy import Column, Integer, String, Float, ForeignKey, DateTime, JSON, Boolean
+from sqlalchemy import CheckConstraint, Column, Integer, String, Float, ForeignKey, DateTime, JSON, Boolean, UniqueConstraint
 from sqlalchemy.orm import relationship
 
 try:
@@ -56,14 +56,18 @@ class Product(Base):
 class RecipeItem(Base):
     __tablename__ = "recipe_items"
 
-    # Each row says that one product needs one ingredient in a certain amount.
+    # Each row says that one product needs one ingredient or one semi-finished
+    # item in a certain amount. Exactly one of ingredient_id or semi_finished_id
+    # should be set per row.
     id = Column(Integer, primary_key=True, index=True)
     product_id = Column(String, ForeignKey("products.id"))
-    ingredient_id = Column(Integer, ForeignKey("ingredients.id"))
+    ingredient_id = Column(Integer, ForeignKey("ingredients.id"), nullable=True)
+    semi_finished_id = Column(Integer, ForeignKey("semi_finished_items.id"), nullable=True)
     quantity = Column(Float)
     
     product = relationship("Product", back_populates="recipe_items")
     ingredient = relationship("Ingredient")
+    semi_finished = relationship("SemiFinishedItem")
 
 class Transaction(Base):
     __tablename__ = "transactions"
@@ -127,6 +131,93 @@ class WasteRecord(Base):
     loss_cost = Column(Float)
     
     product = relationship("Product")
+
+class StockMovement(Base):
+    __tablename__ = "stock_movements"
+    # Append-only inventory audit trail. Existing stock columns remain the
+    # operational source of truth while this ledger is introduced route by route.
+    id = Column(Integer, primary_key=True, index=True)
+    owner_id = Column(Integer, ForeignKey("users.id"), index=True)
+    item_type = Column(String, index=True) # ingredient or product
+    item_id = Column(String, index=True)
+    item_name_snapshot = Column(String)
+    quantity_delta = Column(Float)
+    unit_snapshot = Column(String, nullable=True)
+    movement_type = Column(String, index=True)
+    source_type = Column(String, nullable=True, index=True)
+    source_id = Column(String, nullable=True, index=True)
+    reason = Column(String, nullable=True)
+    before_qty = Column(Float)
+    after_qty = Column(Float)
+    created_at = Column(DateTime, default=lambda: datetime.datetime.now(timezone.utc), index=True)
+    created_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    client_mutation_id = Column(String, nullable=True, index=True)
+    location_id = Column(Integer, ForeignKey("stock_locations.id"), nullable=True, index=True)
+    location_name_snapshot = Column(String, nullable=True)
+    lot_id = Column(Integer, ForeignKey("stock_lots.id"), nullable=True, index=True)
+    lot_code_snapshot = Column(String, nullable=True)
+    expires_at = Column(DateTime, nullable=True, index=True)
+    unit_cost_snapshot = Column(Float, nullable=True)
+    correlation_id = Column(String, nullable=True, index=True)
+
+class StockLocation(Base):
+    __tablename__ = "stock_locations"
+    __table_args__ = (
+        UniqueConstraint("owner_id", "name", name="uq_stock_locations_owner_name"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    owner_id = Column(Integer, ForeignKey("users.id"), index=True)
+    name = Column(String, index=True)
+    type = Column(String, index=True)
+    branch_name = Column(String, nullable=True)
+    is_default = Column(Boolean, default=False)
+    is_active = Column(Boolean, default=True, index=True)
+    created_at = Column(DateTime, default=lambda: datetime.datetime.now(timezone.utc), index=True)
+
+class StockLot(Base):
+    __tablename__ = "stock_lots"
+    __table_args__ = (
+        UniqueConstraint("owner_id", "item_type", "item_id", "lot_code", name="uq_stock_lots_owner_item_lot"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    owner_id = Column(Integer, ForeignKey("users.id"), index=True)
+    item_type = Column(String, index=True) # ingredient, semi_finished, or product
+    item_id = Column(String, index=True)
+    item_name_snapshot = Column(String)
+    lot_code = Column(String, nullable=True, index=True)
+    supplier_lot_code = Column(String, nullable=True, index=True)
+    internal_batch_code = Column(String, nullable=True, index=True)
+    source_type = Column(String, nullable=True, index=True)
+    source_id = Column(String, nullable=True, index=True)
+    received_at = Column(DateTime, nullable=True, index=True)
+    produced_at = Column(DateTime, nullable=True, index=True)
+    expires_at = Column(DateTime, nullable=True, index=True)
+    unit_snapshot = Column(String, nullable=True)
+    unit_cost_snapshot = Column(Float, nullable=True)
+    status = Column(String, default="active", index=True)
+    created_at = Column(DateTime, default=lambda: datetime.datetime.now(timezone.utc), index=True)
+
+class StockLotBalance(Base):
+    __tablename__ = "stock_lot_balances"
+    __table_args__ = (
+        UniqueConstraint("owner_id", "lot_id", "location_id", name="uq_stock_lot_balances_owner_lot_location"),
+        CheckConstraint("quantity >= 0", name="ck_stock_lot_balances_quantity_non_negative"),
+        CheckConstraint("reserved_quantity >= 0", name="ck_stock_lot_balances_reserved_non_negative"),
+        CheckConstraint("reserved_quantity <= quantity", name="ck_stock_lot_balances_reserved_lte_quantity"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    owner_id = Column(Integer, ForeignKey("users.id"), index=True)
+    lot_id = Column(Integer, ForeignKey("stock_lots.id"), index=True)
+    location_id = Column(Integer, ForeignKey("stock_locations.id"), index=True)
+    quantity = Column(Float, default=0)
+    reserved_quantity = Column(Float, default=0)
+    updated_at = Column(DateTime, default=lambda: datetime.datetime.now(timezone.utc), index=True)
+
+    lot = relationship("StockLot")
+    location = relationship("StockLocation")
 
 class SystemSetting(Base):
     __tablename__ = "system_settings"
@@ -224,6 +315,46 @@ class ExpensePayment(Base):
     expense_id = Column(Integer, ForeignKey("expenses.id"))
     amount = Column(Float)
     paid_at = Column(DateTime, default=lambda: datetime.datetime.now(timezone.utc))
+    expense = relationship("Expense", back_populates="payments")
     payment_method = Column(String, default="cash") # cash, bank_transfer, card, cheque
 
-    expense = relationship("Expense", back_populates="payments")
+
+class SemiFinishedItem(Base):
+    """A pastry component produced from ingredients and consumed in product recipes.
+
+    Examples: Creme Patissiere, Ganache, Croissant Dough, Tart Shells.
+    Unlike raw ingredients (purchased) and finished products (sold), semi-finished
+    items are produced internally and stored temporarily before use.
+    """
+    __tablename__ = "semi_finished_items"
+
+    id = Column(Integer, primary_key=True, index=True)
+    owner_id = Column(Integer, ForeignKey("users.id"), index=True)
+    name = Column(String, index=True)
+    unit = Column(String)                              # e.g. "kg", "L", "unit"
+    stock = Column(Float, default=0.0)                 # legacy operational balance
+    cost = Column(Float, default=0.0)                  # estimated or average cost
+    min_threshold = Column(Float, default=0.0)
+    shelf_life_hours = Column(Integer, nullable=True)  # how long it stays usable
+    allergens = Column(JSON, nullable=True)            # inherited from its own recipe
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=lambda: datetime.datetime.now(timezone.utc))
+
+    recipe_items = relationship(
+        "SemiFinishedRecipeItem",
+        back_populates="semi_finished",
+        cascade="all, delete-orphan",
+    )
+
+
+class SemiFinishedRecipeItem(Base):
+    """One ingredient used in one semi-finished item's recipe."""
+    __tablename__ = "semi_finished_recipe_items"
+
+    id = Column(Integer, primary_key=True, index=True)
+    semi_finished_id = Column(Integer, ForeignKey("semi_finished_items.id"), index=True)
+    ingredient_id = Column(Integer, ForeignKey("ingredients.id"), nullable=True)
+    quantity = Column(Float)  # in ingredient base unit (g or ml)
+
+    semi_finished = relationship("SemiFinishedItem", back_populates="recipe_items")
+    ingredient = relationship("Ingredient")

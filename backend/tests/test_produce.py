@@ -67,6 +67,44 @@ def test_produce_deducts_ingredient_stock(client, auth_headers, db, owner_token)
     assert ing.stock < initial_stock
 
 
+def test_produce_writes_input_and_output_stock_movements(client, auth_headers, db, owner_token):
+    owner_id = _get_owner_id(db, owner_token)
+    product, ing = _setup_product_with_ingredient(db, owner_id)
+
+    resp = client.post("/api/produce", json={"product_id": "croissant", "quantity": 2},
+                       headers=auth_headers)
+
+    assert resp.status_code == 200
+    tx = db.query(models.Transaction).filter(
+        models.Transaction.type == "production",
+        models.Transaction.owner_id == owner_id,
+    ).one()
+
+    input_movement = db.query(models.StockMovement).filter(
+        models.StockMovement.movement_type == "production_input",
+        models.StockMovement.source_id == tx.id,
+        models.StockMovement.item_type == "ingredient",
+        models.StockMovement.item_id == "Flour",
+    ).one()
+    output_movement = db.query(models.StockMovement).filter(
+        models.StockMovement.movement_type == "production_output",
+        models.StockMovement.source_id == tx.id,
+        models.StockMovement.item_type == "product",
+        models.StockMovement.item_id == "croissant",
+    ).one()
+
+    assert input_movement.quantity_delta == -1.0
+    assert input_movement.before_qty == 10.0
+    assert input_movement.after_qty == 9.0
+    assert input_movement.unit_snapshot == "kg"
+    assert output_movement.quantity_delta == 2
+    assert output_movement.before_qty == 0
+    assert output_movement.after_qty == 2
+    assert output_movement.item_name_snapshot == product.name
+    assert input_movement.created_by_user_id is not None
+    assert output_movement.created_by_user_id == input_movement.created_by_user_id
+
+
 def test_produce_fails_on_insufficient_stock(client, auth_headers, db, owner_token):
     owner_id = _get_owner_id(db, owner_token)
     _setup_product_with_ingredient(db, owner_id)
@@ -76,6 +114,33 @@ def test_produce_fails_on_insufficient_stock(client, auth_headers, db, owner_tok
                        headers=auth_headers)
     assert resp.status_code == 400
     assert "Insufficient" in resp.json()["detail"]
+    assert db.query(models.StockMovement).count() == 0
+    assert db.query(models.Transaction).count() == 0
+
+
+def test_produce_is_idempotent_by_client_mutation_id(client, auth_headers, db, owner_token):
+    owner_id = _get_owner_id(db, owner_token)
+    product, ing = _setup_product_with_ingredient(db, owner_id)
+    payload = {
+        "product_id": "croissant",
+        "quantity": 2,
+        "client_mutation_id": "produce-once",
+    }
+
+    first = client.post("/api/produce", json=payload, headers=auth_headers)
+    second = client.post("/api/produce", json=payload, headers=auth_headers)
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert second.json()["idempotent"] is True
+    db.refresh(product)
+    db.refresh(ing)
+    assert product.stock == 2
+    assert ing.stock == 9
+    assert db.query(models.Transaction).filter(models.Transaction.type == "production").count() == 1
+    assert db.query(models.StockMovement).filter(
+        models.StockMovement.client_mutation_id == "produce-once",
+    ).count() == 2
 
 
 def test_product_allergens_aggregated_from_ingredients(client, auth_headers):

@@ -138,3 +138,115 @@ def test_material_defaults_when_fields_omitted(client, auth_headers):
     assert salt["is_organic"] is False
     assert salt["purchase_unit"] is None
     assert salt["purchase_to_base_ratio"] == 1.0
+
+
+def test_manual_material_adjustment_writes_stock_movement(client, auth_headers, db):
+    client.post("/api/materials", json={
+        "name": "Flour",
+        "unit": "kg",
+        "price": 2.5,
+        "min_threshold": 10,
+    }, headers=auth_headers)
+
+    resp = client.post("/api/inventory/adjust", json={
+        "item_type": "material",
+        "id": "Flour",
+        "amount": 8,
+        "reason": "Initial count",
+    }, headers=auth_headers)
+
+    assert resp.status_code == 200
+    assert resp.json()["new_stock"] == 8
+
+    movement = db.query(models.StockMovement).filter(
+        models.StockMovement.item_type == "ingredient",
+        models.StockMovement.item_id == "Flour",
+    ).one()
+    assert movement.movement_type == "adjustment"
+    assert movement.source_type == "manual_adjustment"
+    assert movement.reason == "Initial count"
+    assert movement.quantity_delta == 8
+    assert movement.before_qty == 0
+    assert movement.after_qty == 8
+    assert movement.unit_snapshot == "kg"
+
+
+def test_manual_product_adjustment_writes_stock_movement(client, auth_headers, db):
+    client.post("/api/products", json={
+        "id": "croissant",
+        "name": "Croissant",
+        "price": 2.5,
+        "icon": "x",
+        "ingredients": [],
+    }, headers=auth_headers)
+
+    resp = client.post("/api/inventory/adjust", json={
+        "item_type": "product",
+        "id": "croissant",
+        "amount": 12,
+        "reason": "Display count",
+    }, headers=auth_headers)
+
+    assert resp.status_code == 200
+    assert resp.json()["new_stock"] == 12
+
+    movement = db.query(models.StockMovement).filter(
+        models.StockMovement.item_type == "product",
+        models.StockMovement.item_id == "croissant",
+    ).one()
+    assert movement.item_name_snapshot == "Croissant"
+    assert movement.quantity_delta == 12
+    assert movement.before_qty == 0
+    assert movement.after_qty == 12
+    assert movement.created_by_user_id is not None
+
+
+def test_manual_adjustment_rejects_negative_stock_without_movement(client, auth_headers, db):
+    client.post("/api/materials", json={
+        "name": "Butter",
+        "unit": "kg",
+        "price": 5.0,
+        "min_threshold": 2,
+    }, headers=auth_headers)
+
+    resp = client.post("/api/inventory/adjust", json={
+        "item_type": "material",
+        "id": "Butter",
+        "amount": -1,
+        "reason": "Bad count",
+    }, headers=auth_headers)
+
+    assert resp.status_code == 400
+    assert "below zero" in resp.json()["detail"]
+    assert db.query(models.StockMovement).count() == 0
+
+    inv = client.get("/api/inventory", headers=auth_headers)
+    assert inv.json()["materials"]["Butter"]["stock"] == 0
+
+
+def test_manual_adjustment_is_idempotent_by_client_mutation_id(client, auth_headers, db):
+    client.post("/api/materials", json={
+        "name": "Flour",
+        "unit": "kg",
+        "price": 2.5,
+        "min_threshold": 10,
+    }, headers=auth_headers)
+    payload = {
+        "item_type": "material",
+        "id": "Flour",
+        "amount": 8,
+        "reason": "Initial count",
+        "client_mutation_id": "adjust-once",
+    }
+
+    first = client.post("/api/inventory/adjust", json=payload, headers=auth_headers)
+    second = client.post("/api/inventory/adjust", json=payload, headers=auth_headers)
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert second.json()["idempotent"] is True
+    inv = client.get("/api/inventory", headers=auth_headers)
+    assert inv.json()["materials"]["Flour"]["stock"] == 8
+    assert db.query(models.StockMovement).filter(
+        models.StockMovement.client_mutation_id == "adjust-once",
+    ).count() == 1
