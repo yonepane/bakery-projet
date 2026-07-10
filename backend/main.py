@@ -64,7 +64,7 @@ try:
     from .routers.currency import router as currency_router
     from .routers.customers import router as customers_router
     from .routers.semi_finished import router as semi_finished_router
-
+    from .routers.kitchen import router as kitchen_router
 
 except ImportError:
     import models
@@ -90,8 +90,7 @@ except ImportError:
     from routers.currency import router as currency_router
     from routers.customers import router as customers_router
     from routers.semi_finished import router as semi_finished_router
-
-
+    from routers.kitchen import router as kitchen_router
 
 
 # ---------------------------------------------------------------------------
@@ -280,6 +279,7 @@ app.include_router(shift_logs_router)
 app.include_router(customers_router)
 app.include_router(currency_router)
 app.include_router(semi_finished_router)
+app.include_router(kitchen_router)
 
 @app.get("/api/health")
 async def health_check():
