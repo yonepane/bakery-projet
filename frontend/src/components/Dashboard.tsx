@@ -86,6 +86,7 @@ const SettingsPanel = React.lazy(() => import('./dashboard/panels/SettingsPanel'
 const StaffPanel = React.lazy(() => import('./dashboard/panels/StaffPanel'));
 const IntelligencePanel = React.lazy(() => import('./dashboard/panels/IntelligencePanel'));
 const KitchenPanel = React.lazy(() => import('./dashboard/panels/KitchenPanel'));
+const KitchenBoardPanel = React.lazy(() => import('./dashboard/panels/KitchenBoardPanel'));
 const CustomersPanel = React.lazy(() => import('./dashboard/panels/CustomersPanel'));
 import {
   useInventoryMutations,
@@ -101,7 +102,8 @@ import { RecipeBuilderModal } from './dashboard/modals/RecipeBuilderModal';
 import { ProduceBatchModal } from './dashboard/modals/ProduceBatchModal';
 import { CostBreakdownModal } from './dashboard/modals/CostBreakdownModal';
 import { useSemiFinishedMutations } from './dashboard/hooks/useSemiFinishedMutations';
-import type { SemiFinishedItem, Product } from './dashboard/types';
+import { useKitchenMutations } from './dashboard/hooks/useKitchenMutations';
+import type { SemiFinishedItem } from './dashboard/types';
 
 import {
   createToastId,
@@ -190,6 +192,9 @@ const Dashboard: React.FC = () => {
 
   const { handleSaveRecipe, handleProduceBatch, handleCreateSemiFinished } =
     useSemiFinishedMutations({ fetchTabData, addToast });
+
+  const { handleAdvanceStage, isUpdating: isKitchenUpdating } =
+    useKitchenMutations({ fetchTabData, addToast });
 
   const [lang, setLangState] = useState<Language>(() => (i18n.language as Language) || 'en');
   
@@ -394,6 +399,7 @@ const Dashboard: React.FC = () => {
     { id: 'intelligence', label: 'Intelligence' },
     { id: 'pos', label: t('pos') },
     { id: 'kitchen', label: t('kitchen') },
+    { id: 'kitchen_board', label: 'Kitchen Board' },
     { id: 'inventory', label: t('inventory') },
     { id: 'fiche', label: t('fiche') },
     { id: 'purchasing', label: t('purchasing') },
@@ -405,7 +411,7 @@ const Dashboard: React.FC = () => {
     { id: 'comptabilite', label: t('comptabilite') },
     { id: 'staff', label: t('staff') },
     { id: 'settings', label: 'Settings' },
-    { id: 'customers', label: 'Customers' }
+    { id: 'customers', label: t('customers') }
   ];
 
   const cashierRestrictedTabs = ['simulator', 'inventory', 'purchasing', 'intelligence', 'staff', 'stock_movements'];
@@ -1180,7 +1186,7 @@ const Dashboard: React.FC = () => {
     isDarkMode, setIsDarkMode, activeCurrency, setActiveCurrency,
     editMode, setEditMode, lang, setLang,
     inventory, analytics, history, stockMovements, stockLocations, stockLotBalances,
-    semiFinishedItems,
+    semiFinishedItems: [],
     planner, orders, expenses, suppliers,
     purchaseOrders, purchasingSuggestions, selectedSupplierId, setSelectedSupplierId,
     staff, shiftLogs, alerts, profitReport, wasteRecords, customers,
@@ -1270,9 +1276,10 @@ const Dashboard: React.FC = () => {
           <nav className="space-y-1">
             {[
               { id: 'dashboard', icon: LayoutDashboard, label: t('dashboard') },
-              { id: 'intelligence', icon: Brain, label: t('intelligence') },
+              { id: 'intelligence', icon: Brain, label: 'Intelligence' },
               { id: 'pos', icon: ShoppingCart, label: t('pos') },
-              { id: 'kitchen', icon: ClipboardList, label: t('kitchen') },
+              { id: 'kitchen', icon: ChefHat, label: t('kitchen') },
+              { id: 'kitchen_board', icon: ClipboardList, label: 'Kitchen Board' },
               { id: 'inventory', icon: Package, label: t('inventory') },
               { id: 'fiche', icon: FileText, label: t('fiche') },
               { id: 'purchasing', icon: Truck, label: t('purchasing') },
@@ -1611,6 +1618,14 @@ const Dashboard: React.FC = () => {
                 onProduceBatch={(item) => { setActiveSFItem(item); setShowProduceModal(true); }}
                 onShowCost={(product) => { setActiveCostProduct(product); setShowCostModal(true); }}
               />}
+              {activeTab === 'kitchen' && (
+                <KitchenBoardPanel
+                  isDarkMode={isDarkMode}
+                  batches={bakeryData.kitchenBatches || []}
+                  onAdvanceStage={handleAdvanceStage}
+                  isUpdating={isKitchenUpdating}
+                />
+              )}
               {activeTab === 'fiche' && <FichePanel {...panelProps} />}
               {activeTab === 'simulator' && <AnalyticsPanel {...panelProps} />}
               {activeTab === 'history' && <HistoryPanel {...panelProps} />}

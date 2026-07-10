@@ -26,6 +26,7 @@ import type {
   UserSession,
   Customer,
 } from './types';
+import type { KitchenBatch } from './hooks/useKitchenMutations';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -71,6 +72,7 @@ export function useBakeryData(user: UserSession | null, activeTab: string) {
   const [stockLocations, setStockLocations] = useState<StockLocation[]>([]);
   const [stockLotBalances, setStockLotBalances] = useState<StockLotBalance[]>([]);
   const [semiFinishedItems, setSemiFinishedItems] = useState<SemiFinishedItem[]>([]);
+  const [kitchenBatches, setKitchenBatches] = useState<KitchenBatch[]>([]);
   const [planner, setPlanner] = useState<PlanItem[]>([]);
   const [orders, setOrders] = useState<any[]>([]);
   const [settings, setSettings] = useState<any>({ currency: 'MAD' });
@@ -263,12 +265,14 @@ export function useBakeryData(user: UserSession | null, activeTab: string) {
         }
 
         case 'kitchen': {
-          const [invData, planData] = await Promise.all([
+          const [invData, planData, batches] = await Promise.all([
             safeGet('/inventory'),
             safeGet('/planner', []),
+            safeGet('/kitchen/batches', []),
           ]);
           applyInventory(invData);
           if (planData) setPlanner(planData);
+          setKitchenBatches(batches || []);
           break;
         }
 
