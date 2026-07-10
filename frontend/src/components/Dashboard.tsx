@@ -1618,7 +1618,7 @@ const Dashboard: React.FC = () => {
                 onProduceBatch={(item) => { setActiveSFItem(item); setShowProduceModal(true); }}
                 onShowCost={(product) => { setActiveCostProduct(product); setShowCostModal(true); }}
               />}
-              {activeTab === 'kitchen' && (
+              {activeTab === 'kitchen_board' && (
                 <KitchenBoardPanel
                   isDarkMode={isDarkMode}
                   batches={bakeryData.kitchenBatches || []}
