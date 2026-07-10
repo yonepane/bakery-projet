@@ -3,6 +3,7 @@
 import sqlalchemy.orm
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import text
+from sqlalchemy.orm import joinedload
 
 try:
     from .. import models
@@ -10,12 +11,14 @@ try:
     from ..database import get_db
     from ..schemas import MaterialCreate, ProductCreate, ProductUpdate, StockAdjust
     from ..services.stock import apply_stock_delta, find_movements_by_client_mutation
+    from ..services.core import calculate_product_cost, _cost_semi_finished
 except ImportError:
     import models
     from auth import get_current_user, get_effective_owner_id, requires_roles
     from database import get_db
     from schemas import MaterialCreate, ProductCreate, ProductUpdate, StockAdjust
     from services.stock import apply_stock_delta, find_movements_by_client_mutation
+    from services.core import calculate_product_cost, _cost_semi_finished
 
 router = APIRouter()
 
@@ -379,3 +382,177 @@ async def adjust_stock(
     )
     db.commit()
     return {"success": True, "new_stock": movement.after_qty}
+
+from pydantic import BaseModel
+from typing import List, Optional
+
+class RecipeItemUpdate(BaseModel):
+    ingredient_id: Optional[int] = None
+    semi_finished_id: Optional[int] = None
+    quantity: float
+
+class RecipeUpdateRequest(BaseModel):
+    items: List[RecipeItemUpdate]
+
+@router.put("/api/catalog/{product_id}/recipe", dependencies=[Depends(requires_roles(["owner"]))])
+async def update_product_recipe(
+    product_id: str,
+    body: RecipeUpdateRequest,
+    db: sqlalchemy.orm.Session = Depends(get_db),
+    owner_id: int = Depends(get_effective_owner_id),
+    current_user: models.User = Depends(get_current_user),
+):
+    product = db.query(models.Product).filter(
+        models.Product.id == product_id,
+        models.Product.owner_id == owner_id,
+    ).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    ing_ids = [item.ingredient_id for item in body.items if item.ingredient_id]
+    sf_ids = [item.semi_finished_id for item in body.items if item.semi_finished_id]
+
+    owned_ingredients = {}
+    if ing_ids:
+        for ing in db.query(models.Ingredient).filter(models.Ingredient.id.in_(ing_ids), models.Ingredient.owner_id == owner_id).all():
+            owned_ingredients[ing.id] = ing
+
+    owned_semi_finished = {}
+    if sf_ids:
+        for sf in db.query(models.SemiFinishedItem).filter(models.SemiFinishedItem.id.in_(sf_ids), models.SemiFinishedItem.owner_id == owner_id).all():
+            owned_semi_finished[sf.id] = sf
+
+    db.query(models.RecipeItem).filter(models.RecipeItem.product_id == product_id).delete()
+
+    snapshot_lines = []
+    for line in body.items:
+        if line.ingredient_id:
+            ing = owned_ingredients.get(line.ingredient_id)
+            if not ing:
+                raise HTTPException(status_code=400, detail="Ingredient not found")
+            ri = models.RecipeItem(
+                product_id=product_id,
+                ingredient_id=line.ingredient_id,
+                quantity=line.quantity,
+            )
+            db.add(ri)
+            snapshot_lines.append({
+                "type": "ingredient",
+                "name": ing.name,
+                "quantity": line.quantity,
+                "unit": ing.unit,
+                "price_per_unit": ing.price,
+            })
+        elif line.semi_finished_id:
+            sf = owned_semi_finished.get(line.semi_finished_id)
+            if not sf:
+                raise HTTPException(status_code=400, detail="Semi-finished item not found")
+            ri = models.RecipeItem(
+                product_id=product_id,
+                semi_finished_id=line.semi_finished_id,
+                quantity=line.quantity,
+            )
+            db.add(ri)
+            snapshot_lines.append({
+                "type": "semi_finished",
+                "name": sf.name,
+                "quantity": line.quantity,
+                "unit": sf.unit,
+            })
+
+    snap = models.RecipeSnapshot(
+        owner_id=owner_id,
+        product_id=product_id,
+        changed_by_user_id=current_user.id,
+        snapshot=snapshot_lines,
+    )
+    db.add(snap)
+    db.commit()
+    return {"success": True}
+
+@router.get("/api/products/{product_id}/cost-breakdown")
+async def get_cost_breakdown(
+    product_id: str,
+    db: sqlalchemy.orm.Session = Depends(get_db),
+    owner_id: int = Depends(get_effective_owner_id),
+    _: models.User = Depends(requires_roles(["owner"])),
+):
+    """Return per-line cost breakdown + margin + recipe history for a product."""
+    product = (
+        db.query(models.Product)
+        .options(
+            joinedload(models.Product.recipe_items)
+            .joinedload(models.RecipeItem.ingredient),
+            joinedload(models.Product.recipe_items)
+            .joinedload(models.RecipeItem.semi_finished)
+            .joinedload(models.SemiFinishedItem.recipe_items)
+            .joinedload(models.SemiFinishedRecipeItem.ingredient),
+        )
+        .filter(models.Product.id == product_id, models.Product.owner_id == owner_id)
+        .first()
+    )
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    lines = []
+    batch_cost = 0.0
+    for item in product.recipe_items:
+        if item.ingredient_id and item.ingredient:
+            line_cost = item.quantity * item.ingredient.price
+            batch_cost += line_cost
+            lines.append({
+                "type": "ingredient",
+                "name": item.ingredient.name,
+                "quantity": item.quantity,
+                "unit": item.ingredient.unit,
+                "unit_cost": item.ingredient.price,
+                "line_cost": round(line_cost, 6),
+            })
+        elif item.semi_finished_id and item.semi_finished:
+            sf_cost_per_unit = _cost_semi_finished(item.semi_finished)
+            line_cost = item.quantity * sf_cost_per_unit
+            batch_cost += line_cost
+            lines.append({
+                "type": "semi_finished",
+                "name": item.semi_finished.name,
+                "quantity": item.quantity,
+                "unit": item.semi_finished.unit,
+                "unit_cost": round(sf_cost_per_unit, 6),
+                "line_cost": round(line_cost, 6),
+            })
+
+    yield_qty = product.yield_qty or 1
+    total_cost = round(batch_cost / yield_qty, 6)
+    selling_price = product.price
+    margin_pct = round((1 - total_cost / selling_price) * 100, 2) if selling_price > 0 else None
+
+    # Recipe history (last 10 saves)
+    snaps = (
+        db.query(models.RecipeSnapshot)
+        .filter(
+            models.RecipeSnapshot.product_id == product_id,
+            models.RecipeSnapshot.owner_id == owner_id,
+        )
+        .order_by(models.RecipeSnapshot.changed_at.desc())
+        .limit(10)
+        .all()
+    )
+    history = [
+        {
+            "changed_at": s.changed_at.isoformat() if s.changed_at else None,
+            "lines_count": len(s.snapshot) if s.snapshot else 0,
+        }
+        for s in snaps
+    ]
+
+    return {
+        "product_id": product_id,
+        "product_name": product.name,
+        "selling_price": selling_price,
+        "total_cost": total_cost,
+        "margin_pct": margin_pct,
+        "yield_qty": yield_qty,
+        "cost_per_unit": total_cost,
+        "lines": lines,
+        "history": history,
+    }

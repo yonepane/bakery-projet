@@ -130,3 +130,26 @@ def owner_token(client, db):
 def auth_headers(owner_token):
     """Return Authorization headers ready to pass to client.get/post/etc."""
     return {"Authorization": f"Bearer {owner_token}"}
+
+
+def make_product(db, owner_id: int, name: str = "Test Product"):
+    import models, uuid
+    p = models.Product(
+        id=str(uuid.uuid4())[:8],
+        owner_id=owner_id,
+        name=name,
+        price=5.0,
+        stock=0,
+        yield_qty=1,
+    )
+    db.add(p)
+    db.flush()
+    return p
+
+
+def create_test_ingredient(db, owner_id: int, name: str, price: float, unit: str = "g"):
+    import models
+    ing = models.Ingredient(owner_id=owner_id, name=name, price=price, unit=unit, stock=9999)
+    db.add(ing)
+    db.flush()
+    return ing
