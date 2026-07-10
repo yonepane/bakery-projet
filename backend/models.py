@@ -379,3 +379,24 @@ class RecipeSnapshot(Base):
     snapshot = Column(JSON)  # list of recipe line dicts
 
     product = relationship("Product")
+
+class ProductionBatch(Base):
+    """Tracks a specific production run through kitchen stages."""
+    __tablename__ = "production_batches"
+
+    id = Column(String, primary_key=True, index=True)
+    owner_id = Column(Integer, ForeignKey("users.id"), index=True)
+    product_id = Column(String, ForeignKey("products.id"), index=True)
+    quantity = Column(Float)
+    
+    # Workflow stage: planned, prepping, proofing, baking, ready, cancelled
+    stage = Column(String, default="planned", index=True)
+    
+    # Timestamps for analytics
+    planned_for_date = Column(String, index=True) # YYYY-MM-DD
+    started_at = Column(DateTime, nullable=True)
+    completed_at = Column(DateTime, nullable=True)
+    
+    notes = Column(String, nullable=True)
+
+    product = relationship("Product")
