@@ -358,3 +358,24 @@ class SemiFinishedRecipeItem(Base):
 
     semi_finished = relationship("SemiFinishedItem", back_populates="recipe_items")
     ingredient = relationship("Ingredient")
+
+class RecipeSnapshot(Base):
+    """Append-only log of recipe saves for a product.
+
+    Every time a product's recipe is saved via PUT /api/catalog/{id}/recipe,
+    a new row is added here. No rows are ever deleted or updated.
+
+    `snapshot` stores a JSON list of dicts:
+      [{"type": "ingredient", "name": "Flour", "quantity": 200, "unit": "g", "price_per_unit": 0.005},
+       {"type": "semi_finished", "name": "Ganache", "quantity": 0.2, "unit": "kg"}]
+    """
+    __tablename__ = "recipe_snapshots"
+
+    id = Column(Integer, primary_key=True, index=True)
+    owner_id = Column(Integer, ForeignKey("users.id"), index=True)
+    product_id = Column(String, ForeignKey("products.id"), index=True)
+    changed_at = Column(DateTime, default=lambda: datetime.datetime.now(timezone.utc), index=True)
+    changed_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    snapshot = Column(JSON)  # list of recipe line dicts
+
+    product = relationship("Product")
