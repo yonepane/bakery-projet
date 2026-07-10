@@ -8,13 +8,14 @@ type Props = Pick<DashboardSharedProps,
   'isDarkMode' | 'inventory' | 'sortedMaterialEntries' | 'editMode' |
   'formatPrice' | 'handleAdjustStock' | 'openSelector' | 'startEditingMaterial' |
   'handleDeleteMaterial' | 'setShowAddProduct' | 'setShowAddMaterial' |
-  'setEditingMaterialName' | 'setNewMaterial' | 'handleUpdateProductPrice'>;
+  'setEditingMaterialName' | 'setNewMaterial' | 'handleUpdateProductPrice' |
+  'stockLocations' | 'stockLotBalances'> & { onOpenTransferModal: () => void };
 
 const InventoryPanel: React.FC<Props> = ({
   isDarkMode, inventory, sortedMaterialEntries, editMode, formatPrice,
   handleAdjustStock, openSelector, startEditingMaterial, handleDeleteMaterial,
   setShowAddProduct, setShowAddMaterial, setEditingMaterialName, setNewMaterial,
-  handleUpdateProductPrice,
+  handleUpdateProductPrice, stockLocations, stockLotBalances, onOpenTransferModal
 }) => {
   const { t } = useTranslation();
   return (
@@ -191,6 +192,58 @@ const InventoryPanel: React.FC<Props> = ({
             ))}
           </tbody>
         </table>
+      </div>
+
+      {/* Location Board */}
+      <div className={`rounded-[2rem] border overflow-hidden transition-colors ${isDarkMode ? 'bg-[#0a0a0b] border-white/5 shadow-glass backdrop-blur-xl' : 'bg-white border-slate-200 shadow-xl'}`}>
+        <div className="p-8 border-b border-white/5 flex justify-between items-center">
+          <h3 className={`text-xl font-bold luxury-font uppercase ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{t('location_board') || 'Location Board'}</h3>
+          <button onClick={onOpenTransferModal} className={`px-4 py-2 text-xs font-bold uppercase tracking-widest rounded-lg transition-colors ${isDarkMode ? 'bg-white/10 hover:bg-white/20 text-white' : 'bg-slate-100 hover:bg-slate-200 text-slate-900'}`}>
+            Transfer Stock
+          </button>
+        </div>
+        <div className="p-8 space-y-8">
+          {stockLocations && stockLocations.length > 0 ? stockLocations.map(loc => {
+            const balances = stockLotBalances?.filter(b => b.location?.id === loc.id) || [];
+            return (
+              <div key={loc.id} className="space-y-4">
+                <h4 className={`text-sm font-bold uppercase tracking-widest ${isDarkMode ? 'text-gold' : 'text-slate-900'}`}>{loc.name} {loc.branch_name ? `(${loc.branch_name})` : ''}</h4>
+                {balances.length > 0 ? (
+                  <table className="w-full text-left table-fixed">
+                    <thead>
+                      <tr className={`border-b text-[10px] font-black uppercase tracking-[0.2em] ${isDarkMode ? 'border-white/5 text-cream/40' : 'border-slate-100 text-slate-400'}`}>
+                        <th className="py-2">Item</th>
+                        <th className="py-2">Lot</th>
+                        <th className="py-2 text-right">Quantity</th>
+                      </tr>
+                    </thead>
+                    <tbody className={`divide-y ${isDarkMode ? 'divide-white/5' : 'divide-slate-100'}`}>
+                      {balances.map(b => (
+                        <tr key={b.id} className="group hover:bg-white/[0.02] transition-colors">
+                          <td className="py-3">
+                            <p className={`font-bold text-sm ${isDarkMode ? 'text-cream' : 'text-slate-900'}`}>{b.lot?.item_name}</p>
+                            <p className={`text-[10px] uppercase font-bold tracking-widest ${isDarkMode ? 'text-gold/60' : 'text-slate-400'}`}>{b.lot?.item_type}</p>
+                          </td>
+                          <td className="py-3">
+                            <span className={`text-[10px] font-mono p-1 rounded ${isDarkMode ? 'bg-white/5 text-cream/60' : 'bg-slate-100 text-slate-600'}`}>{b.lot?.lot_code || 'N/A'}</span>
+                          </td>
+                          <td className="py-3 text-right">
+                            <span className={`font-bold text-sm ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{b.quantity}</span>
+                            {b.lot?.unit && <span className={`text-[10px] ml-1 ${isDarkMode ? 'text-white/40' : 'text-slate-400'}`}>{b.lot.unit}</span>}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : (
+                  <p className={`text-sm ${isDarkMode ? 'text-white/40' : 'text-slate-400'}`}>No stock in this location.</p>
+                )}
+              </div>
+            );
+          }) : (
+             <p className={`text-sm ${isDarkMode ? 'text-white/40' : 'text-slate-400'}`}>No locations defined.</p>
+          )}
+        </div>
       </div>
     </div>
   </div>

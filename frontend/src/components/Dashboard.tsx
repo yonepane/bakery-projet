@@ -1589,7 +1589,7 @@ const Dashboard: React.FC = () => {
             }>
               {activeTab === 'dashboard' && <DashboardPanel {...panelProps} />}
               {activeTab === 'pos' && <POSPanel {...panelProps} />}
-              {activeTab === 'inventory' && <InventoryPanel {...panelProps} />}
+              {activeTab === 'inventory' && <InventoryPanel {...panelProps} onOpenTransferModal={() => setShowTransferModal(true)} />}
               {activeTab === 'fiche' && <FichePanel {...panelProps} />}
               {activeTab === 'simulator' && <AnalyticsPanel {...panelProps} />}
               {activeTab === 'history' && <HistoryPanel {...panelProps} />}
