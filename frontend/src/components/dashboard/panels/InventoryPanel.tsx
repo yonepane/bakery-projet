@@ -15,6 +15,7 @@ type Props = Pick<DashboardSharedProps,
   onAddSemiFinished: () => void;
   onEditRecipe: (item: SemiFinishedItem) => void;
   onProduceBatch: (item: SemiFinishedItem) => void;
+  onShowCost: (product: any) => void; // Using any for Product to avoid complex import changes, though we could import Product from types
 };
 
 const InventoryPanel: React.FC<Props> = ({
@@ -22,7 +23,7 @@ const InventoryPanel: React.FC<Props> = ({
   handleAdjustStock, openSelector, startEditingMaterial, handleDeleteMaterial,
   setShowAddProduct, setShowAddMaterial, setEditingMaterialName, setNewMaterial,
   handleUpdateProductPrice, stockLocations, stockLotBalances, semiFinishedItems,
-  onOpenTransferModal, onAddSemiFinished, onEditRecipe, onProduceBatch,
+  onOpenTransferModal, onAddSemiFinished, onEditRecipe, onProduceBatch, onShowCost,
 }) => {
   const { t } = useTranslation();
   return (
@@ -101,6 +102,12 @@ const InventoryPanel: React.FC<Props> = ({
                             {t('edit')}
                           </button>
                         )}
+                        <button
+                          onClick={() => onShowCost(p)}
+                          className={`text-[8px] font-black uppercase tracking-widest px-2 py-1 rounded transition-all ${isDarkMode ? 'bg-white/5 text-white/40 hover:text-gold hover:bg-gold/10' : 'bg-slate-100 text-slate-500 hover:text-slate-900 hover:bg-slate-200'}`}
+                        >
+                          Cost
+                        </button>
                       </div>
                       <span className={`text-[9px] uppercase tracking-widest font-bold ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>{t('total_value')} <span className={isDarkMode ? 'text-cream' : 'text-slate-900'}>{formatPrice(totalValue)}</span></span>
                     </div>

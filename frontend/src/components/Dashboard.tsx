@@ -99,8 +99,9 @@ import { DashboardSharedProps } from './dashboard/types';
 import { TransferModal } from './dashboard/modals/TransferModal';
 import { RecipeBuilderModal } from './dashboard/modals/RecipeBuilderModal';
 import { ProduceBatchModal } from './dashboard/modals/ProduceBatchModal';
+import { CostBreakdownModal } from './dashboard/modals/CostBreakdownModal';
 import { useSemiFinishedMutations } from './dashboard/hooks/useSemiFinishedMutations';
-import type { SemiFinishedItem } from './dashboard/types';
+import type { SemiFinishedItem, Product } from './dashboard/types';
 
 import {
   createToastId,
@@ -308,6 +309,8 @@ const Dashboard: React.FC = () => {
   const [showRecipeModal, setShowRecipeModal] = useState(false);
   const [showProduceModal, setShowProduceModal] = useState(false);
   const [activeSFItem, setActiveSFItem] = useState<SemiFinishedItem | null>(null);
+  const [showCostModal, setShowCostModal] = useState(false);
+  const [activeCostProduct, setActiveCostProduct] = useState<Product | null>(null);
   const [selectedPO, setSelectedPO] = useState<any>(null);
   const [poReceiveDraft, setPoReceiveDraft] = useState<Record<string, {
     qty: number;
@@ -1606,6 +1609,7 @@ const Dashboard: React.FC = () => {
                 onAddSemiFinished={() => { /* TODO: create modal */ addToast('Use Recipe to set up a new item', 'info'); }}
                 onEditRecipe={(item) => { setActiveSFItem(item); setShowRecipeModal(true); }}
                 onProduceBatch={(item) => { setActiveSFItem(item); setShowProduceModal(true); }}
+                onShowCost={(product) => { setActiveCostProduct(product); setShowCostModal(true); }}
               />}
               {activeTab === 'fiche' && <FichePanel {...panelProps} />}
               {activeTab === 'simulator' && <AnalyticsPanel {...panelProps} />}
@@ -2880,6 +2884,17 @@ const Dashboard: React.FC = () => {
           item={activeSFItem}
           onProduce={handleProduceBatch}
           isDarkMode={isDarkMode}
+        />
+      )}
+
+      {/* Cost Breakdown Modal */}
+      {showCostModal && (
+        <CostBreakdownModal
+          isOpen={showCostModal}
+          onClose={() => setShowCostModal(false)}
+          product={activeCostProduct}
+          isDarkMode={isDarkMode}
+          formatPrice={formatMoney}
         />
       )}
 
