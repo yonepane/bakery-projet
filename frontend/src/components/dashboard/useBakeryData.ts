@@ -357,7 +357,7 @@ export function useBakeryData(user: UserSession | null, activeTab: string) {
   return {
     // State
     inventory, analytics, profitReport, alerts, history, stockMovements,
-    stockLocations, stockLotBalances, semiFinishedItems, planner, setPlanner,
+    stockLocations, stockLotBalances, semiFinishedItems, kitchenBatches, planner, setPlanner,
     orders, settings, liveRates, customers, expenses, wasteRecords,
     staff, suppliers, selectedSupplierId, setSelectedSupplierId,
     purchaseOrders, purchasingSuggestions, shiftLogs, loading, setLoading,
