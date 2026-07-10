@@ -40,7 +40,8 @@ import {
   Users,
   Clock,
   Bell,
-  ClipboardList
+  ClipboardList,
+  Activity
 } from 'lucide-react';
 
 // axios is consumed internally by api.ts and http.ts — no direct import needed here.
@@ -75,6 +76,7 @@ const InventoryPanel = React.lazy(() => import('./dashboard/panels/InventoryPane
 const FichePanel = React.lazy(() => import('./dashboard/panels/FichePanel'));
 const AnalyticsPanel = React.lazy(() => import('./dashboard/panels/AnalyticsPanel'));
 const HistoryPanel = React.lazy(() => import('./dashboard/panels/HistoryPanel'));
+const StockMovementsPanel = React.lazy(() => import('./dashboard/panels/StockMovementsPanel'));
 const PlannerPanel = React.lazy(() => import('./dashboard/panels/PlannerPanel'));
 const ExpensesPanel = React.lazy(() => import('./dashboard/panels/ExpensesPanel'));
 const FinancePanel = React.lazy(() => import('./dashboard/panels/FinancePanel'));
@@ -116,13 +118,13 @@ const Dashboard: React.FC = () => {
   
   // UI state for navigation and language.
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [kitchenMode, setKitchenMode] = useState(false);
   const { t, i18n } = useTranslation();
 
   // Main business data — delegated to useBakeryData hook.
   // The hook owns all server-fetched state and the tab-aware lazy fetch strategy.
   const {
-    inventory, analytics, profitReport, alerts, history, planner, setPlanner,
+    inventory, analytics, profitReport, alerts, history, stockMovements,
+    stockLocations, stockLotBalances, planner, setPlanner,
     orders, settings, liveRates, customers, expenses, wasteRecords,
     staff, suppliers, selectedSupplierId, setSelectedSupplierId,
     purchaseOrders, purchasingSuggestions, shiftLogs, loading, setLoading,
@@ -295,7 +297,14 @@ const Dashboard: React.FC = () => {
   const [editingSupplier, setEditingSupplier] = useState<any>(null);
   const [showPOModal, setShowPOModal] = useState(false);
   const [selectedPO, setSelectedPO] = useState<any>(null);
-  const [poReceiveDraft, setPoReceiveDraft] = useState<Record<string, { qty: number; price: number }>>({});
+  const [poReceiveDraft, setPoReceiveDraft] = useState<Record<string, {
+    qty: number;
+    price: number;
+    lot_code?: string;
+    supplier_lot_code?: string;
+    expires_at?: string;
+    location_id?: number | null;
+  }>>({});
   const [newExpense, setNewExpense] = useState({
     category: 'other',
     description: '',
@@ -375,6 +384,7 @@ const Dashboard: React.FC = () => {
     { id: 'purchasing', label: t('purchasing') },
     { id: 'simulator', label: t('simulator') },
     { id: 'history', label: t('history') },
+    { id: 'stock_movements', label: 'Stock Ledger' },
     { id: 'planner', label: t('planner') },
     { id: 'orders', label: t('orders') },
     { id: 'comptabilite', label: t('comptabilite') },
@@ -383,10 +393,11 @@ const Dashboard: React.FC = () => {
     { id: 'customers', label: 'Customers' }
   ];
 
-  const cashierRestrictedTabs = ['simulator', 'inventory', 'purchasing', 'intelligence', 'staff'];
+  const cashierRestrictedTabs = ['simulator', 'inventory', 'purchasing', 'intelligence', 'staff', 'stock_movements'];
 
   const filteredNavItems = allNavItems.filter(item => {
     if (user?.role === 'cashier' && cashierRestrictedTabs.includes(item.id)) return false;
+    if (item.id === 'stock_movements' && user?.role !== 'owner') return false;
     return true;
   });
 
@@ -406,13 +417,8 @@ const Dashboard: React.FC = () => {
   ];
 
   const getDownloadToken = async (): Promise<string> => {
-    try {
-      const { data } = await http.get('/auth/download-token');
-      return data.download_token;
-    } catch (e) {
-      console.warn("Failed to fetch download token, falling back to session token");
-      return localStorage.getItem('bakery_token') || '';
-    }
+    const { data } = await http.get('/auth/download-token');
+    return data.download_token;
   };
 
   const [showAddStaff, setShowAddStaff] = useState(false);
@@ -996,7 +1002,14 @@ const Dashboard: React.FC = () => {
       Object.fromEntries(
         po.items.map((item: any) => [
           item.name,
-          { qty: Math.max(0, (Number(item.qty) || 0) - (Number(item.received_qty) || 0)), price: Number(item.price) || 0 }
+          {
+            qty: Math.max(0, (Number(item.qty) || 0) - (Number(item.received_qty) || 0)),
+            price: Number(item.price) || 0,
+            lot_code: '',
+            supplier_lot_code: '',
+            expires_at: '',
+            location_id: stockLocations.find(location => location.type === 'warehouse')?.id ?? stockLocations[0]?.id ?? null,
+          }
         ])
       )
     );
@@ -1023,11 +1036,21 @@ const Dashboard: React.FC = () => {
   const handlePartialReceivePO = async () => {
     if (!selectedPO) return;
     const items = selectedPO.items
-      .map((item: any) => ({
-        name: item.name,
-        qty: Math.max(0, Number(poReceiveDraft[item.name]?.qty) || 0),
-        price: Number(poReceiveDraft[item.name]?.price) || Number(item.price) || 0
-      }))
+      .map((item: any) => {
+        const draft = poReceiveDraft[item.name] || { qty: 0, price: Number(item.price) || 0 };
+        const receiveItem: any = {
+          name: item.name,
+          qty: Math.max(0, Number(draft.qty) || 0),
+          price: Number(draft.price) || Number(item.price) || 0
+        };
+        const lotCode = draft.lot_code?.trim();
+        const supplierLotCode = draft.supplier_lot_code?.trim();
+        if (lotCode) receiveItem.lot_code = lotCode;
+        if (supplierLotCode) receiveItem.supplier_lot_code = supplierLotCode;
+        if (draft.expires_at) receiveItem.expires_at = `${draft.expires_at}T00:00:00`;
+        if (draft.location_id) receiveItem.location_id = draft.location_id;
+        return receiveItem;
+      })
       .filter((item: any) => item.qty > 0);
     if (!items.length) {
       addToast(t('enter_received_quantities_firs'), "error");
@@ -1076,7 +1099,7 @@ const Dashboard: React.FC = () => {
     }
 
     // For PDFs/Receipts, open in a new tab so printing/viewing feels natural
-    const popup = window.open('', '_blank');
+    const popup = window.open('', '_blank', 'noopener,noreferrer');
     if (popup) {
       popup.opener = null;
       popup.location.replace(absoluteUrl);
@@ -1141,7 +1164,8 @@ const Dashboard: React.FC = () => {
     user, API_BASE: http.defaults.baseURL || '', settings,
     isDarkMode, setIsDarkMode, activeCurrency, setActiveCurrency,
     editMode, setEditMode, lang, setLang,
-    inventory, analytics, history, planner, orders, expenses, suppliers,
+    inventory, analytics, history, stockMovements, stockLocations, stockLotBalances,
+    planner, orders, expenses, suppliers,
     purchaseOrders, purchasingSuggestions, selectedSupplierId, setSelectedSupplierId,
     staff, shiftLogs, alerts, profitReport, wasteRecords, customers,
     accountingRange, setAccountingRange, monthStart, monthEnd,
@@ -1168,7 +1192,7 @@ const Dashboard: React.FC = () => {
     handlePartialReceivePO, handleDeleteStaff, handleDeleteExpense, handleDeleteSupplier,
     handleAddSupplier, handleResetSession, handleCompletePlan,
     formatPrice, displayUnit: (v, u) => `${v}${u}`, openDocument, getDownloadToken, openSelector,
-    addToast, showConfirm, fetchData, fetchTabData, api, kitchenMode
+    addToast, showConfirm, fetchData, fetchTabData, api
   };
 
   if (loading) return (
@@ -1239,7 +1263,6 @@ const Dashboard: React.FC = () => {
               { id: 'history', icon: HistoryIcon, label: t('history') },
               ].filter(item => {
               if (user?.role === 'cashier' && ['simulator', 'inventory', 'purchasing', 'intelligence'].includes(item.id)) return false;
-              if (kitchenMode && ['simulator', 'intelligence', 'purchasing', 'history', 'pos', 'dashboard', 'comptabilite', 'orders', 'expenses', 'staff', 'customers', 'settings'].includes(item.id)) return false;
               return true;
               })
 .map((item) => (
@@ -1287,12 +1310,13 @@ const Dashboard: React.FC = () => {
                             {[
                                 { id: 'comptabilite', icon: Coins, label: t('comptabilite') },
                                 { id: 'planner', icon: Calendar, label: t('planner') },
-                                { id: 'orders', icon: FileText, label: t('orders') },
+                              { id: 'orders', icon: FileText, label: t('orders') },
+                                { id: 'stock_movements', icon: Activity, label: 'Stock Ledger' },
                                 { id: 'customers', icon: Users, label: t('customers') },
                                 { id: 'staff', icon: Users, label: t('staff') },
                                 { id: 'settings', icon: Settings, label: t('settings') },
                             ].filter(sub => {
-                                if (sub.id === 'staff' && user?.role !== 'owner') return false;
+                                if ((sub.id === 'staff' || sub.id === 'stock_movements') && user?.role !== 'owner') return false;
                                 return true;
                             }).map(sub => (
 
@@ -1368,6 +1392,7 @@ const Dashboard: React.FC = () => {
                 {activeTab === 'fiche' && t('fiche')}
                 {activeTab === 'simulator' && t('simulator')}
                 {activeTab === 'history' && t('history')}
+                {activeTab === 'stock_movements' && 'Stock Ledger'}
                 {activeTab === 'planner' && t('planner')}
                 {activeTab === 'comptabilite' && t('comptabilite')}
                 {activeTab === 'purchasing' && t('purchasing')}
@@ -1399,25 +1424,6 @@ const Dashboard: React.FC = () => {
               </div>
               <div className={`w-3 h-3 rounded-full ${isOnline ? 'bg-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.8)]' : 'bg-rose-500 shadow-[0_0_15px_rgba(244,63,94,0.8)] animate-pulse'}`} />
             </div>
-
-            {/* Kitchen Mode Toggle */}
-            <button 
-              onClick={() => {
-                const next = !kitchenMode;
-                setKitchenMode(next);
-                if (next) {
-                  setActiveTab('kitchen');
-                } else {
-                  setActiveTab('dashboard');
-                }
-                addToast(`Switched to ${next ? 'Kitchen' : 'Manager'} mode`, 'info');
-              }} 
-              className={`px-4 py-2 rounded-2xl border transition-all flex items-center justify-center gap-2 font-bold text-xs uppercase tracking-widest ${isDarkMode ? 'glass-panel hover:bg-white/5 border-gold/10 text-gold' : 'border-slate-200 bg-white shadow-sm text-slate-600 hover:bg-slate-50'}`}
-              title="Toggle Kitchen Mode"
-            >
-              <ClipboardList size={18} />
-              <span>{kitchenMode ? 'Kitchen Mode' : 'Manager Mode'}</span>
-            </button>
 
             {/* Theme Toggle */}
             <button 
@@ -1584,6 +1590,7 @@ const Dashboard: React.FC = () => {
               {activeTab === 'fiche' && <FichePanel {...panelProps} />}
               {activeTab === 'simulator' && <AnalyticsPanel {...panelProps} />}
               {activeTab === 'history' && <HistoryPanel {...panelProps} />}
+              {activeTab === 'stock_movements' && <StockMovementsPanel {...panelProps} />}
               {activeTab === 'kitchen' && <KitchenPanel {...panelProps} />}
               {activeTab === 'intelligence' && <IntelligencePanel {...panelProps} />}
               {activeTab === 'planner' && <PlannerPanel {...panelProps} />}
@@ -2311,7 +2318,10 @@ const Dashboard: React.FC = () => {
                                     value: '',
                                     type: 'text',
                                     onConfirm: (phone) => {
-                                        window.open(`https://wa.me/${phone.replace(/\D/g,'')}?text=${encodeURIComponent(lastTransaction.whatsapp_text)}`, '_blank');
+                                        const cleanPhone = phone.replace(/\D/g, '');
+                                        if (cleanPhone.length >= 8) {
+                                          window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(lastTransaction.whatsapp_text)}`, '_blank', 'noopener,noreferrer');
+                                        }
                                     }
                                 });
                             }}
@@ -2614,50 +2624,108 @@ const Dashboard: React.FC = () => {
                                   const remaining = Math.max(0, (Number(item.qty) || 0) - (Number(item.received_qty) || 0));
                                   const draft = poReceiveDraft[item.name] || { qty: 0, price: Number(item.price) || 0 };
                                   return (
-                                      <div key={`${item.name}-${idx}`} className="grid grid-cols-[minmax(0,2fr)_100px_100px_160px_160px] gap-4 px-5 py-4 items-center">
-                                          <div className="min-w-0">
-                                              <p className={`font-bold text-sm truncate ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{item.name}</p>
-                                              <p className={`text-[10px] font-black uppercase tracking-widest mt-1 ${remaining > 0 ? 'text-amber-500' : 'text-emerald-500'}`}>
-                                                  {remaining > 0 ? `${remaining} pending` : 'Fully received'}
-                                              </p>
+                                      <div key={`${item.name}-${idx}`} className="px-5 py-4 space-y-3">
+                                          <div className="grid grid-cols-[minmax(0,2fr)_100px_100px_160px_160px] gap-4 items-center">
+                                              <div className="min-w-0">
+                                                  <p className={`font-bold text-sm truncate ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{item.name}</p>
+                                                  <p className={`text-[10px] font-black uppercase tracking-widest mt-1 ${remaining > 0 ? 'text-amber-500' : 'text-emerald-500'}`}>
+                                                      {remaining > 0 ? `${remaining} pending` : 'Fully received'}
+                                                  </p>
+                                              </div>
+                                              <span className="font-bold text-sm">{item.qty}</span>
+                                              <span className="font-bold text-sm">{Number(item.received_qty) || 0}</span>
+                                              <input
+                                                  type="number"
+                                                  min="0"
+                                                  max={remaining}
+                                                  step="0.01"
+                                                  value={draft.qty}
+                                                  onChange={(e) => {
+                                                      const nextQty = Number(e.target.value);
+                                                      setPoReceiveDraft((prev) => ({
+                                                          ...prev,
+                                                          [item.name]: {
+                                                              ...(prev[item.name] || draft),
+                                                              qty: Number.isFinite(nextQty) ? nextQty : 0
+                                                          }
+                                                      }));
+                                                  }}
+                                                  className={`w-full rounded-xl border px-3 py-2 outline-none text-sm font-bold ${isDarkMode ? 'bg-white/5 border-white/10 focus:bg-white/10 text-cream' : 'bg-white border-slate-200 text-slate-900'}`}
+                                              />
+                                              <input
+                                                  type="number"
+                                                  min="0"
+                                                  step="0.01"
+                                                  value={draft.price}
+                                                  onChange={(e) => {
+                                                      const nextPrice = Number(e.target.value);
+                                                      setPoReceiveDraft((prev) => ({
+                                                          ...prev,
+                                                          [item.name]: {
+                                                              ...(prev[item.name] || draft),
+                                                              price: Number.isFinite(nextPrice) ? nextPrice : 0
+                                                          }
+                                                      }));
+                                                  }}
+                                                  className={`w-full rounded-xl border px-3 py-2 outline-none text-sm font-bold ${isDarkMode ? 'bg-white/5 border-white/10 focus:bg-white/10 text-cream' : 'bg-white border-slate-200 text-slate-900'}`}
+                                              />
                                           </div>
-                                          <span className="font-bold text-sm">{item.qty}</span>
-                                          <span className="font-bold text-sm">{Number(item.received_qty) || 0}</span>
-                                          <input
-                                              type="number"
-                                              min="0"
-                                              max={remaining}
-                                              step="0.01"
-                                              value={draft.qty}
-                                              onChange={(e) => {
-                                                  const nextQty = Number(e.target.value);
-                                                  setPoReceiveDraft((prev) => ({
+                                          <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_150px_190px] gap-3">
+                                              <input
+                                                  type="text"
+                                                  value={draft.lot_code || ''}
+                                                  onChange={(e) => setPoReceiveDraft((prev) => ({
                                                       ...prev,
                                                       [item.name]: {
-                                                          ...prev[item.name],
-                                                          qty: Number.isFinite(nextQty) ? nextQty : 0
+                                                          ...(prev[item.name] || draft),
+                                                          lot_code: e.target.value
                                                       }
-                                                  }));
-                                              }}
-                                              className={`w-full rounded-xl border px-3 py-2 outline-none text-sm font-bold ${isDarkMode ? 'bg-white/5 border-white/10 focus:bg-white/10 text-cream' : 'bg-white border-slate-200 text-slate-900'}`}
-                                          />
-                                          <input
-                                              type="number"
-                                              min="0"
-                                              step="0.01"
-                                              value={draft.price}
-                                              onChange={(e) => {
-                                                  const nextPrice = Number(e.target.value);
-                                                  setPoReceiveDraft((prev) => ({
+                                                  }))}
+                                                  placeholder="Lot code"
+                                                  className={`w-full rounded-xl border px-3 py-2 outline-none text-xs font-bold ${isDarkMode ? 'bg-white/5 border-white/10 focus:bg-white/10 text-cream placeholder:text-cream/20' : 'bg-white border-slate-200 text-slate-900 placeholder:text-slate-400'}`}
+                                              />
+                                              <input
+                                                  type="text"
+                                                  value={draft.supplier_lot_code || ''}
+                                                  onChange={(e) => setPoReceiveDraft((prev) => ({
                                                       ...prev,
                                                       [item.name]: {
-                                                          ...prev[item.name],
-                                                          price: Number.isFinite(nextPrice) ? nextPrice : 0
+                                                          ...(prev[item.name] || draft),
+                                                          supplier_lot_code: e.target.value
                                                       }
-                                                  }));
-                                              }}
-                                              className={`w-full rounded-xl border px-3 py-2 outline-none text-sm font-bold ${isDarkMode ? 'bg-white/5 border-white/10 focus:bg-white/10 text-cream' : 'bg-white border-slate-200 text-slate-900'}`}
-                                          />
+                                                  }))}
+                                                  placeholder="Supplier lot"
+                                                  className={`w-full rounded-xl border px-3 py-2 outline-none text-xs font-bold ${isDarkMode ? 'bg-white/5 border-white/10 focus:bg-white/10 text-cream placeholder:text-cream/20' : 'bg-white border-slate-200 text-slate-900 placeholder:text-slate-400'}`}
+                                              />
+                                              <input
+                                                  type="date"
+                                                  value={draft.expires_at || ''}
+                                                  onChange={(e) => setPoReceiveDraft((prev) => ({
+                                                      ...prev,
+                                                      [item.name]: {
+                                                          ...(prev[item.name] || draft),
+                                                          expires_at: e.target.value
+                                                      }
+                                                  }))}
+                                                  className={`w-full rounded-xl border px-3 py-2 outline-none text-xs font-bold ${isDarkMode ? 'bg-white/5 border-white/10 focus:bg-white/10 text-cream' : 'bg-white border-slate-200 text-slate-900'}`}
+                                              />
+                                              <select
+                                                  value={draft.location_id ?? ''}
+                                                  onChange={(e) => setPoReceiveDraft((prev) => ({
+                                                      ...prev,
+                                                      [item.name]: {
+                                                          ...(prev[item.name] || draft),
+                                                          location_id: e.target.value ? Number(e.target.value) : null
+                                                      }
+                                                  }))}
+                                                  className={`w-full rounded-xl border px-3 py-2 outline-none text-xs font-black uppercase tracking-widest ${isDarkMode ? 'bg-[#0a0a0b] border-white/10 text-cream' : 'bg-white border-slate-200 text-slate-700'}`}
+                                              >
+                                                  <option value="">No location</option>
+                                                  {stockLocations.map((location) => (
+                                                      <option key={location.id} value={location.id}>{location.name}</option>
+                                                  ))}
+                                              </select>
+                                          </div>
                                       </div>
                                   );
                               })}

@@ -18,6 +18,9 @@ import type {
   Ingredient,
   PlanItem,
   Product,
+  StockLocation,
+  StockLotBalance,
+  StockMovement,
   Transaction,
   UserSession,
   Customer,
@@ -63,6 +66,9 @@ export function useBakeryData(user: UserSession | null, activeTab: string) {
   const [profitReport, setProfitReport] = useState<any[]>([]);
   const [alerts, setAlerts] = useState<DashboardAlert[]>([]);
   const [history, setHistory] = useState<Transaction[]>([]);
+  const [stockMovements, setStockMovements] = useState<StockMovement[]>([]);
+  const [stockLocations, setStockLocations] = useState<StockLocation[]>([]);
+  const [stockLotBalances, setStockLotBalances] = useState<StockLotBalance[]>([]);
   const [planner, setPlanner] = useState<PlanItem[]>([]);
   const [orders, setOrders] = useState<any[]>([]);
   const [settings, setSettings] = useState<any>({ currency: 'MAD' });
@@ -151,14 +157,32 @@ export function useBakeryData(user: UserSession | null, activeTab: string) {
         }
 
         case 'inventory': {
-          const invData = await safeGet('/inventory');
+          const [invData, locRes, balRes] = await Promise.all([
+            safeGet('/inventory'),
+            safeGet('/stock-locations', []),
+            safeGet('/stock-locations/balances', [])
+          ]);
           applyInventory(invData);
+          setStockLocations(locRes);
+          setStockLotBalances(balRes);
           break;
         }
 
         case 'history': {
           const histData = await safeGet('/history', []);
           if (histData) setHistory(histData);
+          break;
+        }
+
+        case 'stock_movements': {
+          const [movementData, locRes, balRes] = await Promise.all([
+            isOwner ? safeGet('/stock-movements', []) : Promise.resolve([]),
+            safeGet('/stock-locations', []),
+            safeGet('/stock-locations/balances', [])
+          ]);
+          if (movementData) setStockMovements(movementData);
+          setStockLocations(locRes);
+          setStockLotBalances(balRes);
           break;
         }
 
@@ -318,12 +342,13 @@ export function useBakeryData(user: UserSession | null, activeTab: string) {
 
   return {
     // State
-    inventory, analytics, profitReport, alerts, history, planner, setPlanner,
+    inventory, analytics, profitReport, alerts, history, stockMovements,
+    stockLocations, stockLotBalances, planner, setPlanner,
     orders, settings, liveRates, customers, expenses, wasteRecords,
     staff, suppliers, selectedSupplierId, setSelectedSupplierId,
     purchaseOrders, purchasingSuggestions, shiftLogs, loading, setLoading,
     // Internal setters needed by mutation handlers in Dashboard.tsx
-    setInventory, setAnalytics, setProfitReport, setAlerts, setHistory,
+    setInventory, setAnalytics, setProfitReport, setAlerts, setHistory, setStockMovements,
     setOrders, setSettings, setCustomers, setExpenses, setWasteRecords,
     setStaff, setSuppliers, setPurchaseOrders, setPurchasingSuggestions, setShiftLogs,
     // Functions
