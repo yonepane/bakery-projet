@@ -82,15 +82,7 @@ const FinancePanel: React.FC<Props> = ({
         `monthly-report.${ext}`,
       );
     } catch {
-      // Fallback: open without token if download-token endpoint fails
-      const year = new Date().getFullYear();
-      const month = new Date().getMonth() + 1;
-      const legacyToken = localStorage.getItem('bakery_token');
-      const ext = format === 'pdf' ? 'pdf' : 'xlsx';
-      openDocument(
-        `${API_BASE}/reports/monthly?month=${month}&year=${year}&format=${format}&token=${legacyToken}`,
-        `monthly-report.${ext}`,
-      );
+      addToast('Could not create a secure report download link', 'error');
     }
   };
 

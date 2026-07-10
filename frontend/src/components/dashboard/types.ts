@@ -25,6 +25,9 @@ export interface DashboardSharedProps {
   analytics: Analytics;
   customers: Customer[];
   history: Transaction[];
+  stockMovements: StockMovement[];
+  stockLocations: StockLocation[];
+  stockLotBalances: StockLotBalance[];
   planner: PlanItem[];
   orders: any[];
   expenses: Expense[];
@@ -65,6 +68,8 @@ export interface DashboardSharedProps {
   lastTransaction: any;
 
   // ─── Modals ───────────────────────────────────────────────────────────────
+  showTransferModal: boolean;
+  setShowTransferModal: (v: boolean) => void;
   setShowReceiptModal: (v: boolean) => void;
   setShowBookingModal: (v: boolean) => void;
   bookingForm: { name: string; phone: string; date: string; source: 'pos' | 'ledger'; notes?: string };
@@ -90,7 +95,14 @@ export interface DashboardSharedProps {
   setNewSupplier: (s: { name: string; contact_info: string }) => void;
   selectedPO: any;
   setSelectedPO: (po: any) => void;
-  poReceiveDraft: Record<string, { qty: number; price: number }>;
+  poReceiveDraft: Record<string, {
+    qty: number;
+    price: number;
+    lot_code?: string;
+    supplier_lot_code?: string;
+    expires_at?: string;
+    location_id?: number | null;
+  }>;
   setPoReceiveDraft: (d: any) => void;
 
   // ─── Planner / simulation ─────────────────────────────────────────────────
@@ -138,6 +150,8 @@ export interface DashboardSharedProps {
   handleDeleteExpense: (id: number) => void;
   handleDeleteSupplier: (supp: any) => void;
   handleAddSupplier: () => void;
+  handleCreateLocation: (payload: { name: string; type: string; branch_name?: string }) => void;
+  handleTransferStock: (payload: { item_type: string; item_id: string; from_location_id: number; to_location_id: number; quantity: number; lot_id?: number | null }) => void;
   handleResetSession: () => void;
   handleCompletePlan: (planId: string) => void;
 
@@ -152,7 +166,6 @@ export interface DashboardSharedProps {
   fetchData: () => void;
   fetchTabData: (tab: string) => void;
   api: any;
-  kitchenMode?: boolean;
 }
 
 // ─── Re-export core types used across panels ──────────────────────────────────
@@ -217,6 +230,73 @@ export interface Transaction {
   cost?: number;
   product?: string;
   items?: any[];
+}
+
+export interface StockMovement {
+  id: number;
+  created_at?: string | null;
+  item_type: 'ingredient' | 'product' | string;
+  item_id: string;
+  item_name: string;
+  quantity_delta: number;
+  unit?: string | null;
+  movement_type: string;
+  source_type?: string | null;
+  source_id?: string | null;
+  reason?: string | null;
+  before_qty: number;
+  after_qty: number;
+  created_by_user_id?: number | null;
+  client_mutation_id?: string | null;
+  location_id?: number | null;
+  location_name?: string | null;
+  lot_id?: number | null;
+  lot_code?: string | null;
+  expires_at?: string | null;
+  unit_cost?: number | null;
+  correlation_id?: string | null;
+}
+
+export interface StockLocation {
+  id: number;
+  name: string;
+  type: string;
+  branch_name?: string | null;
+  is_default: boolean;
+  is_active: boolean;
+  created_at?: string | null;
+}
+
+export interface StockLotBalance {
+  id: number;
+  quantity: number;
+  reserved_quantity: number;
+  available_quantity: number;
+  updated_at?: string | null;
+  location: {
+    id: number;
+    name: string;
+    type: string;
+    branch_name?: string | null;
+  } | null;
+  lot: {
+    id: number;
+    item_type: string;
+    item_id: string;
+    item_name: string;
+    lot_code?: string | null;
+    supplier_lot_code?: string | null;
+    internal_batch_code?: string | null;
+    source_type?: string | null;
+    source_id?: string | null;
+    received_at?: string | null;
+    produced_at?: string | null;
+    expires_at?: string | null;
+    unit?: string | null;
+    unit_cost?: number | null;
+    status: string;
+    created_at?: string | null;
+  } | null;
 }
 
 export interface DashboardAlert {

@@ -46,7 +46,7 @@ export function usePurchasingMutations({ fetchData, addToast }: MutationDeps) {
   );
 
   const handleReceivePO = useCallback(
-    async (id: string, payload?: { items: unknown[] }) => {
+    async (id: string, payload?: { items?: unknown[] }) => {
       try {
         await api.post(`/purchase-orders/${id}/receive`, payload ?? {});
         fetchData();

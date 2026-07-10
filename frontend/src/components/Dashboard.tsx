@@ -96,6 +96,7 @@ import {
   usePlannerMutations,
 } from './dashboard/hooks';
 import { DashboardSharedProps } from './dashboard/types';
+import { TransferModal } from './dashboard/modals/TransferModal';
 
 import {
   createToastId,
@@ -160,7 +161,7 @@ const Dashboard: React.FC = () => {
 
   const mutationDeps = { fetchData, addToast, showConfirm };
 
-  const { handleAdjustStock, handleAddMaterial, handleDeleteMaterial } =
+  const { handleAdjustStock, handleAddMaterial, handleDeleteMaterial, handleTransferStock } =
     useInventoryMutations(mutationDeps);
 
   const {
@@ -296,6 +297,7 @@ const Dashboard: React.FC = () => {
   const [showAddSupplier, setShowAddSupplier] = useState(false);
   const [editingSupplier, setEditingSupplier] = useState<any>(null);
   const [showPOModal, setShowPOModal] = useState(false);
+  const [showTransferModal, setShowTransferModal] = useState(false);
   const [selectedPO, setSelectedPO] = useState<any>(null);
   const [poReceiveDraft, setPoReceiveDraft] = useState<Record<string, {
     qty: number;
@@ -1190,7 +1192,8 @@ const Dashboard: React.FC = () => {
     handleDeleteMaterial, startEditingMaterial, handleCreatePO,
     handleReceivePO, handleDeletePO, openPOModal, handleSavePO,
     handlePartialReceivePO, handleDeleteStaff, handleDeleteExpense, handleDeleteSupplier,
-    handleAddSupplier, handleResetSession, handleCompletePlan,
+    handleAddSupplier, handleResetSession, handleCompletePlan, handleTransferStock,
+    showTransferModal, setShowTransferModal,
     formatPrice, displayUnit: (v, u) => `${v}${u}`, openDocument, getDownloadToken, openSelector,
     addToast, showConfirm, fetchData, fetchTabData, api
   };
@@ -2827,6 +2830,18 @@ const Dashboard: React.FC = () => {
           </div>
       )}
       </AnimatePresence>
+
+      {/* Transfer Modal */}
+      {showTransferModal && (
+        <TransferModal 
+          isOpen={showTransferModal} 
+          onClose={() => setShowTransferModal(false)}
+          locations={stockLocations || []}
+          inventory={inventory}
+          onTransfer={handleTransferStock}
+          isDarkMode={isDarkMode}
+        />
+      )}
 
       {/* Confirmation Modal */}
       <AnimatePresence>

@@ -311,9 +311,11 @@ const HistoryPanel: React.FC<Props> = ({ isDarkMode, history, formatPrice, openD
                             <button
                               onClick={() => openSelector({ title: 'WhatsApp Share', label: 'Customer Number', value: '', type: 'text',
                                 onConfirm: (phone: string) => {
-                                  const itemsText = tx.items?.map((i: any) => `- ${i.name} x${i.qty}`).join('%0A') || '';
-                                  const text = `BAKERY OS: Receipt ${tx.id}%0A${itemsText}%0A%0ATOTAL: ${tx.revenue} MAD`;
-                                  window.open(`https://wa.me/${phone.replace(/\D/g, '')}?text=${text}`, '_blank');
+                                  const cleanPhone = phone.replace(/\D/g, '');
+                                  if (cleanPhone.length < 8) return;
+                                  const itemsText = tx.items?.map((i: any) => `- ${i.name} x${i.qty}`).join('\n') || '';
+                                  const text = encodeURIComponent(`BAKERY OS: Receipt ${tx.id}\n${itemsText}\n\nTOTAL: ${tx.revenue} MAD`);
+                                  window.open(`https://wa.me/${cleanPhone}?text=${text}`, '_blank', 'noopener,noreferrer');
                                 }
                               })}
                               className="p-2 rounded-lg bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20 transition-all"

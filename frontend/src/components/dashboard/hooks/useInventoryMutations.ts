@@ -45,5 +45,18 @@ export function useInventoryMutations({ fetchData, addToast }: MutationDeps) {
     [fetchData, addToast]
   );
 
-  return { handleAdjustStock, handleAddMaterial, handleDeleteMaterial };
+  const handleTransferStock = useCallback(
+    async (payload: { item_type: string; item_id: string; from_location_id: number; to_location_id: number; quantity: number; lot_id?: number | null }) => {
+      try {
+        await api.post('/stock-locations/transfer', payload);
+        fetchData();
+        addToast('Stock transferred successfully', 'success');
+      } catch (e: any) {
+        addToast(e.response?.data?.detail || 'Failed to transfer stock', 'error');
+      }
+    },
+    [fetchData, addToast]
+  );
+
+  return { handleAdjustStock, handleAddMaterial, handleDeleteMaterial, handleTransferStock };
 }

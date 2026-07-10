@@ -160,7 +160,10 @@ const KitchenPanel: React.FC<Props> = ({
                       addToast(`Order for ${order.customer_name} is Ready!`, "success");
                       const msg = encodeURIComponent(`Bonjour ${order.customer_name}, votre commande chez BakeryOS est prête! 🥐`);
                       if (order.customer_phone) {
-                        window.open(`https://wa.me/${order.customer_phone.replace(/\D/g, '')}?text=${msg}`, '_blank');
+                        const cleanPhone = order.customer_phone.replace(/\D/g, '');
+                        if (cleanPhone.length >= 8) {
+                          window.open(`https://wa.me/${cleanPhone}?text=${msg}`, '_blank', 'noopener,noreferrer');
+                        }
                       }
                     }
                     fetchData();

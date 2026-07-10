@@ -107,7 +107,12 @@ const OrdersPanel: React.FC<Props> = ({
                       </select>
                     </td>
                     <td className="px-8 py-6 text-right">
-                      <button onClick={() => window.open(`https://wa.me/${(order.customer_phone || '').replace(/\D/g, '')}?text=${encodeURIComponent(`Bonjour ${order.customer_name}${vip ? ' 👑' : ''}, votre commande BakeryOS est maintenant ${order.status.toUpperCase()}! 🥐`)}`, '_blank')}
+                      <button onClick={() => {
+                        const cleanPhone = (order.customer_phone || '').replace(/\D/g, '');
+                        if (cleanPhone.length >= 8) {
+                          window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(`Bonjour ${order.customer_name}${vip ? ' 👑' : ''}, votre commande BakeryOS est maintenant ${order.status.toUpperCase()}! 🥐`)}`, '_blank', 'noopener,noreferrer');
+                        }
+                      }}
                         className={`p-4 rounded-2xl transition-all ${isDarkMode ? 'bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500 hover:text-black' : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white'}`} title={vip ? 'Message VIP Client via WhatsApp' : 'Share via WhatsApp'}>
                         <Zap size={18} fill="currentColor" />
                       </button>

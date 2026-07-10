@@ -42,7 +42,7 @@ const PurchasingPanel: React.FC<Props> = ({
                   const msg = encodeURIComponent(`🥖 BakeryOS RFQ Request\n\nBonjour, nous recherchons des offres pour les ingrédients suivants:\n\n${items}\n\nMerci de nous envoyer vos meilleurs prix dès que possible.`);
                   suppliers.forEach(s => {
                     const phone = (s.contact_info || '').replace(/\D/g, '');
-                    if (phone.length >= 8) window.open(`https://wa.me/${phone}?text=${msg}`, '_blank');
+                    if (phone.length >= 8) window.open(`https://wa.me/${phone}?text=${msg}`, '_blank', 'noopener,noreferrer');
                   });
                   addToast(`RFQ broadcast sent to ${suppliers.length} suppliers!`, 'success');
                 }}
