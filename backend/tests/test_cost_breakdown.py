@@ -79,6 +79,95 @@ def test_recipe_snapshot_written_on_save(client: TestClient, db: Session, owner_
     assert snaps[0].snapshot[0]["name"] == "SnapshotFlour"
 
 
+def test_recipe_version_active_flip_on_save(client: TestClient, db: Session, owner_token: str):
+    """Phase 3 — Saving a recipe creates an active RecipeVersion and archives the previous."""
+    import models
+    owner_id = _get_owner_id(db, owner_token)
+    flour = create_test_ingredient(db, owner_id, name="VersionFlour1", price=0.01, unit="g")
+    butter = create_test_ingredient(db, owner_id, name="VersionButter", price=0.02, unit="g")
+    product = make_product(db, owner_id)
+    db.commit()
+
+    # First save — creates version 1 (active)
+    res = client.put(
+        f"/api/catalog/{product.id}/recipe",
+        json={"items": [{"ingredient_id": flour.id, "quantity": 300, "semi_finished_id": None}]},
+        headers={"Authorization": f"Bearer {owner_token}"},
+    )
+    assert res.status_code == 200
+
+    versions = (
+        db.query(models.RecipeVersion)
+        .filter(models.RecipeVersion.product_id == product.id)
+        .order_by(models.RecipeVersion.version_number)
+        .all()
+    )
+    assert len(versions) == 1
+    assert versions[0].version_number == 1
+    assert versions[0].status == "active"
+    assert versions[0].cost_snapshot is not None
+    assert versions[0].cost_snapshot["cost_per_unit"] == pytest.approx(3.0)  # 300g × 0.01
+
+    # Second save — archives version 1, creates version 2 (active)
+    res = client.put(
+        f"/api/catalog/{product.id}/recipe",
+        json={"items": [{"ingredient_id": butter.id, "quantity": 100, "semi_finished_id": None}]},
+        headers={"Authorization": f"Bearer {owner_token}"},
+    )
+    assert res.status_code == 200
+
+    versions = (
+        db.query(models.RecipeVersion)
+        .filter(models.RecipeVersion.product_id == product.id)
+        .order_by(models.RecipeVersion.version_number)
+        .all()
+    )
+    assert len(versions) == 2
+    assert versions[0].version_number == 1
+    assert versions[0].status == "archived"
+    assert versions[0].archived_at is not None
+    assert versions[1].version_number == 2
+    assert versions[1].status == "active"
+    assert versions[1].cost_snapshot["cost_per_unit"] == pytest.approx(2.0)  # 100g × 0.02
+
+
+def test_kitchen_bake_captures_recipe_version_snapshot(client: TestClient, db: Session, owner_token: str):
+    """Phase 3 — When a batch enters 'bake', its recipe_version_id + cost_snapshot are captured."""
+    import models
+    owner_id = _get_owner_id(db, owner_token)
+    flour = create_test_ingredient(db, owner_id, name="KCBFlour", price=0.005, unit="g")
+    product = make_product(db, owner_id)
+    ri = models.RecipeItem(product_id=product.id, ingredient_id=flour.id, quantity=100)
+    db.add(ri)
+    db.commit()
+
+    # Save a recipe so a RecipeVersion exists
+    client.put(
+        f"/api/catalog/{product.id}/recipe",
+        json={"items": [{"ingredient_id": flour.id, "quantity": 100, "semi_finished_id": None}]},
+        headers={"Authorization": f"Bearer {owner_token}"},
+    )
+
+    batch = models.ProductionBatch(id="KCB1", owner_id=owner_id, product_id=product.id, quantity=1, stage="planned")
+    db.add(batch)
+    db.commit()
+
+    # Worm through up to "proof"
+    for stage in ("prep", "mix", "rest", "laminate", "proof"):
+        client.put(f"/api/kitchen/batches/KCB1/stage", json={"stage": stage},
+                   headers={"Authorization": f"Bearer {owner_token}"})
+
+    # Enter "bake" — should capture recipe_version_id + cost_snapshot
+    res = client.put("/api/kitchen/batches/KCB1/stage", json={"stage": "bake"},
+                     headers={"Authorization": f"Bearer {owner_token}"})
+    assert res.status_code == 200
+
+    db.refresh(batch)
+    assert batch.recipe_version_id is not None
+    assert batch.cost_snapshot is not None
+    assert batch.cost_snapshot["cost_per_unit"] == 0.5
+
+
 def _get_owner_id(db, token=None):
     import models
     return db.query(models.User).filter_by(username="test_owner").first().id

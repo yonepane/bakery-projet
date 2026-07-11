@@ -380,6 +380,52 @@ class RecipeSnapshot(Base):
 
     product = relationship("Product")
 
+
+class RecipeVersion(Base):
+    """Phase 3 — Versioned recipes with draft/active/archived states.
+
+    A product always has exactly one `active` version (the one production uses),
+    zero or more `draft` versions being edited, and zero or more `archived`
+    versions (older actives that were superseded). When a recipe is saved via
+    `PUT /api/catalog/{id}/recipe`, the previous active is flipped to
+    `archived` and a new `active` row is inserted with the next version_number.
+
+    `recipe_lines` stores the same JSON shape as RecipeSnapshot.snapshot so the
+    cost engine can read either source. `yield_qty` and `production_loss_pct`
+    capture Phase 3 yield/loss truth; `cost_snapshot` lets a ProductionBatch
+    reference the exact cost figures that were true at production time.
+    """
+    __tablename__ = "recipe_versions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    owner_id = Column(Integer, ForeignKey("users.id"), index=True)
+    product_id = Column(String, ForeignKey("products.id"), index=True)
+    version_number = Column(Integer, nullable=False, index=True)
+    status = Column(String, default="draft", index=True)  # draft | active | archived
+
+    # Recipe payload — list of {type, name, quantity, unit, price_per_unit}
+    recipe_lines = Column(JSON, nullable=False)
+
+    # Phase 3 yield and loss truth (per-version, not per-product)
+    yield_qty = Column(Float, nullable=True)
+    yield_unit = Column(String, nullable=True)
+    production_loss_pct = Column(Float, default=0.0)  # 0..100
+
+    # Cost figure snapshot at the moment this version became active.
+    # Lets Phase 4 ProductionBatch reference an immutable cost baseline.
+    cost_snapshot = Column(JSON, nullable=True)
+    # {"total_cost": 12.5, "cost_per_unit": 2.5, "calculated_at": "2026-07-11T..."}
+
+    created_at = Column(DateTime, default=lambda: datetime.datetime.now(timezone.utc), index=True)
+    activated_at = Column(DateTime, nullable=True)
+    archived_at = Column(DateTime, nullable=True)
+    created_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+
+    product = relationship("Product")
+    __table_args__ = (
+        UniqueConstraint("owner_id", "product_id", "version_number", name="uq_recipe_version_owner_product_number"),
+    )
+
 class ProductionBatch(Base):
     """Tracks a specific production run through kitchen stages."""
     __tablename__ = "production_batches"
@@ -404,5 +450,12 @@ class ProductionBatch(Base):
     batch_notes = Column(String, nullable=True)
     notes = Column(String, nullable=True)
 
+    # Phase 3 — link batch to the recipe version that was active when it entered
+    # the bake stage, plus an immutable cost snapshot so historical margin never
+    # changes if ingredients get repriced after the batch.
+    recipe_version_id = Column(Integer, ForeignKey("recipe_versions.id"), nullable=True, index=True)
+    cost_snapshot = Column(JSON, nullable=True)
+
     assigned_to = relationship("User", foreign_keys=[assigned_to_id])
     product = relationship("Product")
+    recipe_version = relationship("RecipeVersion")

@@ -1,5 +1,6 @@
 """Catalog, stock adjustment, and maintenance routes for BakeryOS."""
 
+import datetime
 import sqlalchemy.orm
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import text
@@ -467,8 +468,86 @@ async def update_product_recipe(
         snapshot=snapshot_lines,
     )
     db.add(snap)
+
+    # ── Phase 3 — Recipe versioning ──────────────────────────────────────
+    archive_previous_active_and_create_new_version(
+        db, owner_id, product_id, snapshot_lines,
+        product, current_user.id,
+    )
+    # ─────────────────────────────────────────────────────────────────────
+
     db.commit()
     return {"success": True}
+
+
+def archive_previous_active_and_create_new_version(
+    db: sqlalchemy.orm.Session,
+    owner_id: int,
+    product_id: str,
+    recipe_lines: list,
+    product: models.Product,
+    changed_by_user_id: int,
+) -> models.RecipeVersion:
+    """Flip any existing active RecipeVersion to archived, then create a new
+    active version with the passed recipe lines and a cost snapshot computed
+    at this instant."""
+    now = datetime.datetime.now(datetime.timezone.utc)
+
+    prev_active = (
+        db.query(models.RecipeVersion)
+        .filter(
+            models.RecipeVersion.product_id == product_id,
+            models.RecipeVersion.owner_id == owner_id,
+            models.RecipeVersion.status == "active",
+        )
+        .first()
+    )
+    next_number = (prev_active.version_number + 1) if prev_active else 1
+
+    if prev_active:
+        prev_active.status = "archived"
+        prev_active.archived_at = now
+
+    # Compute a cost snapshot from current ingredient prices.
+    batch_cost = 0.0
+    for line in recipe_lines:
+        qty = line.get("quantity", 0)
+        if line.get("type") == "ingredient":
+            ppu = line.get("price_per_unit", 0)
+            batch_cost += qty * ppu
+        elif line.get("type") == "semi_finished":
+            # Look up the semi-finished item for its real-time cost.
+            sf_name = line.get("name", "")
+            sf = (
+                db.query(models.SemiFinishedItem)
+                .filter(models.SemiFinishedItem.name == sf_name, models.SemiFinishedItem.owner_id == owner_id)
+                .first()
+            )
+            sf_cost_per_unit = _cost_semi_finished(sf) if sf else 0
+            batch_cost += qty * sf_cost_per_unit
+
+    yield_qty = product.yield_qty or 1
+    cost_per_unit = round(batch_cost / yield_qty, 6)
+
+    version = models.RecipeVersion(
+        owner_id=owner_id,
+        product_id=product_id,
+        version_number=next_number,
+        status="active",
+        recipe_lines=recipe_lines,
+        yield_qty=product.yield_qty,
+        yield_unit=getattr(product, "yield_unit", None),
+        production_loss_pct=getattr(product, "production_loss_pct", 0.0) or 0.0,
+        cost_snapshot={
+            "total_cost": round(batch_cost, 6),
+            "cost_per_unit": cost_per_unit,
+            "calculated_at": now.isoformat(),
+        },
+        activated_at=now,
+        created_by_user_id=changed_by_user_id,
+    )
+    db.add(version)
+    return version
 
 @router.get("/api/products/{product_id}/cost-breakdown")
 async def get_cost_breakdown(

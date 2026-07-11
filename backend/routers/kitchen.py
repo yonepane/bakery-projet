@@ -1,4 +1,4 @@
-"""Routes for kitchen execution stages."""
+"""Routes for kitchen execution stages — Phase 4 + Phase 3 integration."""
 import uuid
 from datetime import datetime, timezone, timedelta
 from typing import List, Dict
@@ -33,13 +33,53 @@ class ProductionBatchStageUpdate(BaseModel):
     batch_notes: str | None = None
     assigned_to_id: int | None = None
 
+
+# ── Helpers ────────────────────────────────────────────────────────────────────
+
+def _get_active_recipe_version(
+    db: sqlalchemy.orm.Session,
+    owner_id: int,
+    product_id: str,
+) -> models.RecipeVersion | None:
+    """Return the product's currently-active RecipeVersion, or None."""
+    return (
+        db.query(models.RecipeVersion)
+        .filter(
+            models.RecipeVersion.product_id == product_id,
+            models.RecipeVersion.owner_id == owner_id,
+            models.RecipeVersion.status == "active",
+        )
+        .order_by(models.RecipeVersion.version_number.desc())
+        .first()
+    )
+
+
+def _capture_version_on_bake(
+    db: sqlalchemy.orm.Session,
+    owner_id: int,
+    product_id: str,
+    batch: models.ProductionBatch,
+) -> None:
+    """At 'bake' entry, record which RecipeVersion was active + its cost snapshot.
+
+    This makes the batch's cost figure immutable — if ingredients are repriced
+    after production, historical margin for this batch never changes.
+    """
+    version = _get_active_recipe_version(db, owner_id, product_id)
+    if version:
+        batch.recipe_version_id = version.id
+        batch.cost_snapshot = version.cost_snapshot
+
+
+# ── Endpoints ──────────────────────────────────────────────────────────────────
+
+
 @router.get("/api/kitchen/batches")
 async def get_active_batches(
     db: sqlalchemy.orm.Session = Depends(get_db),
     owner_id: int = Depends(get_effective_owner_id),
 ):
     """Get active batches for the kitchen board."""
-    # Exclude cancelled, and ready batches older than 24 hours.
     one_day_ago = datetime.now(timezone.utc) - timedelta(hours=24)
     batches = (
         db.query(models.ProductionBatch)
@@ -50,8 +90,7 @@ async def get_active_batches(
         )
         .all()
     )
-    
-    # Filter out old ready batches
+
     active_batches = [
         b for b in batches
         if b.stage != "ready" or (b.completed_at and b.completed_at > one_day_ago)
@@ -75,6 +114,7 @@ async def get_active_batches(
         for b in active_batches
     ]
 
+
 @router.post("/api/kitchen/batches")
 async def create_batch(
     payload: ProductionBatchCreate,
@@ -94,6 +134,7 @@ async def create_batch(
     db.add(batch)
     db.commit()
     return {"id": batch_id, "success": True}
+
 
 @router.put("/api/kitchen/batches/{batch_id}/stage")
 async def update_batch_stage(
@@ -116,13 +157,20 @@ async def update_batch_stage(
     batch = (
         db.query(models.ProductionBatch)
         .options(
-            joinedload(models.ProductionBatch.product).joinedload(models.Product.recipe_items).joinedload(models.RecipeItem.ingredient),
-            joinedload(models.ProductionBatch.product).joinedload(models.Product.recipe_items).joinedload(models.RecipeItem.semi_finished)
+            joinedload(models.ProductionBatch.product)
+            .joinedload(models.Product.recipe_items)
+            .joinedload(models.RecipeItem.ingredient),
+            joinedload(models.ProductionBatch.product)
+            .joinedload(models.Product.recipe_items)
+            .joinedload(models.RecipeItem.semi_finished),
         )
-        .filter(models.ProductionBatch.id == batch_id, models.ProductionBatch.owner_id == owner_id)
+        .filter(
+            models.ProductionBatch.id == batch_id,
+            models.ProductionBatch.owner_id == owner_id,
+        )
         .first()
     )
-    
+
     if not batch:
         raise HTTPException(status_code=404, detail="Batch not found")
 
@@ -135,23 +183,21 @@ async def update_batch_stage(
     now = datetime.now(timezone.utc)
     product = batch.product
 
-    # State transition: entering "bake" stage (from proof) — Deduct Ingredients
+    # ── Entering BAKE — deduct ingredients + capture recipe version snapshot ──
     if old_stage != "bake" and new_stage == "bake":
         if not product:
             raise HTTPException(status_code=400, detail="Product not found")
-        
-        # Deduct ingredients
+
         required_inputs = []
         for item in product.recipe_items:
-            # We use base units directly to match calculate_product_cost logic
             required = item.quantity * batch.quantity
             if item.ingredient_id and item.ingredient:
                 if item.ingredient.stock < required:
-                     raise HTTPException(status_code=400, detail=f"Insufficient {item.ingredient.name}")
+                    raise HTTPException(status_code=400, detail=f"Insufficient {item.ingredient.name}")
                 required_inputs.append(("ingredient", item.ingredient, required))
             elif item.semi_finished_id and item.semi_finished:
                 if item.semi_finished.stock < required:
-                     raise HTTPException(status_code=400, detail=f"Insufficient {item.semi_finished.name}")
+                    raise HTTPException(status_code=400, detail=f"Insufficient {item.semi_finished.name}")
                 required_inputs.append(("semi_finished", item.semi_finished, required))
 
         for item_type, db_item, required in required_inputs:
@@ -169,25 +215,24 @@ async def update_batch_stage(
                 client_mutation_id=x_client_mutation_id,
                 picking_strategy="fefo",
             )
-        
-        batch.started_at = now
 
-    # State transition: entering "ready" stage (from display) — Add Finished Product
+        batch.started_at = now
+        _capture_version_on_bake(db, owner_id, product.id, batch)
+
+    # ── Entering READY — add finished product stock ────────────────────────────
     if old_stage != "ready" and new_stage == "ready":
         if not product:
             raise HTTPException(status_code=400, detail="Product not found")
-            
+
         yield_qty = (product.yield_qty or 1)
         total_produced = batch.quantity * yield_qty
-        
-        # Find kitchen location
+
         kitchen = db.query(models.StockLocation).filter(
             models.StockLocation.owner_id == owner_id,
             models.StockLocation.type == "kitchen",
             models.StockLocation.is_active == True,
         ).first()
 
-        # If no kitchen, fall back to default
         if not kitchen:
             kitchen = db.query(models.StockLocation).filter(
                 models.StockLocation.owner_id == owner_id,
@@ -209,12 +254,11 @@ async def update_batch_stage(
             client_mutation_id=x_client_mutation_id,
             location_id=kitchen.id if kitchen else None,
         )
-        
+
         batch.completed_at = now
 
-    # Note: Cancelling before bake stage means ingredients were never deducted;
-    # cancelling after bake means ingredients were already consumed and not auto-restocked.
-    # Manual inventory adjustment covers waste/recovery. This is standard MVP behaviour.
+    # Cancelling before bake = never deducted. Cancelling after bake = consumed,
+    # no auto-restock. MVP behaviour.
 
     batch.stage = new_stage
     if payload.timer_minutes is not None:
