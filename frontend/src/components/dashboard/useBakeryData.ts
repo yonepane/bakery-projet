@@ -203,6 +203,7 @@ export function useBakeryData(user: UserSession | null, activeTab: string) {
         }
 
         case 'comptabilite':
+        case 'expenses':
         case 'finance': {
           const [histData, expData, wasteData, ordData, suppData] = await Promise.all([
             safeGet('/history', []),

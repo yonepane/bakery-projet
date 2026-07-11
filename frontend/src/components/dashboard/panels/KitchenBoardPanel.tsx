@@ -134,3 +134,5 @@ export const KitchenBoardPanel: React.FC<Props> = ({ isDarkMode, batches, onAdva
     </div>
   );
 };
+
+export default KitchenBoardPanel;

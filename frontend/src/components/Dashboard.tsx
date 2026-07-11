@@ -409,12 +409,13 @@ const Dashboard: React.FC = () => {
     { id: 'planner', label: t('planner') },
     { id: 'orders', label: t('orders') },
     { id: 'comptabilite', label: t('comptabilite') },
+    { id: 'expenses', label: t('expenses_1') },
     { id: 'staff', label: t('staff') },
     { id: 'settings', label: 'Settings' },
     { id: 'customers', label: t('customers') }
   ];
 
-  const cashierRestrictedTabs = ['simulator', 'inventory', 'purchasing', 'intelligence', 'staff', 'stock_movements'];
+  const cashierRestrictedTabs = ['simulator', 'inventory', 'purchasing', 'intelligence', 'staff', 'stock_movements', 'expenses', 'comptabilite'];
 
   const filteredNavItems = allNavItems.filter(item => {
     if (user?.role === 'cashier' && cashierRestrictedTabs.includes(item.id)) return false;
@@ -1419,8 +1420,15 @@ const Dashboard: React.FC = () => {
                 {activeTab === 'stock_movements' && 'Stock Ledger'}
                 {activeTab === 'planner' && t('planner')}
                 {activeTab === 'comptabilite' && t('comptabilite')}
+                {activeTab === 'expenses' && t('expenses_1')}
                 {activeTab === 'purchasing' && t('purchasing')}
                 {activeTab === 'kitchen' && t('kitchen')}
+                {activeTab === 'kitchen_board' && 'Kitchen Board'}
+                {activeTab === 'intelligence' && 'Intelligence'}
+                {activeTab === 'orders' && t('orders')}
+                {activeTab === 'staff' && t('staff')}
+                {activeTab === 'settings' && t('settings')}
+                {activeTab === 'customers' && t('customers')}
             </h2>
             <div className="luxury-accent-bar mb-6" />
             <div className="flex flex-wrap items-center gap-2">
@@ -1636,6 +1644,7 @@ const Dashboard: React.FC = () => {
               {activeTab === 'orders' && <OrdersPanel {...panelProps} />}
               {activeTab === 'purchasing' && <PurchasingPanel {...panelProps} />}
               {activeTab === 'comptabilite' && <FinancePanel {...panelProps} />}
+              {activeTab === 'expenses' && <ExpensesPanel {...panelProps} />}
               {activeTab === 'staff' && <StaffPanel {...panelProps} />}
               {activeTab === 'settings' && <SettingsPanel {...panelProps} sidebarHoverMode={sidebarHoverMode} setSidebarHoverMode={setSidebarHoverMode} />}
               {activeTab === 'customers' && <CustomersPanel {...panelProps} showConfirm={showConfirm} />}
