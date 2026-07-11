@@ -182,3 +182,40 @@ def test_fefo_picking_fails_on_shortage_without_side_effects(client, auth_header
     # Ensure no movements were persisted (it should have rolled back)
     movements = db.query(models.StockMovement).count()
     assert movements == 0
+
+
+def test_fefo_skips_quarantined_lot(client, auth_headers, db, owner_token):
+    """FEFO must skip quarantined lots and consume from the next eligible active lot."""
+    owner_id = _get_owner_id(db, owner_token)
+    product, ing, lot_a, lot_b, warehouse = _setup_product_and_lots(db, owner_id)
+
+    # Quarantine Lot A (the earliest-expiring one FEFO would normally pick first)
+    lot_a.status = "quarantined"
+    db.commit()
+
+    # Produce 1 batch = 0.5kg of Flour.
+    # Lot A is quarantined -> must be skipped; consumption comes from Lot B.
+    resp = client.post("/api/produce", json={"product_id": "fefo_croissant", "quantity": 1},
+                       headers=auth_headers)
+    assert resp.status_code == 200
+
+    db.refresh(ing)
+    db.refresh(product)
+    assert ing.stock == 4.5
+    assert product.stock == 1
+
+    balance_a = db.query(models.StockLotBalance).filter_by(lot_id=lot_a.id).one()
+    balance_b = db.query(models.StockLotBalance).filter_by(lot_id=lot_b.id).one()
+
+    # Lot A untouched (quarantined -> not eligible)
+    assert balance_a.quantity == 1.0
+    # Lot B supplied the full 0.5kg
+    assert balance_b.quantity == 3.5
+
+    # No movement should reference the quarantined lot
+    mov_a = db.query(models.StockMovement).filter_by(lot_id=lot_a.id).first()
+    assert mov_a is None
+    mov_b = db.query(models.StockMovement).filter_by(
+        item_type="ingredient", item_id=ing.name, lot_id=lot_b.id
+    ).one()
+    assert mov_b.quantity_delta == -0.5

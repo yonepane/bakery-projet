@@ -26,6 +26,15 @@ const InventoryPanel: React.FC<Props> = ({
   onOpenTransferModal, onAddSemiFinished, onEditRecipe, onProduceBatch, onShowCost,
 }) => {
   const { t } = useTranslation();
+  const [lotStatusFilter, setLotStatusFilter] = React.useState<'all' | 'active' | 'quarantined' | 'recalled'>('all');
+
+  const statusColors: Record<string, string> = {
+    active: 'bg-emerald-500/15 text-emerald-400',
+    quarantined: 'bg-amber-500/15 text-amber-400',
+    recalled: 'bg-rose-700/15 text-rose-400',
+    expired: 'bg-red-700/15 text-red-400',
+  };
+
   return (
   <div className="space-y-8 animate-in fade-in duration-500">
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -212,13 +221,28 @@ const InventoryPanel: React.FC<Props> = ({
       <div className={`rounded-[2rem] border overflow-hidden transition-colors ${isDarkMode ? 'bg-[#0a0a0b] border-white/5 shadow-glass backdrop-blur-xl' : 'bg-white border-slate-200 shadow-xl'}`}>
         <div className="p-8 border-b border-white/5 flex justify-between items-center">
           <h3 className={`text-xl font-bold luxury-font uppercase ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{t('location_board') || 'Location Board'}</h3>
-          <button onClick={onOpenTransferModal} className={`px-4 py-2 text-xs font-bold uppercase tracking-widest rounded-lg transition-colors ${isDarkMode ? 'bg-white/10 hover:bg-white/20 text-white' : 'bg-slate-100 hover:bg-slate-200 text-slate-900'}`}>
-            Transfer Stock
-          </button>
+          <div className="flex items-center gap-3">
+            <select
+              value={lotStatusFilter}
+              onChange={(e) => setLotStatusFilter(e.target.value as any)}
+              className={`text-[10px] font-black uppercase tracking-widest px-3 py-2 rounded-lg border ${
+                isDarkMode ? 'bg-white/5 border-white/10 text-cream/60' : 'bg-slate-50 border-slate-200 text-slate-600'
+              }`}
+            >
+              <option value="all">All Statuses</option>
+              <option value="active">Active</option>
+              <option value="quarantined">Quarantined</option>
+              <option value="recalled">Recalled</option>
+            </select>
+            <button onClick={onOpenTransferModal} className={`px-4 py-2 text-xs font-bold uppercase tracking-widest rounded-lg transition-colors ${isDarkMode ? 'bg-white/10 hover:bg-white/20 text-white' : 'bg-slate-100 hover:bg-slate-200 text-slate-900'}`}>
+              Transfer Stock
+            </button>
+          </div>
         </div>
         <div className="p-8 space-y-8">
           {stockLocations && stockLocations.length > 0 ? stockLocations.map(loc => {
-            const balances = stockLotBalances?.filter(b => b.location?.id === loc.id) || [];
+            const balances = (stockLotBalances?.filter(b => b.location?.id === loc.id) || [])
+              .filter(b => lotStatusFilter === 'all' || b.lot?.status === lotStatusFilter);
             return (
               <div key={loc.id} className="space-y-4">
                 <h4 className={`text-sm font-bold uppercase tracking-widest ${isDarkMode ? 'text-gold' : 'text-slate-900'}`}>{loc.name} {loc.branch_name ? `(${loc.branch_name})` : ''}</h4>
@@ -228,6 +252,7 @@ const InventoryPanel: React.FC<Props> = ({
                       <tr className={`border-b text-[10px] font-black uppercase tracking-[0.2em] ${isDarkMode ? 'border-white/5 text-cream/40' : 'border-slate-100 text-slate-400'}`}>
                         <th className="py-2">Item</th>
                         <th className="py-2">Lot</th>
+                        <th className="py-2">Status</th>
                         <th className="py-2 text-right">Quantity</th>
                       </tr>
                     </thead>
@@ -239,7 +264,16 @@ const InventoryPanel: React.FC<Props> = ({
                             <p className={`text-[10px] uppercase font-bold tracking-widest ${isDarkMode ? 'text-gold/60' : 'text-slate-400'}`}>{b.lot?.item_type}</p>
                           </td>
                           <td className="py-3">
-                            <span className={`text-[10px] font-mono p-1 rounded ${isDarkMode ? 'bg-white/5 text-cream/60' : 'bg-slate-100 text-slate-600'}`}>{b.lot?.lot_code || 'N/A'}</span>
+                            {b.lot?.lot_code ? (
+                              <span className={`text-[10px] font-mono p-1 rounded ${isDarkMode ? 'bg-white/5 text-cream/60' : 'bg-slate-100 text-slate-600'}`}>{b.lot.lot_code}</span>
+                            ) : (
+                              <span className={`text-[10px] text-slate-400`}>N/A</span>
+                            )}
+                          </td>
+                          <td className="py-3">
+                            <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-full ${statusColors[b.lot?.status || 'active'] || statusColors.active}`}>
+                              {b.lot?.status || 'active'}
+                            </span>
                           </td>
                           <td className="py-3 text-right">
                             <span className={`font-bold text-sm ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{b.quantity}</span>
