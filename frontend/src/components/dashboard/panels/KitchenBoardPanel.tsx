@@ -1,6 +1,6 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { ChefHat, Flame, MoveRight, CheckCircle2, ListTodo, Timer } from 'lucide-react';
+import { ChefHat, Flame, MoveRight, CheckCircle2, ListTodo, Timer, Pause, Layers, Snowflake, Sticker, Package, Sparkles, User } from 'lucide-react';
 import { DashboardSharedProps } from '../types';
 import type { KitchenBatch } from '../hooks/useKitchenMutations';
 
@@ -10,12 +10,22 @@ type Props = Pick<DashboardSharedProps, 'isDarkMode'> & {
   isUpdating: boolean;
 };
 
+// Phase 4 pastry-appropriate linear stage sequence.
+// ordered: planned → prep → mix → rest → laminate → proof → bake → cool → fill → decorate → pack → display → ready → (cancelled)
 const STAGES = [
-  { id: 'planned', label: 'Planned', icon: ListTodo, color: 'text-slate-400', bg: 'bg-slate-400/10' },
-  { id: 'prepping', label: 'Prep & Mix', icon: ChefHat, color: 'text-blue-500', bg: 'bg-blue-500/10' },
-  { id: 'proofing', label: 'Proofing', icon: Timer, color: 'text-amber-500', bg: 'bg-amber-500/10' },
-  { id: 'baking', label: 'Baking', icon: Flame, color: 'text-rose-500', bg: 'bg-rose-500/10' },
-  { id: 'ready', label: 'Ready', icon: CheckCircle2, color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
+  { id: 'planned',   label: 'Planned',   icon: ListTodo,     color: 'text-slate-400',  bg: 'bg-slate-400/10' },
+  { id: 'prep',      label: 'Prep',      icon: ChefHat,     color: 'text-blue-500',   bg: 'bg-blue-500/10' },
+  { id: 'mix',       label: 'Mix',       icon: ChefHat,     color: 'text-cyan-500',    bg: 'bg-cyan-500/10' },
+  { id: 'rest',      label: 'Rest',      icon: Pause,       color: 'text-violet-500', bg: 'bg-violet-500/10' },
+  { id: 'laminate',  label: 'Laminate',  icon: Layers,      color: 'text-fuchsia-500', bg: 'bg-fuchsia-500/10' },
+  { id: 'proof',     label: 'Proof',     icon: Timer,       color: 'text-amber-500',  bg: 'bg-amber-500/10' },
+  { id: 'bake',      label: 'Bake',      icon: Flame,       color: 'text-rose-500',   bg: 'bg-rose-500/10' },
+  { id: 'cool',      label: 'Cool',      icon: Snowflake,   color: 'text-sky-500',    bg: 'bg-sky-500/10' },
+  { id: 'fill',      label: 'Fill',      icon: ChefHat,    color: 'text-orange-500', bg: 'bg-orange-500/10' },
+  { id: 'decorate',  label: 'Decorate',  icon: Sparkles,   color: 'text-pink-500',   bg: 'bg-pink-500/10' },
+  { id: 'pack',      label: 'Pack',      icon: Package,    color: 'text-teal-500',   bg: 'bg-teal-500/10' },
+  { id: 'display',   label: 'Display',   icon: Sticker,    color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
+  { id: 'ready',     label: 'Ready',     icon: CheckCircle2, color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
 ] as const;
 
 export const KitchenBoardPanel: React.FC<Props> = ({ isDarkMode, batches, onAdvanceStage, isUpdating }) => {
@@ -121,6 +131,29 @@ export const KitchenBoardPanel: React.FC<Props> = ({ isDarkMode, batches, onAdva
                           <div className={`text-center text-[10px] font-bold uppercase tracking-widest ${stage.color}`}>
                             In Stock
                           </div>
+                        )}
+
+                        {/* Pastry-stage expansion: assignment, timer, and batch notes */}
+                        <div className="flex flex-wrap gap-2 text-[10px] font-bold">
+                          {batch.timer_minutes != null && (
+                            <span className={`px-2 py-0.5 rounded-full flex items-center gap-1 ${
+                              isDarkMode ? 'bg-amber-500/10 text-amber-400' : 'bg-amber-50 text-amber-700'
+                            }`}>
+                              <Timer size={10} /> {batch.timer_minutes}min
+                            </span>
+                          )}
+                          {batch.assigned_to_id != null && (
+                            <span className={`px-2 py-0.5 rounded-full flex items-center gap-1 ${
+                              isDarkMode ? 'bg-sky-500/10 text-sky-400' : 'bg-sky-50 text-sky-700'
+                            }`}>
+                              <User size={10} /> #{batch.assigned_to_id}
+                            </span>
+                          )}
+                        </div>
+                        {batch.batch_notes && (
+                          <p className={`text-[11px] italic ${isDarkMode ? 'text-white/50' : 'text-slate-500'}`}>
+                            “{batch.batch_notes}”
+                          </p>
                         )}
                       </div>
                     );

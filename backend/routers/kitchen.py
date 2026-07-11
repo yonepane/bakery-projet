@@ -28,7 +28,10 @@ class ProductionBatchCreate(BaseModel):
     planned_for_date: str
 
 class ProductionBatchStageUpdate(BaseModel):
-    stage: str # planned, prepping, proofing, baking, ready, cancelled
+    stage: str
+    timer_minutes: int | None = None
+    batch_notes: str | None = None
+    assigned_to_id: int | None = None
 
 @router.get("/api/kitchen/batches")
 async def get_active_batches(
@@ -65,6 +68,9 @@ async def get_active_batches(
             "started_at": b.started_at.isoformat() if b.started_at else None,
             "completed_at": b.completed_at.isoformat() if b.completed_at else None,
             "notes": b.notes,
+            "timer_minutes": b.timer_minutes,
+            "batch_notes": b.batch_notes,
+            "assigned_to_id": b.assigned_to_id,
         }
         for b in active_batches
     ]
@@ -99,7 +105,11 @@ async def update_batch_stage(
     x_client_mutation_id: str | None = Header(default=None, alias="X-Client-Mutation-Id"),
 ):
     """Advance a batch to a new stage, handling stock deductions and additions."""
-    valid_stages = ["planned", "prepping", "proofing", "baking", "ready", "cancelled"]
+    valid_stages = [
+        "planned", "prep", "mix", "rest", "laminate",
+        "proof", "bake", "cool", "fill", "decorate",
+        "pack", "display", "ready", "cancelled",
+    ]
     if payload.stage not in valid_stages:
         raise HTTPException(status_code=400, detail="Invalid stage")
 
@@ -125,8 +135,8 @@ async def update_batch_stage(
     now = datetime.now(timezone.utc)
     product = batch.product
 
-    # State transition: planned -> prepping (Deduct Ingredients)
-    if old_stage == "planned" and new_stage == "prepping":
+    # State transition: entering "bake" stage (from proof) — Deduct Ingredients
+    if old_stage != "bake" and new_stage == "bake":
         if not product:
             raise HTTPException(status_code=400, detail="Product not found")
         
@@ -162,8 +172,7 @@ async def update_batch_stage(
         
         batch.started_at = now
 
-    # State transition: baking -> ready (Add Finished Product)
-    # OR proofing -> ready, prepping -> ready (if skipping steps)
+    # State transition: entering "ready" stage (from display) — Add Finished Product
     if old_stage != "ready" and new_stage == "ready":
         if not product:
             raise HTTPException(status_code=400, detail="Product not found")
@@ -203,10 +212,17 @@ async def update_batch_stage(
         
         batch.completed_at = now
 
-    # Note: What if they cancel? If they cancel from prepping/proofing, we don't automatically restock in this phase.
-    # It requires manual inventory adjustment for waste/recovery. This is standard MVP behaviour.
+    # Note: Cancelling before bake stage means ingredients were never deducted;
+    # cancelling after bake means ingredients were already consumed and not auto-restocked.
+    # Manual inventory adjustment covers waste/recovery. This is standard MVP behaviour.
 
     batch.stage = new_stage
+    if payload.timer_minutes is not None:
+        batch.timer_minutes = payload.timer_minutes
+    if payload.batch_notes is not None:
+        batch.batch_notes = payload.batch_notes
+    if payload.assigned_to_id is not None:
+        batch.assigned_to_id = payload.assigned_to_id
     db.commit()
 
     return {"success": True, "stage": new_stage}

@@ -389,7 +389,8 @@ class ProductionBatch(Base):
     product_id = Column(String, ForeignKey("products.id"), index=True)
     quantity = Column(Float)
     
-    # Workflow stage: planned, prepping, proofing, baking, ready, cancelled
+    # Workflow stage — pastry-appropriate linear sequence:
+    # planned, prep, mix, rest, laminate, proof, bake, cool, fill, decorate, pack, display, ready, cancelled
     stage = Column(String, default="planned", index=True)
     
     # Timestamps for analytics
@@ -397,6 +398,11 @@ class ProductionBatch(Base):
     started_at = Column(DateTime, nullable=True)
     completed_at = Column(DateTime, nullable=True)
     
+    # Kitchen execution metadata
+    assigned_to_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    timer_minutes = Column(Integer, nullable=True)
+    batch_notes = Column(String, nullable=True)
     notes = Column(String, nullable=True)
 
+    assigned_to = relationship("User", foreign_keys=[assigned_to_id])
     product = relationship("Product")

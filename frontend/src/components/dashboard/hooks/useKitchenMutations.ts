@@ -6,11 +6,28 @@ export interface KitchenBatch {
   product_id: string;
   product_name: string;
   quantity: number;
-  stage: 'planned' | 'prepping' | 'proofing' | 'baking' | 'ready' | 'cancelled';
+  stage:
+    | 'planned'
+    | 'prep'
+    | 'mix'
+    | 'rest'
+    | 'laminate'
+    | 'proof'
+    | 'bake'
+    | 'cool'
+    | 'fill'
+    | 'decorate'
+    | 'pack'
+    | 'display'
+    | 'ready'
+    | 'cancelled';
   planned_for_date: string;
   started_at: string | null;
   completed_at: string | null;
   notes: string | null;
+  timer_minutes: number | null;
+  batch_notes: string | null;
+  assigned_to_id: number | null;
 }
 
 export function useKitchenMutations({
