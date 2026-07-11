@@ -1187,7 +1187,7 @@ const Dashboard: React.FC = () => {
     isDarkMode, setIsDarkMode, activeCurrency, setActiveCurrency,
     editMode, setEditMode, lang, setLang,
     inventory, analytics, history, stockMovements, stockLocations, stockLotBalances,
-    semiFinishedItems: [],
+    semiFinishedItems,
     planner, orders, expenses, suppliers,
     purchaseOrders, purchasingSuggestions, selectedSupplierId, setSelectedSupplierId,
     staff, shiftLogs, alerts, profitReport, wasteRecords, customers,
