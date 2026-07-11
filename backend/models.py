@@ -129,6 +129,10 @@ class WasteRecord(Base):
     product_id = Column(String, ForeignKey("products.id"))
     quantity = Column(Integer)
     loss_cost = Column(Float)
+    # Phase 6 — structured waste reason for recall / quality reporting.
+    # Allowed categories: spoilage, expired, damaged, quality_reject,
+    # overproduction, miscount_adjustment, theft, other.
+    reason = Column(String, nullable=True, default="other", index=True)
     
     product = relationship("Product")
 
@@ -459,3 +463,39 @@ class ProductionBatch(Base):
     assigned_to = relationship("User", foreign_keys=[assigned_to_id])
     product = relationship("Product")
     recipe_version = relationship("RecipeVersion")
+
+
+class TemperatureLog(Base):
+    """Phase 6 — Cold-chain / oven temperature readings for food safety.
+
+    Owners record ambient/fridge/freezer/oven temperatures to satisfy food
+    safety audits. Readings are append-only and timestamped.
+    """
+    __tablename__ = "temperature_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    owner_id = Column(Integer, ForeignKey("users.id"), index=True)
+    recorded_at = Column(DateTime, default=lambda: datetime.datetime.now(timezone.utc), index=True)
+    # What was measured: ambient, fridge, freezer, oven, proofer, display_counter, other
+    location_label = Column(String, nullable=False, index=True)
+    temperature_c = Column(Float, nullable=False)
+    notes = Column(String, nullable=True)
+    recorded_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+
+
+class HygieneLog(Base):
+    """Phase 6 — Hygiene / cleaning checklist entries.
+
+    Owners log cleaning tasks (e.g. 'deep-cleaned oven', 'sanitized display
+    counter', ' pest check') to satisfy food safety audits.
+    """
+    __tablename__ = "hygiene_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    owner_id = Column(Integer, ForeignKey("users.id"), index=True)
+    recorded_at = Column(DateTime, default=lambda: datetime.datetime.now(timezone.utc), index=True)
+    # What was done: deep_clean, sanitize, pest_check, equipment_check, other
+    task_type = Column(String, nullable=False, index=True)
+    area = Column(String, nullable=True, index=True)
+    notes = Column(String, nullable=True)
+    recorded_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)

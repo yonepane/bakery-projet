@@ -374,6 +374,10 @@ class OrderCreate(BaseModel):
 class WasteCreate(BaseModel):
     product_id: str = Field(min_length=1, max_length=80)
     quantity: int = Field(gt=0, le=1_000_000)
+    # Phase 6 — Structured waste reason. Allowed categories:
+    # spoilage, expired, damaged, quality_reject, overproduction,
+    # miscount_adjustment, theft, other. Defaults to "other".
+    reason: Optional[str] = Field(default="other", max_length=40)
     client_mutation_id: Optional[str] = Field(default=None, max_length=120)
 
     @field_validator("product_id")

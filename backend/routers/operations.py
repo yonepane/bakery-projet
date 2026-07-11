@@ -65,6 +65,7 @@ async def record_waste(
         product_id=waste.product_id,
         quantity=waste.quantity,
         loss_cost=loss_cost,
+        reason=(waste.reason or "other"),
     )
     db.add(record)
     db.flush()
@@ -106,6 +107,7 @@ async def get_waste(
             "product_name": record.product.name if record.product else "Unknown",
             "quantity": record.quantity,
             "loss_cost": record.loss_cost,
+            "reason": record.reason or "other",
         }
         for record in records
     ]
@@ -999,3 +1001,144 @@ async def update_settings(
             db.add(models.SystemSetting(key=key, owner_id=owner_id, value=str(value)))
     db.commit()
     return {"success": True}
+
+
+# ── Phase 6 Slice 2 — Temperature logs, hygiene logs, waste-by-reason ────────
+
+
+class TemperatureLogCreate(BaseModel):
+    location_label: str
+    temperature_c: float
+    notes: str | None = None
+
+
+class HygieneLogCreate(BaseModel):
+    task_type: str
+    area: str | None = None
+    notes: str | None = None
+
+
+@router.get("/api/temperature-logs", dependencies=[Depends(requires_roles(["owner"]))])
+async def get_temperature_logs(
+    db: sqlalchemy.orm.Session = Depends(get_db),
+    owner_id: int = Depends(get_effective_owner_id),
+    limit: int = Query(default=100, ge=1, le=1000),
+):
+    """Owner-facing cold-chain / oven temperature history."""
+    logs = (
+        db.query(models.TemperatureLog)
+        .filter(models.TemperatureLog.owner_id == owner_id)
+        .order_by(models.TemperatureLog.recorded_at.desc())
+        .limit(limit)
+        .all()
+    )
+    return [
+        {
+            "id": log.id,
+            "recorded_at": log.recorded_at.isoformat() if log.recorded_at else None,
+            "location_label": log.location_label,
+            "temperature_c": log.temperature_c,
+            "notes": log.notes,
+        }
+        for log in logs
+    ]
+
+
+@router.post("/api/temperature-logs", dependencies=[Depends(requires_roles(["owner"]))])
+async def create_temperature_log(
+    payload: TemperatureLogCreate,
+    db: sqlalchemy.orm.Session = Depends(get_db),
+    owner_id: int = Depends(get_effective_owner_id),
+    current_user: models.User = Depends(get_current_user),
+):
+    log = models.TemperatureLog(
+        owner_id=owner_id,
+        location_label=payload.location_label.strip(),
+        temperature_c=payload.temperature_c,
+        notes=payload.notes,
+        recorded_by_user_id=current_user.id,
+    )
+    db.add(log)
+    db.commit()
+    return {"id": log.id, "success": True}
+
+
+@router.get("/api/hygiene-logs", dependencies=[Depends(requires_roles(["owner"]))])
+async def get_hygiene_logs(
+    db: sqlalchemy.orm.Session = Depends(get_db),
+    owner_id: int = Depends(get_effective_owner_id),
+    limit: int = Query(default=100, ge=1, le=1000),
+):
+    """Owner-facing cleaning / hygiene checklist history."""
+    logs = (
+        db.query(models.HygieneLog)
+        .filter(models.HygieneLog.owner_id == owner_id)
+        .order_by(models.HygieneLog.recorded_at.desc())
+        .limit(limit)
+        .all()
+    )
+    return [
+        {
+            "id": log.id,
+            "recorded_at": log.recorded_at.isoformat() if log.recorded_at else None,
+            "task_type": log.task_type,
+            "area": log.area,
+            "notes": log.notes,
+        }
+        for log in logs
+    ]
+
+
+@router.post("/api/hygiene-logs", dependencies=[Depends(requires_roles(["owner"]))])
+async def create_hygiene_log(
+    payload: HygieneLogCreate,
+    db: sqlalchemy.orm.Session = Depends(get_db),
+    owner_id: int = Depends(get_effective_owner_id),
+    current_user: models.User = Depends(get_current_user),
+):
+    log = models.HygieneLog(
+        owner_id=owner_id,
+        task_type=payload.task_type.strip(),
+        area=payload.area,
+        notes=payload.notes,
+        recorded_by_user_id=current_user.id,
+    )
+    db.add(log)
+    db.commit()
+    return {"id": log.id, "success": True}
+
+
+@router.get("/api/waste/by-reason", dependencies=[Depends(requires_roles(["owner"]))])
+async def waste_breakdown_by_reason(
+    db: sqlalchemy.orm.Session = Depends(get_db),
+    owner_id: int = Depends(get_effective_owner_id),
+):
+    """Aggregate waste by reason category — supports quality / recall reporting.
+
+    Returns one row per reason category with total quantity and total loss cost.
+    """
+    from sqlalchemy import func
+
+    rows = (
+        db.query(
+            models.WasteRecord.reason,
+            func.sum(models.WasteRecord.quantity).label("total_qty"),
+            func.sum(models.WasteRecord.loss_cost).label("total_loss"),
+            func.count(models.WasteRecord.id).label("record_count"),
+        )
+        .filter(models.WasteRecord.owner_id == owner_id)
+        .group_by(models.WasteRecord.reason)
+        .all()
+    )
+    return [
+        {
+            "reason": row.reason or "other",
+            "total_quantity": float(row.total_qty or 0),
+            "total_loss": float(row.total_loss or 0),
+            "record_count": int(row.record_count or 0),
+        }
+        for row in rows
+    ]
+
+
+# ── End Phase 6 Slice 2 ──────────────────────────────────────────────────────
