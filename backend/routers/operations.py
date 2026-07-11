@@ -414,6 +414,276 @@ async def get_stock_lot_balances(
     )
 
 
+# ── Phase 6 — Recall + Traceability ─────────────────────────────────────────
+
+
+class LotStatusUpdate(BaseModel):
+    status: str  # active | quarantined | recalled | expired
+    reason: str | None = None
+
+
+def _serialize_lot_with_balances(lot: models.StockLot, balances):
+    return {
+        "id": lot.id,
+        "item_type": lot.item_type,
+        "item_id": lot.item_id,
+        "item_name": lot.item_name_snapshot,
+        "lot_code": lot.lot_code,
+        "supplier_lot_code": lot.supplier_lot_code,
+        "internal_batch_code": lot.internal_batch_code,
+        "received_at": lot.received_at.isoformat() if lot.received_at else None,
+        "produced_at": lot.produced_at.isoformat() if lot.produced_at else None,
+        "expires_at": lot.expires_at.isoformat() if lot.expires_at else None,
+        "status": lot.status,
+        "balances": [
+            {
+                "location_id": b.location_id,
+                "location_name": b.location.name if b.location else None,
+                "quantity": b.quantity,
+                "reserved_quantity": b.reserved_quantity,
+            }
+            for b in balances
+        ],
+    }
+
+
+@router.put("/api/stock-lots/{lot_id}/status", dependencies=[Depends(requires_roles(["owner"]))])
+async def set_lot_status(
+    lot_id: int,
+    payload: LotStatusUpdate,
+    db: sqlalchemy.orm.Session = Depends(get_db),
+    owner_id: int = Depends(get_effective_owner_id),
+):
+    """Mark a lot as active/quarantined/recalled/expired.
+
+    FEFO picking already excludes any lot whose status is not 'active'
+    (services/stock.py:90), so recalling a lot instantly removes it from
+    automatic consumption without touching the balance rows.
+    """
+    valid_statuses = {"active", "quarantined", "recalled", "expired"}
+    if payload.status not in valid_statuses:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid status; allowed: {sorted(valid_statuses)}",
+        )
+
+    lot = (
+        db.query(models.StockLot)
+        .filter(models.StockLot.id == lot_id, models.StockLot.owner_id == owner_id)
+        .first()
+    )
+    if not lot:
+        raise HTTPException(status_code=404, detail="Lot not found")
+
+    previous_status = lot.status
+    lot.status = payload.status
+    db.commit()
+    return {
+        "id": lot.id,
+        "previous_status": previous_status,
+        "status": lot.status,
+        "reason": payload.reason,
+        "success": True,
+    }
+
+
+@router.get("/api/recall-report", dependencies=[Depends(requires_roles(["owner"]))])
+async def recall_report(
+    supplier_lot_code: str | None = Query(default=None),
+    lot_id: int | None = Query(default=None, ge=1),
+    since: str | None = Query(default=None, description="ISO date; only include lots received on or after this date"),
+    db: sqlalchemy.orm.Session = Depends(get_db),
+    owner_id: int = Depends(get_effective_owner_id),
+):
+    """Phase 6 — Aggregate every lot matching the recall filter, plus all
+    downstream stock movements recorded against those lots so the owner can
+    see where the suspect stock has been used."""
+    if supplier_lot_code is None and lot_id is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Supply either supplier_lot_code or lot_id",
+        )
+
+    query = db.query(models.StockLot).filter(models.StockLot.owner_id == owner_id)
+    if lot_id is not None:
+        query = query.filter(models.StockLot.id == lot_id)
+    if supplier_lot_code is not None:
+        query = query.filter(models.StockLot.supplier_lot_code == supplier_lot_code)
+    if since is not None:
+        from datetime import datetime as _dt
+        try:
+            cutoff = _dt.fromisoformat(since)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="`since` must be ISO 8601 (YYYY-MM-DD)")
+        query = query.filter(models.StockLot.received_at >= cutoff)
+
+    lots = query.all()
+    lot_ids = [lot.id for lot in lots]
+
+    # Movements recorded against the suspect lots — these tell the story of
+    # where the lot's stock has flowed (receiving, production input, transfer out).
+    movements = []
+    if lot_ids:
+        mv_rows = (
+            db.query(models.StockMovement)
+            .filter(
+                models.StockMovement.owner_id == owner_id,
+                models.StockMovement.lot_id.in_(lot_ids),
+            )
+            .order_by(models.StockMovement.created_at)
+            .all()
+        )
+        movements = [
+            {
+                "id": m.id,
+                "movement_type": m.movement_type,
+                "item_type": m.item_type,
+                "item_id": m.item_id,
+                "item_name": m.item_name_snapshot,
+                "quantity_delta": m.quantity_delta,
+                "source_type": m.source_type,
+                "source_id": m.source_id,
+                "created_at": m.created_at.isoformat() if m.created_at else None,
+            }
+            for m in mv_rows
+        ]
+
+    balance_rows = (
+        db.query(models.StockLotBalance)
+        .options(joinedload(models.StockLotBalance.location))
+        .filter(
+            models.StockLotBalance.owner_id == owner_id,
+            models.StockLotBalance.lot_id.in_(lot_ids),
+        )
+        .all()
+    )
+    balances_by_lot: Dict[int, list] = {}
+    for b in balance_rows:
+        balances_by_lot.setdefault(b.lot_id, []).append(b)
+
+    return JSONResponse(
+        content={
+            "lots": [
+                _serialize_lot_with_balances(
+                    lot,
+                    balances_by_lot.get(lot.id, []),
+                )
+                for lot in lots
+            ],
+            "movements": movements,
+            "summary": {
+                "lot_count": len(lots),
+                "movement_count": len(movements),
+                "total_on_hand": sum(
+                    b.quantity for b in balance_rows
+                ),
+            },
+        },
+        headers={"Cache-Control": "private, no-store"},
+    )
+
+
+@router.get("/api/trace/lot/{lot_id}", dependencies=[Depends(requires_roles(["owner"]))])
+async def trace_lot(
+    lot_id: int,
+    db: sqlalchemy.orm.Session = Depends(get_db),
+    owner_id: int = Depends(get_effective_owner_id),
+):
+    """Phase 6 — Forward trace from one lot through every StockMovement
+    recorded against it: receiving → production inputs → production outputs
+    (via source_id linked to a production batch) → POS sales.
+
+    The response is a chronological timeline of everything that has happened to
+    a lot's stock. The owner can use it as a printable traceability report
+    when answering a supplier recall notice.
+    """
+    lot = (
+        db.query(models.StockLot)
+        .filter(models.StockLot.id == lot_id, models.StockLot.owner_id == owner_id)
+        .first()
+    )
+    if not lot:
+        raise HTTPException(status_code=404, detail="Lot not found")
+
+    movements = (
+        db.query(models.StockMovement)
+        .filter(
+            models.StockMovement.owner_id == owner_id,
+            models.StockMovement.lot_id == lot_id,
+        )
+        .order_by(models.StockMovement.created_at)
+        .all()
+    )
+
+    # Collect downstream batch + finished-lot info: every StockMovement with
+    # source_type='production_batch' tells us which batch consumed this lot
+    # (production_input) or produced a new lot (production_output).
+    batch_ids = {
+        m.source_id for m in movements
+        if m.source_type == "production_batch" and m.source_id
+    }
+    batches_by_id: Dict[str, models.ProductionBatch] = {}
+    if batch_ids:
+        for b in db.query(models.ProductionBatch).filter(
+            models.ProductionBatch.id.in_(batch_ids),
+            models.ProductionBatch.owner_id == owner_id,
+        ).all():
+            batches_by_id[b.id] = b
+
+    # For output movements, find the downstream finished-product lot that the
+    # batch produced. We look up by source_type='production_batch' + source_id
+    # on the movement that produced the output lot.
+    timeline = []
+    for m in movements:
+        entry = {
+            "id": m.id,
+            "movement_type": m.movement_type,
+            "item_type": m.item_type,
+            "item_id": m.item_id,
+            "item_name": m.item_name_snapshot,
+            "quantity_delta": m.quantity_delta,
+            "source_type": m.source_type,
+            "source_id": m.source_id,
+            "created_at": m.created_at.isoformat() if m.created_at else None,
+        }
+        if m.source_type == "production_batch" and m.source_id:
+            batch = batches_by_id.get(m.source_id)
+            entry["batch"] = (
+                {
+                    "id": batch.id,
+                    "product_id": batch.product_id,
+                    "quantity": batch.quantity,
+                    "stage": batch.stage,
+                    "completed_at": batch.completed_at.isoformat() if batch.completed_at else None,
+                }
+                if batch else None
+            )
+        timeline.append(entry)
+
+    return JSONResponse(
+        content={
+            "lot": {
+                "id": lot.id,
+                "item_type": lot.item_type,
+                "item_id": lot.item_id,
+                "item_name": lot.item_name_snapshot,
+                "lot_code": lot.lot_code,
+                "supplier_lot_code": lot.supplier_lot_code,
+                "received_at": lot.received_at.isoformat() if lot.received_at else None,
+                "produced_at": lot.produced_at.isoformat() if lot.produced_at else None,
+                "expires_at": lot.expires_at.isoformat() if lot.expires_at else None,
+                "status": lot.status,
+            },
+            "timeline": timeline,
+            "movement_count": len(timeline),
+        },
+        headers={"Cache-Control": "private, no-store"},
+    )
+
+
+# ── End Phase 6 recall/trace ─────────────────────────────────────────────
+
+
 @router.get("/api/inventory")
 async def inventory(
     db: sqlalchemy.orm.Session = Depends(get_db),
