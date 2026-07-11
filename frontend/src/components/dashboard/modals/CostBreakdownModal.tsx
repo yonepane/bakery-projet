@@ -48,7 +48,7 @@ export const CostBreakdownModal: React.FC<Props> = ({
     if (isOpen && product) {
       setLoading(true);
       setError(null);
-      api.get(`/api/products/${product.id}/cost-breakdown`)
+      api.get(`/products/${product.id}/cost-breakdown`)
         .then(res => setData(res.data ?? res))
         .catch(() => setError('Failed to load cost breakdown.'))
         .finally(() => setLoading(false));

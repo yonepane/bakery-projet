@@ -164,7 +164,7 @@ export function useBakeryData(user: UserSession | null, activeTab: string) {
           const [invData, locRes, balRes, sfRes] = await Promise.all([
             safeGet('/inventory'),
             safeGet('/stock-locations', []),
-            safeGet('/stock-locations/balances', []),
+            safeGet('/stock-lot-balances', []),
             safeGet('/semi-finished', []),
           ]);
           applyInventory(invData);
@@ -184,7 +184,7 @@ export function useBakeryData(user: UserSession | null, activeTab: string) {
           const [movementData, locRes, balRes] = await Promise.all([
             isOwner ? safeGet('/stock-movements', []) : Promise.resolve([]),
             safeGet('/stock-locations', []),
-            safeGet('/stock-locations/balances', [])
+            safeGet('/stock-lot-balances', [])
           ]);
           if (movementData) setStockMovements(movementData);
           setStockLocations(locRes);
