@@ -8,7 +8,7 @@ export interface DashboardSharedProps {
   // ─── Auth / User ─────────────────────────────────────────────────────────
   user: UserSession | null;
   API_BASE: string;
-  settings: any;
+  settings: Record<string, string | number | boolean>;
 
   // ─── UI ──────────────────────────────────────────────────────────────────
   isDarkMode: boolean;
@@ -30,43 +30,43 @@ export interface DashboardSharedProps {
   stockLotBalances: StockLotBalance[];
   semiFinishedItems: SemiFinishedItem[];
   planner: PlanItem[];
-  orders: any[];
+  orders: Order[];
   expenses: Expense[];
   suppliers: Supplier[];
-  purchaseOrders: any[];
-  purchasingSuggestions: any[];
+  purchaseOrders: PurchaseOrder[];
+  purchasingSuggestions: PurchasingSuggestion[];
   selectedSupplierId: number | null;
   setSelectedSupplierId: (id: number | null) => void;
-  staff: any[];
-  shiftLogs: any[];
+  staff: Staff[];
+  shiftLogs: ShiftLog[];
   alerts: DashboardAlert[];
-  profitReport: any[];
-  wasteRecords: any[];
+  profitReport: ProfitReportRow[];
+  wasteRecords: WasteRecord[];
   accountingRange: { start: string; end: string };
   setAccountingRange: (r: { start: string; end: string }) => void;
   monthStart: string;
   monthEnd: string;
 
   // ─── Derived accounting metrics ──────────────────────────────────────────
-  accountingFeed: any[];
+  accountingFeed: AccountingFeedItem[];
   draftPurchaseCommitment: number;
   expenseBreakdown: [string, number][];
-  filteredExpenses: any[];
-  filteredPurchaseOrders: any[];
-  filteredSales: any[];
-  filteredWaste: any[];
+  filteredExpenses: Expense[];
+  filteredPurchaseOrders: PurchaseOrder[];
+  filteredSales: Transaction[];
+  filteredWaste: WasteRecord[];
   monthlyExpensesTotal: number;
   monthlyNetAfterExpenses: number;
   monthlySales: number;
-  productProfitability: any[];
-  wasteByProduct: any[];
+  productProfitability: ProductProfitability[];
+  wasteByProduct: WasteByProduct[];
 
   // ─── POS ──────────────────────────────────────────────────────────────────
   cart: CartItem[];
   setCart: React.Dispatch<React.SetStateAction<CartItem[]>>;
   addToCart: (product: Product) => void;
   finalizeSale: (customerId?: string | null) => void;
-  lastTransaction: any;
+  lastTransaction: Transaction | null;
 
   // ─── Modals ───────────────────────────────────────────────────────────────
   showTransferModal: boolean;
@@ -74,7 +74,7 @@ export interface DashboardSharedProps {
   setShowReceiptModal: (v: boolean) => void;
   setShowBookingModal: (v: boolean) => void;
   bookingForm: { name: string; phone: string; date: string; source: 'pos' | 'ledger'; notes?: string };
-  setBookingForm: (f: any) => void;
+  setBookingForm: (f: Partial<Order>) => void;
   setShowAddProduct: (v: boolean) => void;
   setShowAddMaterial: (v: boolean) => void;
   setShowAddExpense: (v: boolean) => void;
@@ -88,14 +88,14 @@ export interface DashboardSharedProps {
   setEditingProductId: (id: string | null) => void;
   editingMaterialName: string | null;
   setEditingMaterialName: (name: string | null) => void;
-  editingSupplier: any;
-  setEditingSupplier: (s: any) => void;
-  newMaterial: any;
-  setNewMaterial: (m: any) => void;
+  editingSupplier: Supplier | null;
+  setEditingSupplier: (s: Supplier | null) => void;
+  newMaterial: Partial<Ingredient>;
+  setNewMaterial: (m: Partial<Ingredient>) => void;
   newSupplier: { name: string; contact_info: string };
   setNewSupplier: (s: { name: string; contact_info: string }) => void;
-  selectedPO: any;
-  setSelectedPO: (po: any) => void;
+  selectedPO: PurchaseOrder | null;
+  setSelectedPO: (po: PurchaseOrder | null) => void;
   poReceiveDraft: Record<string, {
     qty: number;
     price: number;
@@ -104,14 +104,14 @@ export interface DashboardSharedProps {
     expires_at?: string;
     location_id?: number | null;
   }>;
-  setPoReceiveDraft: (d: any) => void;
+  setPoReceiveDraft: (d: Partial<PurchaseOrder>) => void;
 
   // ─── Planner / simulation ─────────────────────────────────────────────────
   simPrices: Record<string, number>;
   setSimPrices: (p: Record<string, number>) => void;
   simulatedInflations: Record<string, number>;
   setSimulatedInflations: (p: Record<string, number>) => void;
-  simulationResult: any[];
+  simulationResult: SimulationResult[];
   runSimulation: () => void;
   saveSimulation: () => void;
   isForecasting: boolean;
@@ -134,22 +134,22 @@ export interface DashboardSharedProps {
   // ─── Handlers ────────────────────────────────────────────────────────────
   handleAdjustStock: (type: 'product' | 'material', id: string, amount: number) => void;
   handleUpdateProductPrice: (id: string, price: number) => void;
-  handleUpdateProductField: (id: string, field: string, value: any) => void;
+  handleUpdateProductField: (id: string, field: string, value: string | number | boolean | unknown[]) => void;
   handleOpenEditProduct: (p: Product) => void;
   handleDeleteProduct: (id: string) => void;
   handleDuplicateProduct: (id: string) => void;
   handleCleanupProducts: () => void;
   handleDeleteMaterial: (name: string) => void;
   startEditingMaterial: (name: string, data: Ingredient) => void;
-  handleCreatePO: (data: { supplier_id: number; items: any[] }) => void;
-  handleReceivePO: (id: string, payload?: { items: any[] }) => void;
+  handleCreatePO: (data: { supplier_id: number; items: PurchaseOrderItem[] }) => void;
+  handleReceivePO: (id: string, payload?: { items: PurchaseOrderReceiveItem[] }) => void;
   handleDeletePO: (id: string) => void;
-  openPOModal: (po: any) => void;
+  openPOModal: (po: PurchaseOrder) => void;
   handleSavePO: () => void;
   handlePartialReceivePO: () => void;
   handleDeleteStaff: (username: string) => void;
   handleDeleteExpense: (id: number) => void;
-  handleDeleteSupplier: (supp: any) => void;
+  handleDeleteSupplier: (supp: Supplier) => void;
   handleAddSupplier: () => void;
   handleCreateLocation: (payload: { name: string; type: string; branch_name?: string }) => void;
   handleTransferStock: (payload: { item_type: string; item_id: string; from_location_id: number; to_location_id: number; quantity: number; lot_id?: number | null }) => void;
@@ -161,12 +161,12 @@ export interface DashboardSharedProps {
   displayUnit: (v: number, unit: string) => string;
   openDocument: (url: string, filename: string) => void;
   getDownloadToken: () => Promise<string>;
-  openSelector: (config: any) => void;
+  openSelector: (config: SelectorConfig) => void;
   addToast: (msg: string, type?: 'success' | 'error' | 'info') => void;
-  showConfirm: (config: any) => void;
+  showConfirm: (config: ConfirmConfig) => void;
   fetchData: () => void;
   fetchTabData: (tab: string) => void;
-  api: any;
+  api: unknown;
 }
 
 // ─── Re-export core types used across panels ──────────────────────────────────
@@ -199,7 +199,7 @@ export interface Product {
   stock: number;
   live_cost?: number;
   ingredients: Array<{ name: string; quantity: number }>;
-  recipe_items?: any[];
+  recipe_items?: RecipeItem[];
   prep_time: number;
   cook_time: number;
   yield_qty: number;
@@ -230,7 +230,7 @@ export interface Transaction {
   revenue?: number;
   cost?: number;
   product?: string;
-  items?: any[];
+  items?: CartItem[];
 }
 
 export interface StockMovement {
@@ -352,9 +352,9 @@ export interface Analytics {
   today_revenue: number;
   today_cost: number;
   currency: string;
-  chartData: any[];
-  hourlySales: any[];
-  topProducts: any[];
+  chartData: ChartDataPoint[];
+  hourlySales: HourlySalesPoint[];
+  topProducts: TopProductPoint[];
   intelligence: {
     total_portfolio_cost: number;
     average_margin: string;
@@ -419,4 +419,156 @@ export interface MutationDeps {
   fetchData: () => void;
   addToast: (msg: string, type?: 'success' | 'error' | 'info') => void;
   showConfirm: (config: ConfirmConfig) => void;
+}
+
+// --- New Interfaces replacing 'any' ---
+export interface Order {
+  id: string;
+  customer_name: string;
+  customer_phone?: string;
+  customer_id?: string;
+  items: CartItem[];
+  total_price: number;
+  deposit_paid: number;
+  pickup_date: string;
+  status: 'pending' | 'completed' | 'cancelled';
+  notes?: string;
+  created_at: string;
+}
+
+export interface PurchaseOrderItem {
+  name: string;
+  qty: number;
+  price: number;
+  received_qty?: number;
+}
+
+export interface PurchaseOrderReceiveItem extends PurchaseOrderItem {
+  lot_code?: string;
+  supplier_lot_code?: string;
+  expires_at?: string;
+  location_id?: number;
+}
+
+export interface PurchaseOrder {
+  id: string;
+  supplier_id: number;
+  supplier?: Supplier;
+  items: PurchaseOrderItem[];
+  status: 'draft' | 'ordered' | 'partial' | 'received' | 'cancelled';
+  expected_delivery_date?: string;
+  notes?: string;
+  created_at: string;
+  updated_at?: string;
+  total_price?: number;
+}
+
+export interface PurchasingSuggestion {
+  item_name: string;
+  suggested_qty: number;
+  reason: string;
+  current_stock: number;
+  supplier_id?: number;
+}
+
+export interface Staff {
+  id: number;
+  username: string;
+  role: string;
+}
+
+export interface ShiftLog {
+  id: number;
+  username: string;
+  action: string;
+  timestamp: string;
+  details?: string;
+}
+
+export interface ProfitReportRow {
+  date?: string;
+  revenue: number;
+  cost: number;
+  profit: number;
+  margin: number;
+}
+
+export interface WasteRecord {
+  id: number;
+  date: string;
+  product_id: string;
+  product?: Product;
+  quantity: number;
+  loss_cost: number;
+  reason?: string;
+}
+
+export interface AccountingFeedItem {
+  id: string;
+  date: string;
+  description: string;
+  amount: number;
+  type: 'sale' | 'expense' | 'purchase';
+  reference?: string;
+}
+
+export interface ProductProfitability {
+  product_id: string;
+  name: string;
+  revenue: number;
+  cost: number;
+  profit: number;
+  margin: number;
+  sales_count: number;
+}
+
+export interface WasteByProduct {
+  product_id: string;
+  name: string;
+  waste_quantity: number;
+  waste_cost: number;
+}
+
+export interface SimulationResult {
+  product_id: string;
+  name: string;
+  current_margin: number;
+  simulated_margin: number;
+  price_change_impact: number;
+}
+
+export interface RecipeItem {
+  id: number;
+  product_id: string;
+  ingredient_id?: number;
+  semi_finished_id?: number;
+  quantity: number;
+  ingredient?: Ingredient;
+  semi_finished?: SemiFinishedItem;
+  substitutes_for_ingredient_id?: number;
+  substitute_ingredient?: Ingredient;
+}
+
+export interface SelectorConfig {
+  type: string;
+  onSelect: (item: any) => void;
+  title?: string;
+  filters?: Record<string, string | number | boolean>;
+}
+
+export interface ChartDataPoint {
+  date: string;
+  [key: string]: string | number;
+}
+
+export interface HourlySalesPoint {
+  hour: string;
+  sales: number;
+  revenue: number;
+}
+
+export interface TopProductPoint {
+  name: string;
+  revenue: number;
+  qty: number;
 }
