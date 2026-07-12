@@ -1,12 +1,6 @@
 import React from 'react';
+import { useDashboard } from '../DashboardContext';
 import { Plus, FlaskConical, ChefHat } from 'lucide-react';
-import { SemiFinishedItem, DashboardSharedProps } from '../types';
-
-type Props = Pick<DashboardSharedProps, 'isDarkMode' | 'semiFinishedItems' | 'editMode'> & {
-  onAddItem: () => void;
-  onEditRecipe: (item: SemiFinishedItem) => void;
-  onProduceBatch: (item: SemiFinishedItem) => void;
-};
 
 const SemiFinishedPanel: React.FC<Props> = ({
   isDarkMode, semiFinishedItems, onAddItem, onEditRecipe, onProduceBatch

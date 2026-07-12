@@ -1,9 +1,9 @@
 import { useTranslation } from 'react-i18next';
 import React, { useMemo } from 'react';
+import { useDashboard } from '../DashboardContext';
 import { FileText, Plus, TrendingUp, X } from 'lucide-react';
 import { BarChart, Bar, XAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { motion } from 'framer-motion';
-import { DashboardSharedProps } from '../types';
 
 const PIE_COLORS = ['#d4af37', '#b8860b', '#f3e5ab', '#10b981', '#f43f5e'];
 
@@ -21,16 +21,10 @@ const CustomTooltip = ({ active, payload, label, isDarkMode }: any) => {
   return null;
 };
 
-type Props = Pick<DashboardSharedProps,
-  'isDarkMode' | 'analytics' | 'inventory' | 'simPrices' | 'setSimPrices' |
-  'simulatedInflations' | 'setSimulatedInflations' | 'formatPrice' |
-  'handleUpdateProductField' | 'api' | 'fetchData' | 'addToast'>;
-
-const AnalyticsPanel: React.FC<Props> = ({
-  isDarkMode, analytics, inventory, simPrices, setSimPrices,
+const AnalyticsPanel: React.FC = () => {
+  const { isDarkMode, analytics, inventory, simPrices, setSimPrices,
   simulatedInflations, setSimulatedInflations, formatPrice,
-  handleUpdateProductField, api, fetchData, addToast
-}) => {
+  handleUpdateProductField, api, fetchData, addToast } = useDashboard();
   const { t } = useTranslation();
 
 

@@ -1599,39 +1599,25 @@ const Dashboard: React.FC = () => {
                 <div className="text-[11px] font-black uppercase tracking-widest opacity-60">Engaging {activeTab}...</div>
               </div>
             }>
-              {activeTab === 'dashboard' && <DashboardPanel {...panelProps} />}
-              {activeTab === 'pos' && <POSPanel {...panelProps} />}
-              {activeTab === 'inventory' && <InventoryPanel
-                {...panelProps}
-                onOpenTransferModal={() => setShowTransferModal(true)}
-                onAddSemiFinished={() => { addToast('Use Recipe to set up a new item', 'info'); }}
-                onEditRecipe={(item) => { setActiveSFItem(item); setShowRecipeModal(true); }}
-                onProduceBatch={(item) => { setActiveSFItem(item); setShowProduceModal(true); }}
-                onShowCost={(product) => { setActiveCostProduct(product); setShowCostModal(true); }}
-              />}
-              {activeTab === 'kitchen_board' && (
-                <KitchenBoardPanel
-                  isDarkMode={isDarkMode}
-                  batches={kitchenBatches || []}
-                  onAdvanceStage={handleAdvanceStage}
-                  isUpdating={isKitchenUpdating}
-                />
-              )}
-              {activeTab === 'fiche' && <FichePanel {...panelProps} />}
-              {activeTab === 'simulator' && <AnalyticsPanel {...panelProps} />}
-              {activeTab === 'history' && <HistoryPanel {...panelProps} />}
-              {activeTab === 'stock_movements' && <StockMovementsPanel {...panelProps} />}
-              {activeTab === 'kitchen' && <KitchenPanel {...panelProps} />}
-              {activeTab === 'intelligence' && <IntelligencePanel {...panelProps} />}
-              {activeTab === 'forecast' && <ForecastPanel {...panelProps} />}
-              {activeTab === 'planner' && <PlannerPanel {...panelProps} />}
-              {activeTab === 'orders' && <OrdersPanel {...panelProps} />}
-              {activeTab === 'purchasing' && <PurchasingPanel {...panelProps} />}
-              {activeTab === 'comptabilite' && <FinancePanel {...panelProps} />}
-              {activeTab === 'expenses' && <ExpensesPanel {...panelProps} />}
-              {activeTab === 'staff' && <StaffPanel {...panelProps} />}
-              {activeTab === 'settings' && <SettingsPanel {...panelProps} sidebarHoverMode={sidebarHoverMode} setSidebarHoverMode={setSidebarHoverMode} />}
-              {activeTab === 'customers' && <CustomersPanel {...panelProps} showConfirm={showConfirm} />}
+              {activeTab === 'dashboard' && <DashboardPanel />}
+              {activeTab === 'pos' && <POSPanel />}
+              {activeTab === 'inventory' && <InventoryPanel />}
+              {activeTab === 'kitchen_board' && <KitchenBoardPanel />}
+              {activeTab === 'fiche' && <FichePanel />}
+              {activeTab === 'simulator' && <AnalyticsPanel />}
+              {activeTab === 'history' && <HistoryPanel />}
+              {activeTab === 'stock_movements' && <StockMovementsPanel />}
+              {activeTab === 'kitchen' && <KitchenPanel />}
+              {activeTab === 'intelligence' && <IntelligencePanel />}
+              {activeTab === 'forecast' && <ForecastPanel />}
+              {activeTab === 'planner' && <PlannerPanel />}
+              {activeTab === 'orders' && <OrdersPanel />}
+              {activeTab === 'purchasing' && <PurchasingPanel />}
+              {activeTab === 'comptabilite' && <FinancePanel />}
+              {activeTab === 'expenses' && <ExpensesPanel />}
+              {activeTab === 'staff' && <StaffPanel />}
+              {activeTab === 'settings' && <SettingsPanel />}
+              {activeTab === 'customers' && <CustomersPanel />}
             </React.Suspense>
           </motion.div>
         </AnimatePresence>

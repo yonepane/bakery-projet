@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
  * the shift-handoff note feed, the monthly PDF generator, and live alerts.
  */
 import React from 'react';
+import { useDashboard } from '../DashboardContext';
 import { motion } from 'framer-motion';
 import {
   AreaChart,
@@ -17,27 +18,9 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import { AlertTriangle, ChevronRight, MessageSquare, Send, Zap, TrendingUp, Coins, Activity, Layers, ShieldCheck } from 'lucide-react';
-import { DashboardSharedProps } from '../types';
 
-type Props = Pick<
-  DashboardSharedProps,
-  | 'isDarkMode'
-  | 'analytics'
-  | 'formatPrice'
-  | 'shiftLogs'
-  | 'generalNote'
-  | 'setGeneralNote'
-  | 'isSavingGeneralNote'
-  | 'handleSaveGeneralNote'
-  | 'handleDeleteShiftLog'
-  | 'openDocument'
-  | 'getDownloadToken'
-  | 'handleResetSession'
-  | 'API_BASE'
->;
-
-const DashboardPanel: React.FC<Props> = ({
-  isDarkMode,
+const DashboardPanel: React.FC = () => {
+  const { isDarkMode,
   analytics,
   formatPrice,
   shiftLogs,
@@ -49,8 +32,7 @@ const DashboardPanel: React.FC<Props> = ({
   openDocument,
   getDownloadToken,
   handleResetSession,
-  API_BASE,
-}) => {
+  API_BASE, } = useDashboard();
   const { t } = useTranslation();
 
   return (
@@ -216,11 +198,11 @@ const DashboardPanel: React.FC<Props> = ({
                           <div className="space-y-1.5 text-[10px] font-bold">
                             <div className="flex justify-between gap-8">
                               <span className="opacity-60 uppercase tracking-widest">{t('revenue')}</span>
-                              <span className="text-emerald-400 font-extrabold">{formatPrice(rev)}</span>
+                              <span className="text-emerald-400 font-extrabold">{formatPrice(Number(rev))}</span>
                             </div>
                             <div className="flex justify-between gap-8">
                               <span className="opacity-60 uppercase tracking-widest">{t('cost')}</span>
-                              <span className="text-rose-400 font-extrabold">{formatPrice(cost)}</span>
+                              <span className="text-rose-400 font-extrabold">{formatPrice(Number(cost))}</span>
                             </div>
                             <div className={`h-[1px] my-1.5 ${isDarkMode ? 'bg-white/5' : 'bg-slate-100'}`} />
                             <div className="flex justify-between gap-8 text-[11px] font-black uppercase tracking-wider">
@@ -272,7 +254,7 @@ const DashboardPanel: React.FC<Props> = ({
                 <div key={log.id} className={`p-4 rounded-2xl border group/log transition-all ${isDarkMode ? 'bg-white/5 border-white/5 hover:border-white/10' : 'bg-slate-50 border-slate-100 hover:border-slate-200 shadow-sm'}`}>
                   <div className="flex justify-between items-start mb-2">
                     <div className="flex flex-col">
-                      <span className="text-[10px] font-black uppercase tracking-widest text-gold">{log.author}</span>
+                      <span className="text-[10px] font-black uppercase tracking-widest text-gold">{log.username}</span>
                       <span className={`text-[8px] font-bold opacity-30 ${isDarkMode ? 'text-cream' : 'text-slate-900'}`}>
                         {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • {new Date(log.timestamp).toLocaleDateString()}
                       </span>
@@ -281,7 +263,7 @@ const DashboardPanel: React.FC<Props> = ({
                       <span className="text-xs">✕</span>
                     </button>
                   </div>
-                  <p className={`text-sm leading-relaxed whitespace-pre-wrap ${isDarkMode ? 'text-cream/80' : 'text-slate-600'}`}>{log.content}</p>
+                  <p className={`text-sm leading-relaxed whitespace-pre-wrap ${isDarkMode ? 'text-cream/80' : 'text-slate-600'}`}>{log.details || log.action}</p>
                 </div>
               ))
             ) : (
@@ -296,12 +278,12 @@ const DashboardPanel: React.FC<Props> = ({
               <textarea
                 value={generalNote}
                 onChange={(e) => setGeneralNote(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSaveGeneralNote(); } }}
+                onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleUpdateGeneralNote(generalNote); } }}
                 placeholder={t('type_a_handoff_note')}
                 className={`w-full min-h-[100px] resize-none rounded-2xl border p-4 text-sm leading-relaxed outline-none transition-all ${isDarkMode ? 'bg-white/5 border-white/10 text-cream placeholder:text-cream/20 focus:border-gold/30' : 'bg-slate-50 border-slate-200 text-slate-900 placeholder:text-slate-400 focus:border-slate-400'}`}
               />
               <button
-                onClick={handleSaveGeneralNote}
+                onClick={() => handleUpdateGeneralNote(generalNote)}
                 disabled={isSavingGeneralNote || !generalNote.trim()}
                 className={`absolute bottom-3 right-3 p-3 rounded-xl transition-all disabled:opacity-20 ${isDarkMode ? 'bg-gold text-charcoal shadow-gold-glow' : 'bg-slate-900 text-white shadow-xl'}`}
               >

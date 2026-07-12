@@ -1,12 +1,10 @@
 import { useTranslation } from 'react-i18next';
 import React from 'react';
+import { useDashboard } from '../DashboardContext';
 import { Plus, Trash2 } from 'lucide-react';
-import { DashboardSharedProps } from '../types';
 
-type Props = Pick<DashboardSharedProps,
-  'isDarkMode' | 'expenses' | 'formatPrice' | 'setShowAddExpense'>;
-
-const ExpensesPanel: React.FC<Props> = ({ isDarkMode, expenses, formatPrice, setShowAddExpense }) => {
+const ExpensesPanel: React.FC = () => {
+  const { isDarkMode, expenses, formatPrice, setShowAddExpense } = useDashboard();
   const { t } = useTranslation();
   return (
   <div className="space-y-8 animate-in fade-in duration-500">

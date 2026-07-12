@@ -1,18 +1,12 @@
 import { useTranslation } from 'react-i18next';
 import React from 'react';
+import { useDashboard } from '../DashboardContext';
 import { FileText, Plus, Trash2, Zap } from 'lucide-react';
-import { DashboardSharedProps } from '../types';
 
-type Props = Pick<DashboardSharedProps,
-  'isDarkMode' | 'inventory' | 'planner' | 'setPlanner' | 'formatPrice' |
-  'isForecasting' | 'handleSmartForecast' | 'handleProduce' | 'displayUnit' |
-  'openSelector' | 'getDownloadToken' | 'API_BASE' | 'wasteRecords' | 'api' | 'addToast' | 'fetchData'>;
-
-const PlannerPanel: React.FC<Props> = ({
-  isDarkMode, inventory, planner, setPlanner, formatPrice,
+const PlannerPanel: React.FC = () => {
+  const { isDarkMode, inventory, planner, setPlanner, formatPrice,
   isForecasting, handleSmartForecast, handleProduce, displayUnit, openSelector, getDownloadToken, API_BASE,
-  wasteRecords, api, addToast, fetchData,
-}) => {
+  wasteRecords, api, addToast, fetchData, } = useDashboard();
   const { t } = useTranslation();
 
   const resourceForecast = Object.entries(

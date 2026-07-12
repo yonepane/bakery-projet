@@ -6,51 +6,20 @@ import { useTranslation } from 'react-i18next';
  * waste deductions, profit-by-product table, and export controls.
  */
 import React, { useState } from 'react';
+import { useDashboard } from '../DashboardContext';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { FileText, TrendingDown, TrendingUp, Briefcase, FileClock, Table, Plus } from 'lucide-react';
-import { DashboardSharedProps } from '../types';
 import http from '../../../lib/http';
 
 
-type Props = Pick<DashboardSharedProps,
-  | 'isDarkMode'
-  | 'formatPrice'
-  | 'accountingRange'
-  | 'setAccountingRange'
-  | 'filteredSales'
-  | 'filteredExpenses'
-  | 'filteredWaste'
-  | 'filteredPurchaseOrders'
-  | 'monthlySales'
-  | 'monthlyExpensesTotal'
-  | 'monthlyNetAfterExpenses'
-  | 'draftPurchaseCommitment'
-  | 'expenseBreakdown'
-  | 'productProfitability'
-  | 'wasteByProduct'
-  | 'accountingFeed'
-  | 'openDocument'
-  | 'API_BASE'
-  | 'orders'
-  | 'expenses'
-  | 'suppliers'
-  | 'setShowAddExpense'
-  | 'editingExpense'
-  | 'setEditingExpense'
-  | 'handleDeleteExpense'
-  | 'showConfirm'
-  | 'addToast'
->;
-
-const FinancePanel: React.FC<Props> = ({
-  isDarkMode, formatPrice, accountingRange, setAccountingRange,
+const FinancePanel: React.FC = () => {
+  const { isDarkMode, formatPrice, accountingRange, setAccountingRange,
   filteredSales, filteredExpenses, filteredWaste, filteredPurchaseOrders,
   monthlySales, monthlyExpensesTotal, monthlyNetAfterExpenses, draftPurchaseCommitment,
   expenseBreakdown, productProfitability, wasteByProduct, accountingFeed,
   openDocument, API_BASE, orders, expenses, suppliers,
   setShowAddExpense, editingExpense, setEditingExpense, handleDeleteExpense,
-  showConfirm, addToast
-}) => {
+  showConfirm, addToast } = useDashboard();
   const { t } = useTranslation();
 
   const [isHT, setIsHT] = useState(false);

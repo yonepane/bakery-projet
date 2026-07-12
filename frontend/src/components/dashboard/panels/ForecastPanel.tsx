@@ -1,76 +1,26 @@
 import React from 'react';
+import { useDashboard } from '../DashboardContext';
 import { useTranslation } from 'react-i18next';
 import { TrendingUp, Package, Truck, AlertTriangle, Clock, Zap, Loader2 } from 'lucide-react';
-import { DashboardSharedProps } from '../types';
+import type {
+  ForecastItem,
+  ProductionSuggestion,
+  PurchaseSuggestion,
+  ExpiringStockSuggestion,
+  ForecastTabProps,
+  SummaryCardProps,
+  InsightCardProps,
+  ProductionTabProps,
+  PurchasingTabProps,
+  ExpiringTabProps,
+} from './ForecastPanel.types';
 
-type Props = Pick<DashboardSharedProps, 'isDarkMode' | 'formatPrice'> & {
-  api: any;
-  addToast: (msg: string, type: 'success' | 'error' | 'info') => void;
-  fetchTabData: (tab: string) => Promise<void>;
-};
-
-type ForecastItem = {
-  product_id: string;
-  product_name: string;
-  weekday_forecast: Record<string, number>;
-  horizon_qty: number;
-  confidence: 'high' | 'medium' | 'low';
-  data_points: number;
-};
-
-type ProductionSuggestion = {
-  product_id: string;
-  product_name: string;
-  demand: number;
-  current_stock: number;
-  net_production: number;
-  can_produce: boolean;
-  lot_usage: Array<{
-    ingredient_id: number;
-    ingredient_name: string;
-    required_qty: number;
-    available_lots: Array<{
-      lot_id: number;
-      quantity: number;
-      expires_at: string | null;
-    }>;
-  }>;
-};
-
-type PurchaseSuggestion = {
-  ingredient_id: number;
-  ingredient_name: string;
-  unit: string;
-  total_needed: number;
-  current_stock: number;
-  expiring_soon_qty: number;
-  expiring_soon_value: number;
-  suggested_order_qty: number;
-  unit_price: number;
-  estimated_cost: number;
-  priority: 'high' | 'medium' | 'low';
-};
-
-type ExpiringStockSuggestion = {
-  product_id: string;
-  product_name: string;
-  expiring_ingredients: Array<{
-    ingredient_id: number;
-    ingredient_name: string;
-    lot_id: number;
-    qty: number;
-    expires_at: string;
-    suggested_products: string[];
-  }>;
-};
-
-const ForecastPanel: React.FC<Props> = ({
-  isDarkMode,
+const ForecastPanel: React.FC = () => {
+  const { isDarkMode,
   formatPrice,
   api,
   addToast,
-  fetchTabData,
-}) => {
+  fetchTabData, } = useDashboard();
   const { t } = useTranslation();
   const [targetDate, setTargetDate] = React.useState(
     new Date().toISOString().split('T')[0]
@@ -155,16 +105,16 @@ const ForecastPanel: React.FC<Props> = ({
       <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6">
         <div>
           <h2 className={`text-3xl font-bold luxury-font uppercase tracking-tighter ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
-            {t('smart_planning') || 'Smart Planning'}
+            {t('smart_planning', { defaultValue: 'Smart Planning' })}
           </h2>
           <p className={`text-sm mt-1 ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>
-            {t('forecast_subtitle') || 'AI-powered demand forecasting and smart production planning'}
+            {t('forecast_subtitle', { defaultValue: 'AI-powered demand forecasting and smart production planning' })}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-4">
           <div className="flex items-center gap-2">
             <label className={`text-sm font-medium ${isDarkMode ? 'text-cream/60' : 'text-slate-500'}`}>
-              {t('target_date') || 'Target Date'}
+              {t('target_date', { defaultValue: 'Target Date' })}
             </label>
             <input
               type="date"
@@ -175,7 +125,7 @@ const ForecastPanel: React.FC<Props> = ({
           </div>
           <div className="flex items-center gap-2">
             <label className={`text-sm font-medium ${isDarkMode ? 'text-cream/60' : 'text-slate-500'}`}>
-              {t('horizon_days') || 'Horizon (days)'}
+              {t('horizon_days', { defaultValue: 'Horizon (days)' })}
             </label>
             <select
               value={horizonDays}
@@ -183,7 +133,7 @@ const ForecastPanel: React.FC<Props> = ({
               className={`px-4 py-3 rounded-xl border font-mono text-sm ${isDarkMode ? 'bg-white/5 border-white/10 text-cream' : 'bg-slate-50 border-slate-200 text-slate-900'}`}
             >
               {[1, 3, 7, 14, 30].map(d => (
-                <option key={d} value={d}>{d} {t('days') || 'days'}</option>
+                <option key={d} value={d}>{d} {t('days', { defaultValue: 'days' })}</option>
               ))}
             </select>
           </div>
@@ -206,7 +156,7 @@ const ForecastPanel: React.FC<Props> = ({
         ].map(tab => (
           <button
             key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
+            onClick={() => setActiveTab(tab.id as any)}
             className={`flex items-center gap-2 px-5 py-3 rounded-lg text-sm font-bold uppercase tracking-widest transition-all ${
               activeTab === tab.id
                 ? (isDarkMode ? 'bg-gold text-charcoal shadow-gold-glow' : 'bg-gold text-charcoal shadow-lg')
@@ -266,15 +216,8 @@ const ForecastPanel: React.FC<Props> = ({
 
 // Sub-components
 
-const ForecastTab: React.FC<{
-  forecasts: any[];
-  loading: boolean;
-  isDarkMode: boolean;
-  t: any;
-  targetDate: string;
-  confidenceColor: (conf: string) => string;
-  confidenceLabel: (conf: string) => string;
-}> = ({ forecasts, loading, isDarkMode, t, targetDate, confidenceColor, confidenceLabel }) => {
+const ForecastTab = (props: ForecastTabProps) => {
+  const { forecasts, loading, isDarkMode, t, targetDate, confidenceColor, confidenceLabel } = props;
   const targetWeekday = new Date(targetDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short' });
 
   if (loading) {
@@ -282,7 +225,7 @@ const ForecastTab: React.FC<{
       <div className="h-[400px] flex flex-col items-center justify-center gap-4">
         <Loader2 className="w-10 h-10 animate-spin text-gold" />
         <p className={`text-sm ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>
-          {t('calculating_forecast') || 'Calculating demand forecast...'}
+          {t('calculating_forecast', { defaultValue: 'Calculating demand forecast...' })}
         </p>
       </div>
     );
@@ -293,10 +236,10 @@ const ForecastTab: React.FC<{
       <div className="p-12 text-center">
         <TrendingUp className={`w-16 h-16 mx-auto mb-4 ${isDarkMode ? 'text-white/10' : 'text-slate-200'}`} />
         <h3 className={`text-xl font-bold ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
-          {t('no_forecast_data') || 'No forecast data available'}
+          {t('no_forecast_data', { defaultValue: 'No forecast data available' })}
         </h3>
         <p className={`mt-2 ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>
-          {t('no_forecast_data_desc') || 'Add sales history to generate forecasts'}
+          {t('no_forecast_data_desc', { defaultValue: 'Add sales history to generate forecasts' })}
         </p>
       </div>
     );
@@ -308,14 +251,14 @@ const ForecastTab: React.FC<{
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <SummaryCard
           icon={TrendingUp}
-          label={t('total_demand') || 'Total Demand'}
+          label={t('total_demand', { defaultValue: 'Total Demand' })}
           value={forecasts.reduce((sum, f) => sum + f.horizon_qty, 0)}
           isDarkMode={isDarkMode}
           color="gold"
         />
         <SummaryCard
           icon={TrendingUp}
-          label={t('high_confidence') || 'High Confidence'}
+          label={t('high_confidence', { defaultValue: 'High Confidence' })}
           value={forecasts.filter(f => f.confidence === 'high').length}
           isDarkMode={isDarkMode}
           color="emerald"
@@ -334,7 +277,7 @@ const ForecastTab: React.FC<{
         />
         <SummaryCard
           icon={TrendingUp}
-          label={t('products_with_data') || 'Products with Data'}
+          label={t('products_with_data', { defaultValue: 'Products with Data' })}
           value={forecasts.filter(f => f.data_points > 0).length}
           isDarkMode={isDarkMode}
           color="violet"
@@ -405,11 +348,11 @@ const ForecastTab: React.FC<{
       {/* Insights */}
       <div className={`rounded-xl p-6 ${isDarkMode ? 'bg-white/5 border border-white/10' : 'bg-slate-50 border border-slate-200'}`}>
         <h3 className={`text-lg font-bold mb-4 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
-          {t('forecast_insights') || 'Key Insights'}
+          {t('forecast_insights', { defaultValue: 'Key Insights' })}
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <InsightCard
-            title={t('growth_products') || 'Growth Products'}
+            title={t('growth_products', { defaultValue: 'Growth Products' })}
             items={forecasts
               .filter(f => {
                 const wd = new Date().toLocaleDateString('en-US', { weekday: 'short' });
@@ -420,7 +363,7 @@ const ForecastTab: React.FC<{
             isDarkMode={isDarkMode}
           />
           <InsightCard
-            title={t('declining_demand') || 'Declining Demand'}
+            title={t('declining_demand', { defaultValue: 'Declining Demand' })}
             items={forecasts
               .filter(f => {
                 const wd = new Date().toLocaleDateString('en-US', { weekday: 'short' });
@@ -431,7 +374,7 @@ const ForecastTab: React.FC<{
             isDarkMode={isDarkMode}
           />
           <InsightCard
-            title={t('low_confidence') || 'Low Confidence'}
+            title={t('low_confidence', { defaultValue: 'Low Confidence' })}
             items={forecasts
               .filter(f => f.confidence === 'low')
               .slice(0, 3)
@@ -444,13 +387,9 @@ const ForecastTab: React.FC<{
   );
 };
 
-const SummaryCard: React.FC<{
-  icon: React.ReactNode;
-  label: string;
-  value: number;
-  isDarkMode: boolean;
-  color: string;
-}> = ({ icon: Icon, label, value, isDarkMode, color }) => {
+const SummaryCard = (props: SummaryCardProps & { t?: any }) => {
+  const { t } = props;
+  const { icon: Icon, label, value, isDarkMode, color } = props;
   const colorMap: Record<string, string> = {
     gold: isDarkMode ? 'bg-gold/20 text-gold' : 'bg-gold/10 text-gold',
     emerald: isDarkMode ? 'bg-emerald-500/20 text-emerald-400' : 'bg-emerald-100 text-emerald-700',
@@ -460,7 +399,7 @@ const SummaryCard: React.FC<{
   return (
     <div className={`p-6 rounded-xl border ${isDarkMode ? 'bg-[#1a1a1c] border-white/5' : 'bg-white border-slate-200'} relative overflow-hidden`}>
       <div className="absolute top-0 right-0 h-full w-1/2 opacity-5">
-        <Icon className="absolute top-1/2 right-4 -translate-y-1/2 w-16 h-16" />
+        {Icon && <Icon className="absolute top-1/2 right-4 -translate-y-1/2 w-16 h-16" />}
       </div>
       <div className="relative z-10">
         <p className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>
@@ -474,11 +413,9 @@ const SummaryCard: React.FC<{
   );
 };
 
-const InsightCard: React.FC<{
-  title: string;
-  items: string[];
-  isDarkMode: boolean;
-}> = ({ title, items, isDarkMode }) => (
+const InsightCard = (props: InsightCardProps) => {
+  const { title, items, isDarkMode } = props;
+  return (
   <div className={`p-5 rounded-xl ${isDarkMode ? 'bg-white/5 border border-white/10' : 'bg-white border-slate-50 border border-slate-200'}`}>
     <h4 className={`text-sm font-bold uppercase tracking-widest mb-3 ${isDarkMode ? 'text-gold' : 'text-slate-900'}`}>
       {title}
@@ -494,18 +431,15 @@ const InsightCard: React.FC<{
       </ul>
     ) : (
       <p className={`text-sm ${isDarkMode ? 'text-cream/30' : 'text-slate-400'}`}>
-        {t('no_data') || '—'}
+        {t ? t('no_data', { defaultValue: '—' }) : '—'}
       </p>
     )}
-);
+  </div>
+  );
+};
 
-const ProductionTab: React.FC<{
-  suggestions: ProductionSuggestion[];
-  loading: boolean;
-  isDarkMode: boolean;
-  t: any;
-  formatPrice: (v: number) => string;
-}> = ({ suggestions, loading, isDarkMode, t, formatPrice }) => {
+const ProductionTab = (props: ProductionTabProps) => {
+  const { suggestions, loading, isDarkMode, t, formatPrice } = props;
   if (loading) return <div className="h-[400px] flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin text-gold" /></div>;
 
   if (!suggestions.length) {
@@ -521,7 +455,7 @@ const ProductionTab: React.FC<{
   return (
     <div className="p-8 space-y-8">
       <h2 className={`text-2xl font-bold luxury-font uppercase ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
-        {t('production_plan_for') || 'Production Plan for'} {new Date().toLocaleDateString()}
+        {t('production_plan_for', { defaultValue: 'Production Plan for' })} {new Date().toLocaleDateString()}
       </h2>
       <div className="overflow-x-auto">
         <table className="w-full text-left">
@@ -558,7 +492,7 @@ const ProductionTab: React.FC<{
                       <span
                         key={lu.ingredient_id}
                         className={`px-2 py-1 rounded text-[10px] font-bold uppercase tracking-widest ${
-                          lu.can_produce
+                          s.can_produce
                             ? (isDarkMode ? 'bg-emerald-500/20 text-emerald-400' : 'bg-emerald-50 text-emerald-700')
                             : (isDarkMode ? 'bg-rose-500/20 text-rose-400' : 'bg-rose-50 text-rose-700')
                         }`}
@@ -587,13 +521,8 @@ const ProductionTab: React.FC<{
   );
 };
 
-const PurchasingTab: React.FC<{
-  suggestions: PurchaseSuggestion[];
-  loading: boolean;
-  isDarkMode: boolean;
-  t: any;
-  formatPrice: (v: number) => string;
-}> = ({ suggestions, loading, isDarkMode, t, formatPrice }) => {
+const PurchasingTab = (props: PurchasingTabProps) => {
+  const { suggestions, loading, isDarkMode, t, formatPrice } = props;
   if (loading) return <div className="h-[400px] flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin text-gold" /></div>;
 
   if (!suggestions.length) {
@@ -614,10 +543,10 @@ const PurchasingTab: React.FC<{
       <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6">
         <div>
           <h2 className={`text-2xl font-bold luxury-font uppercase ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
-            {t('purchase_suggestions') || 'Purchase Suggestions'}
+            {t('purchase_suggestions', { defaultValue: 'Purchase Suggestions' })}
           </h2>
           <p className={`text-sm mt-1 ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>
-            {t('based_on_forecast_and_expiring') || 'Based on demand forecast and expiring stock'}
+            {t('based_on_forecast_and_expiring', { defaultValue: 'Based on demand forecast and expiring stock' })}
           </p>
         </div>
         <div className="flex items-center gap-6">
@@ -696,13 +625,8 @@ const PurchasingTab: React.FC<{
   );
 };
 
-const ExpiringTab: React.FC<{
-  suggestions: any[];
-  loading: boolean;
-  isDarkMode: boolean;
-  t: any;
-  formatPrice: (v: number) => string;
-}> = ({ suggestions, loading, isDarkMode, t, formatPrice }) => {
+const ExpiringTab = (props: ExpiringTabProps) => {
+  const { suggestions, loading, isDarkMode, t, formatPrice } = props;
   if (loading) return <div className="h-[400px] flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin text-gold" /></div>;
 
   if (!suggestions.length) {
@@ -718,7 +642,7 @@ const ExpiringTab: React.FC<{
   return (
     <div className="p-8 space-y-8">
       <h2 className={`text-2xl font-bold luxury-font uppercase ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
-        {t('expiring_stock_usage_ideas') || 'Expiring Stock Usage Ideas'}
+        {t('expiring_stock_usage_ideas', { defaultValue: 'Expiring Stock Usage Ideas' })}
       </h2>
       <div className="space-y-6">
         {suggestions.map(s => (
@@ -729,11 +653,11 @@ const ExpiringTab: React.FC<{
                   {s.product_name}
                 </h3>
                 <p className={`text-sm mt-1 ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>
-                  {t('use_expiring_ingredients') || 'Use these expiring ingredients in'} {s.product_name}
+                  {t('use_expiring_ingredients', { defaultValue: 'Use these expiring ingredients in' })} {s.product_name}
                 </p>
               </div>
               <span className={`px-4 py-2 rounded-lg text-sm font-bold uppercase tracking-widest ${isDarkMode ? 'bg-amber-500/20 text-amber-400' : 'bg-amber-50 text-amber-700'}`}>
-                {t('expiring_soon') || 'Expiring Soon'}
+                {t('expiring_soon', { defaultValue: 'Expiring Soon' })}
               </span>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -742,11 +666,11 @@ const ExpiringTab: React.FC<{
                   <div className="flex items-center justify-between mb-2">
                     <span className={`font-bold ${isDarkMode ? 'text-cream' : 'text-slate-900'}`}>{ing.ingredient_name}</span>
                     <span className={`px-2 py-1 rounded text-[10px] font-bold ${isDarkMode ? 'bg-rose-500/20 text-rose-400' : 'bg-rose-100 text-rose-700'}`}>
-                      {ing.qty} {s.unit || 'units'}
+                      {ing.qty} {'units'}
                     </span>
                   </div>
                   <p className={`text-sm ${isDarkMode ? 'text-cream/60' : 'text-slate-500'}`}>
-                    {t('expires') || 'Expires'}: {ing.expires_at ? new Date(ing.expires_at).toLocaleDateString() : 'Unknown'}
+                    {t('expires', { defaultValue: 'Expires' })}: {ing.expires_at ? new Date(ing.expires_at).toLocaleDateString() : 'Unknown'}
                   </p>
                   {ing.suggested_products && ing.suggested_products.length > 0 && (
                     <p className={`text-[10px] font-bold uppercase tracking-widest mt-2 ${isDarkMode ? 'text-gold/60' : 'text-gold/80'}`}>

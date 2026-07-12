@@ -1,15 +1,10 @@
 import { useTranslation } from 'react-i18next';
 import React, { useState } from 'react';
+import { useDashboard } from '../DashboardContext';
 import { Users, Plus, Star, Phone, Mail, Trash2, X } from 'lucide-react';
-import { DashboardSharedProps, Customer } from '../types';
 
-type Props = Pick<DashboardSharedProps,
-  'isDarkMode' | 'customers' | 'api' | 'addToast' | 'fetchData' | 'showConfirm'
->;
-
-const CustomersPanel: React.FC<Props> = ({
-  isDarkMode, customers, api, addToast, fetchData, showConfirm
-}) => {
+const CustomersPanel: React.FC = () => {
+  const { isDarkMode, customers, api, addToast, fetchData, showConfirm } = useDashboard();
   const { t } = useTranslation();
 
   const [showAddModal, setShowAddModal] = useState(false);

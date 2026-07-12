@@ -1,8 +1,6 @@
 import React, { useMemo, useState } from 'react';
+import { useDashboard } from '../DashboardContext';
 import { Activity, ArrowDown, ArrowUp, Boxes, Package, Search } from 'lucide-react';
-import { DashboardSharedProps, StockMovement } from '../types';
-
-type Props = Pick<DashboardSharedProps, 'isDarkMode' | 'stockMovements'>;
 
 const movementStyles: Record<string, string> = {
   sale: 'bg-rose-500/10 text-rose-500',
@@ -21,7 +19,8 @@ const formatQty = (value: number, unit?: string | null) => {
 
 const formatMovementType = (value: string) => value.replace(/_/g, ' ');
 
-const StockMovementsPanel: React.FC<Props> = ({ isDarkMode, stockMovements }) => {
+const StockMovementsPanel: React.FC = () => {
+  const { isDarkMode, stockMovements } = useDashboard();
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState<'all' | 'product' | 'ingredient'>('all');
   const [movementFilter, setMovementFilter] = useState('all');

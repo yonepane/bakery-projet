@@ -1,12 +1,10 @@
 import { useTranslation } from 'react-i18next';
 import React from 'react';
+import { useDashboard } from '../DashboardContext';
 import { Brain, TrendingUp, TrendingDown, Zap, Trophy, Star, Sparkles, ArrowUpRight, Activity, Coins, ShieldAlert, Layers, Percent } from 'lucide-react';
-import { DashboardSharedProps } from '../types';
 
-type Props = Pick<DashboardSharedProps,
-  'isDarkMode' | 'profitReport' | 'inventory' | 'formatPrice' | 'analytics'>;
-
-const IntelligencePanel: React.FC<Props> = ({ isDarkMode, profitReport, inventory, formatPrice, analytics }) => {
+const IntelligencePanel: React.FC = () => {
+  const { isDarkMode, profitReport, inventory, formatPrice, analytics } = useDashboard();
   const { t } = useTranslation();
 
   const cardRef = React.useRef<HTMLDivElement>(null);

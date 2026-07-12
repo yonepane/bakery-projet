@@ -1,16 +1,11 @@
 import { useTranslation } from 'react-i18next';
 import React, { useState } from 'react';
+import { useDashboard } from '../DashboardContext';
 import { Calendar, CheckCircle, FileText, Zap, Croissant, Cake, AlertTriangle } from 'lucide-react';
-import { DashboardSharedProps } from '../types';
 
-type Props = Pick<DashboardSharedProps,
-  'isDarkMode' | 'planner' | 'inventory' | 'orders' | 'api' |
-  'addToast' | 'fetchData' | 'setSelectedProduct' | 'handleCompletePlan'>;
-
-const KitchenPanel: React.FC<Props> = ({
-  isDarkMode, planner, inventory, orders, api, addToast, fetchData,
-  setSelectedProduct, handleCompletePlan,
-}) => {
+const KitchenPanel: React.FC = () => {
+  const { isDarkMode, planner, inventory, orders, api, addToast, fetchData,
+  setSelectedProduct, handleCompletePlan, } = useDashboard();
   const { t } = useTranslation();
 
   const [activeCategory, setActiveCategory] = useState<'breads_viennoiserie' | 'patisserie'>('breads_viennoiserie');

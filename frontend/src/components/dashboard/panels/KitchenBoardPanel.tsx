@@ -1,17 +1,9 @@
 import React from 'react';
+import { useDashboard } from '../DashboardContext';
 import { useTranslation } from 'react-i18next';
 import { ChefHat, Flame, MoveRight, CheckCircle2, ListTodo, Timer, Pause, Layers, Snowflake, Sticker, Package, Sparkles, User } from 'lucide-react';
-import { DashboardSharedProps } from '../types';
 import type { KitchenBatch } from '../hooks/useKitchenMutations';
 
-type Props = Pick<DashboardSharedProps, 'isDarkMode'> & {
-  batches: KitchenBatch[];
-  onAdvanceStage: (batchId: string, newStage: KitchenBatch['stage']) => void;
-  isUpdating: boolean;
-};
-
-// Phase 4 pastry-appropriate linear stage sequence.
-// ordered: planned → prep → mix → rest → laminate → proof → bake → cool → fill → decorate → pack → display → ready → (cancelled)
 const STAGES = [
   { id: 'planned',   label: 'Planned',   icon: ListTodo,     color: 'text-slate-400',  bg: 'bg-slate-400/10' },
   { id: 'prep',      label: 'Prep',      icon: ChefHat,     color: 'text-blue-500',   bg: 'bg-blue-500/10' },
@@ -28,7 +20,8 @@ const STAGES = [
   { id: 'ready',     label: 'Ready',     icon: CheckCircle2, color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
 ] as const;
 
-export const KitchenBoardPanel: React.FC<Props> = ({ isDarkMode, batches, onAdvanceStage, isUpdating }) => {
+export const KitchenBoardPanel: React.FC = () => {
+  const { isDarkMode, batches, onAdvanceStage, isUpdating } = useDashboard();
   const { t } = useTranslation();
 
   const getNextStage = (current: KitchenBatch['stage']): KitchenBatch['stage'] | null => {

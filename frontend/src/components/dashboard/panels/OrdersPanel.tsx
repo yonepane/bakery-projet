@@ -1,15 +1,10 @@
 import { useTranslation } from 'react-i18next';
 import React, { useMemo } from 'react';
+import { useDashboard } from '../DashboardContext';
 import { Calendar, Crown, FileText, Plus, Zap } from 'lucide-react';
-import { DashboardSharedProps } from '../types';
 
-type Props = Pick<DashboardSharedProps,
-  'isDarkMode' | 'orders' | 'inventory' | 'formatPrice' | 'addToast' |
-  'setShowBookingModal' | 'setBookingForm' | 'bookingForm' | 'fetchData' | 'api'>;
-
-const OrdersPanel: React.FC<Props> = ({
-  isDarkMode, orders, inventory, setShowBookingModal, setBookingForm, bookingForm, fetchData, api, addToast,
-}) => {
+const OrdersPanel: React.FC = () => {
+  const { isDarkMode, orders, inventory, setShowBookingModal, setBookingForm, bookingForm, fetchData, api, addToast, } = useDashboard();
   const { t } = useTranslation();
 
 

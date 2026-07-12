@@ -1,20 +1,13 @@
 import { useTranslation } from 'react-i18next';
 import React from 'react';
+import { useDashboard } from '../DashboardContext';
 import { CheckCircle, Edit2, FileText, Package, Plus, Radio, Trash2, Truck } from 'lucide-react';
-import { DashboardSharedProps } from '../types';
 
-type Props = Pick<DashboardSharedProps,
-  'isDarkMode' | 'purchasingSuggestions' | 'purchaseOrders' | 'suppliers' | 'selectedSupplierId' |
-  'setSelectedSupplierId' | 'formatPrice' | 'inventory' | 'handleCreatePO' | 'handleReceivePO' |
-  'handleDeletePO' | 'openPOModal' | 'addToast' | 'setShowAddSupplier' | 'setEditingSupplier' |
-  'setNewSupplier' | 'handleDeleteSupplier'>;
-
-const PurchasingPanel: React.FC<Props> = ({
-  isDarkMode, purchasingSuggestions, purchaseOrders, suppliers, selectedSupplierId,
+const PurchasingPanel: React.FC = () => {
+  const { isDarkMode, purchasingSuggestions, purchaseOrders, suppliers, selectedSupplierId,
   setSelectedSupplierId, formatPrice, inventory, handleCreatePO, handleReceivePO,
   handleDeletePO, openPOModal, addToast, setShowAddSupplier, setEditingSupplier,
-  setNewSupplier, handleDeleteSupplier,
-}) => {
+  setNewSupplier, handleDeleteSupplier, } = useDashboard();
   const { t } = useTranslation();
   const getOrderTotal = (po: any) => (po.items || []).reduce((sum: number, item: any) => (
     sum + (Number(item.qty) || 0) * (Number(item.price) || 0)
@@ -83,7 +76,7 @@ const PurchasingPanel: React.FC<Props> = ({
                   </div>
                   <div className="text-right">
                     <p className="text-xs font-black text-gold uppercase tracking-widest">Buy +{s.suggested_buy}{s.unit}</p>
-                    <p className="text-[10px] font-bold opacity-40">Est. {formatPrice(s.estimated_cost)}</p>
+                    <p className="text-[10px] font-bold opacity-40">Est. {formatPrice(s.estimated_cost || 0)}</p>
                   </div>
                 </div>
               ))}
@@ -170,7 +163,7 @@ const PurchasingPanel: React.FC<Props> = ({
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   <button onClick={() => { setEditingSupplier(supp); setNewSupplier({ name: supp.name || '', contact_info: supp.contact_info || '' }); setShowAddSupplier(true); }} className={`p-2 rounded-xl ${isDarkMode ? 'bg-white/5 hover:bg-white/10 text-gold' : 'bg-white hover:bg-slate-100 text-slate-700'}`}><Edit2 size={14} /></button>
-                  <button onClick={() => handleDeleteSupplier(supp)} className={`p-2 rounded-xl ${isDarkMode ? 'bg-white/5 hover:bg-rose-500/20 text-rose-400' : 'bg-white hover:bg-rose-50 text-rose-600'}`}><Trash2 size={14} /></button>
+                  <button onClick={() => handleDeleteSupplier(supp.id)} className={`p-2 rounded-xl ${isDarkMode ? 'bg-white/5 hover:bg-rose-500/20 text-rose-400' : 'bg-white hover:bg-rose-50 text-rose-600'}`}><Trash2 size={14} /></button>
                 </div>
               </div>
             ))}

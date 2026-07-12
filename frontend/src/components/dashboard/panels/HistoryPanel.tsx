@@ -1,23 +1,11 @@
 import { useTranslation } from 'react-i18next';
 import React, { useState, useMemo, useEffect } from 'react';
+import { useDashboard } from '../DashboardContext';
 import { createPortal } from 'react-dom';
 import { FileText, Search, TrendingUp, TrendingDown, Calendar, RotateCcw, X, AlertTriangle, Trash2 } from 'lucide-react';
-import { DashboardSharedProps } from '../types';
 
-type Props = Pick<DashboardSharedProps,
-  'isDarkMode' | 'history' | 'formatPrice' | 'openDocument' | 'getDownloadToken' | 'openSelector' | 'API_BASE' | 'api' | 'fetchData' | 'fetchTabData' | 'addToast' | 'showConfirm'>;
-
-// ─── Refund Confirm Modal ─────────────────────────────────────────────────────
-interface RefundModalProps {
-  tx: any;
-  isDarkMode: boolean;
-  formatPrice: (v: number) => string;
-  onConfirm: () => void;
-  onCancel: () => void;
-  loading: boolean;
-}
-
-const RefundModal: React.FC<RefundModalProps> = ({ tx, isDarkMode, formatPrice, onConfirm, onCancel, loading }) => {
+const RefundModal: React.FC = () => {
+  const { tx, isDarkMode, formatPrice, onConfirm, onCancel, loading } = useDashboard();
   const { t } = useTranslation();
   
   // Prevent body scroll when modal is open

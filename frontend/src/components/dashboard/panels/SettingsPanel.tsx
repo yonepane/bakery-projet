@@ -1,26 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import React from 'react';
-import { DashboardSharedProps } from '../types';
+import { useDashboard } from '../DashboardContext';
 
-type Props = Pick<DashboardSharedProps,
-  'isDarkMode' | 'settings' | 'lang' | 'setLang' | 'activeCurrency' | 'setActiveCurrency' |
-  'isDarkMode' | 'setIsDarkMode' | 'addToast' | 'fetchData' | 'api'> & {
-  sidebarHoverMode?: boolean;
-  setSidebarHoverMode?: (val: boolean) => void;
-};
-
-interface SettingsFormState {
-  bakery_name: string;
-  bakery_phone: string;
-  bakery_address: string;
-  currency: string;
-  tax_rate: number;
-  receipt_footer: string;
-  hourly_wage: number;
-  low_stock_threshold: number;
-}
-
-/* ── Reusable toggle ─────────────────────────────────────────── */
 const ToggleSwitch: React.FC<{ checked: boolean; onChange: () => void; isDarkMode: boolean }> = ({ checked, onChange, isDarkMode }) => (
   <button
     role="switch"
@@ -53,11 +34,10 @@ const ToggleRow: React.FC<{
 );
 
 /* ── Main panel ──────────────────────────────────────────────── */
-const SettingsPanel: React.FC<Props & { settings: any }> = ({
-  isDarkMode, settings, lang, setLang, activeCurrency, setActiveCurrency,
+const SettingsPanel: React.FC = () => {
+  const { isDarkMode, settings, lang, setLang, activeCurrency, setActiveCurrency,
   setIsDarkMode, addToast, fetchData, api,
-  sidebarHoverMode = false, setSidebarHoverMode,
-}) => {
+  sidebarHoverMode = false, setSidebarHoverMode, } = useDashboard();
   const { t } = useTranslation();
 
   const [form, setForm] = React.useState<SettingsFormState>({

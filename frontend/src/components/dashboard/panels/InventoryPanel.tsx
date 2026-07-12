@@ -1,30 +1,16 @@
 import { useTranslation } from 'react-i18next';
 import React from 'react';
+import { useDashboard } from '../DashboardContext';
 import { Edit2, Plus, Trash2 } from 'lucide-react';
-import { DashboardSharedProps, SemiFinishedItem } from '../types';
 import { parseQtyString } from '../utils';
 import SemiFinishedPanel from './SemiFinishedPanel';
 
-type Props = Pick<DashboardSharedProps,
-  'isDarkMode' | 'inventory' | 'sortedMaterialEntries' | 'editMode' |
-  'formatPrice' | 'handleAdjustStock' | 'openSelector' | 'startEditingMaterial' |
-  'handleDeleteMaterial' | 'setShowAddProduct' | 'setShowAddMaterial' |
-  'setEditingMaterialName' | 'setNewMaterial' | 'handleUpdateProductPrice' |
-  'stockLocations' | 'stockLotBalances' | 'semiFinishedItems'> & {
-  onOpenTransferModal: () => void;
-  onAddSemiFinished: () => void;
-  onEditRecipe: (item: SemiFinishedItem) => void;
-  onProduceBatch: (item: SemiFinishedItem) => void;
-  onShowCost: (product: any) => void; // Using any for Product to avoid complex import changes, though we could import Product from types
-};
-
-const InventoryPanel: React.FC<Props> = ({
-  isDarkMode, inventory, sortedMaterialEntries, editMode, formatPrice,
+const InventoryPanel: React.FC = () => {
+  const { isDarkMode, inventory, sortedMaterialEntries, editMode, formatPrice,
   handleAdjustStock, openSelector, startEditingMaterial, handleDeleteMaterial,
   setShowAddProduct, setShowAddMaterial, setEditingMaterialName, setNewMaterial,
   handleUpdateProductPrice, stockLocations, stockLotBalances, semiFinishedItems,
-  onOpenTransferModal, onAddSemiFinished, onEditRecipe, onProduceBatch, onShowCost,
-}) => {
+  onOpenTransferModal, onAddSemiFinished, onEditRecipe, onProduceBatch, onShowCost, } = useDashboard();
   const { t } = useTranslation();
   const [lotStatusFilter, setLotStatusFilter] = React.useState<'all' | 'active' | 'quarantined' | 'recalled'>('all');
 

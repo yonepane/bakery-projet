@@ -1,21 +1,14 @@
 import { useTranslation } from 'react-i18next';
 import React, { useMemo } from 'react';
+import { useDashboard } from '../DashboardContext';
 import { Edit2, Plus, Trash2, X, Copy } from 'lucide-react';
-import { DashboardSharedProps } from '../types';
 import { parseQtyString } from '../utils';
 
-type Props = Pick<DashboardSharedProps,
-  'isDarkMode' | 'inventory' | 'editMode' | 'formatPrice' |
-  'handleOpenEditProduct' | 'handleDeleteProduct' | 'handleCleanupProducts' |
-  'setShowAddProduct' | 'setSelectedProduct' | 'handleUpdateProductField' |
-  'simulatedInflations' | 'simPrices' | 'addToast' | 'settings' | 'handleDuplicateProduct'>;
-
-const FichePanel: React.FC<Props> = ({
-  isDarkMode, inventory, editMode, formatPrice,
+const FichePanel: React.FC = () => {
+  const { isDarkMode, inventory, editMode, formatPrice,
   handleOpenEditProduct, handleDeleteProduct, handleCleanupProducts,
   setShowAddProduct, setSelectedProduct, handleUpdateProductField,
-  simulatedInflations, simPrices, addToast, settings, handleDuplicateProduct
-}) => {
+  simulatedInflations, simPrices, addToast, settings, handleDuplicateProduct } = useDashboard();
   const { t } = useTranslation();
 
 
@@ -42,9 +35,9 @@ const FichePanel: React.FC<Props> = ({
           }, 0) || p.live_cost || 0;
 
           // Labor cost: (prep_time + cook_time) / 60 * hourly_wage / yield_qty
-          const hourlyWage = settings?.hourly_wage || 0;
+          const hourlyWage = Number(settings?.hourly_wage) || 0;
           const totalMinutes = (p.prep_time || 0) + (p.cook_time || 0);
-          const laborCostPerBatch = (totalMinutes / 60) * hourlyWage;
+          const laborCostPerBatch = (totalMinutes / 60) * Number(hourlyWage);
           const laborCostPerUnit = p.yield_qty > 0 ? laborCostPerBatch / p.yield_qty : 0;
           const realCost = materialCost + laborCostPerUnit;
 
@@ -96,7 +89,7 @@ const FichePanel: React.FC<Props> = ({
                   <div>
                     <p className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-gold' : 'text-slate-400'}`}>{t('unit_cost')}</p>
                     <p className={`text-xl font-bold ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{formatPrice(materialCost)}</p>
-                    {hourlyWage > 0 && (
+                    {Number(hourlyWage) > 0 && (
                       <p className={`text-[9px] font-bold mt-1 ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>
                         +{formatPrice(laborCostPerUnit)} labor
                       </p>
@@ -165,7 +158,7 @@ const FichePanel: React.FC<Props> = ({
                   <div>
                     <p className={`text-[10px] font-black uppercase tracking-widest ${isLowMargin ? 'text-rose-500' : (isDarkMode ? 'text-emerald-500/50' : 'text-emerald-600')}`}>{t('true_net_margin')}</p>
                     <p className={`text-xl font-bold ${isLowMargin ? 'text-rose-500' : 'text-emerald-500'}`}>{margin}%</p>
-                    {hourlyWage > 0 && (
+                    {Number(hourlyWage) > 0 && (
                       <p className={`text-[9px] font-black uppercase tracking-widest mt-1 ${isDarkMode ? 'text-cream/30' : 'text-slate-400'}`}>
                         incl. {formatPrice(laborCostPerUnit)} / unit labor
                       </p>

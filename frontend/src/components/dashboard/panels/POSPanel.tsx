@@ -1,13 +1,8 @@
 import { useTranslation } from 'react-i18next';
 import React, { useState, useEffect } from 'react';
+import { useDashboard } from '../DashboardContext';
 import { Calendar, Plus, Trash2, Lock, X, CheckCircle, Users, Search } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
-import { DashboardSharedProps } from '../types';
-
-type Props = Pick<DashboardSharedProps,
-  'isDarkMode' | 'inventory' | 'cart' | 'setCart' | 'addToCart' | 'finalizeSale' |
-  'formatPrice' | 'lastTransaction' | 'setShowReceiptModal' | 'setShowBookingModal' |
-  'setBookingForm' | 'bookingForm' | 'API_BASE' | 'history' | 'api' | 'fetchData' | 'user' | 'customers' | 'openSelector'>;
 
 const HoldableButton: React.FC<{ onClick: () => void; className?: string; children: React.ReactNode }> = ({ onClick, className, children }) => {
   const holdIntervalRef = React.useRef<NodeJS.Timeout | null>(null);
@@ -44,11 +39,10 @@ const HoldableButton: React.FC<{ onClick: () => void; className?: string; childr
   );
 };
 
-const POSPanel: React.FC<Props> = ({
-  isDarkMode, inventory, cart, setCart, addToCart, finalizeSale, formatPrice,
+const POSPanel: React.FC = () => {
+  const { isDarkMode, inventory, cart, setCart, addToCart, finalizeSale, formatPrice,
   lastTransaction, setShowReceiptModal, setShowBookingModal, setBookingForm, bookingForm, API_BASE,
-  history, api, fetchData, user, customers, openSelector
-}) => {
+  history, api, fetchData, user, customers, openSelector } = useDashboard();
   const { t } = useTranslation();
 
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
@@ -291,7 +285,7 @@ const POSPanel: React.FC<Props> = ({
                 {lastTransaction && (
                   <button onClick={() => setShowReceiptModal(true)}
                     className={`w-full mt-2.5 py-2 rounded-xl font-bold text-[9px] uppercase tracking-[0.2em] flex items-center justify-center gap-2 border transition-all ${isDarkMode ? 'border-gold/20 text-gold hover:bg-gold/5' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
-                    <QRCodeSVG value={window.location.origin + API_BASE + '/transactions/' + lastTransaction.transaction_id + '/receipt?format=pdf&paper=80mm'} size={12} />
+                    <QRCodeSVG value={window.location.origin + API_BASE + '/transactions/' + lastTransaction.transaction_id || lastTransaction.id + '/receipt?format=pdf&paper=80mm'} size={12} />
                     {t('show_last_receipt')}
                   </button>
                 )}
