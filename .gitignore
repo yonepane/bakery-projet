@@ -28,3 +28,14 @@ nohup.out
 *.db.*
 scratch/
 test_limiter*.py
+
+# Refactoring/migration scratch scripts
+backend/fix_*.cjs
+backend/refactor_*.py
+backend/rewrite_*.py
+backend/run_tests.py
+frontend/fix_*.cjs
+frontend/fix_*.py
+frontend/refactor*.py
+frontend/final_squash.cjs
+frontend/parse_errors.cjs
