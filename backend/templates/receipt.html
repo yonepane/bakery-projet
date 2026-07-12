@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Receipt - {{ tx_id }}</title>
+    <style>
+        body {
+            font-family: 'Courier New', Courier, monospace;
+            width: 80mm;
+            margin: 0 auto;
+            padding: 4mm;
+            border: 1px solid #eee;
+            background: white;
+            color: black;
+        }
+        .center { text-align: center; }
+        .header { font-weight: bold; font-size: 20px; margin-bottom: 5px; }
+        .separator { border-bottom: 1px dashed #000; margin: 10px 0; }
+        .item { display: flex; justify-content: space-between; margin-bottom: 5px; font-size: 14px; }
+        .total { font-weight: bold; display: flex; justify-content: space-between; margin-top: 10px; font-size: 16px; }
+        .footer { font-size: 12px; margin-top: 20px; color: #666; }
+        @media print {
+            @page { size: {{ paper }} auto; margin: 0; }
+            body { border: none; padding: 0; width: {{ paper }}; }
+            .no-print { display: none; }
+        }
+        .print-btn {
+            background: #000; color: #fff; border: none;
+            padding: 10px 20px; cursor: pointer;
+            border-radius: 5px; margin-bottom: 20px; width: 100%;
+        }
+    </style>
+</head>
+<body>
+    <div class="no-print">
+        <button class="print-btn" onclick="window.print()">PRINT RECEIPT</button>
+    </div>
+    <div class="center">
+        <div class="header">BAKERY OS</div>
+        <div>{{ bakery_name }}</div>
+        <div class="separator"></div>
+        <div>ID: {{ tx_id }}</div>
+        <div>{{ timestamp }}</div>
+        <div class="separator"></div>
+    </div>
+    <div class="items">
+        {% for item in items %}
+        <div class="item">
+            <span>{{ item.name }} x{{ item.qty }}</span>
+            <span>{{ "%.2f"|format(item.price * item.qty) }} {{ currency }}</span>
+        </div>
+        {% endfor %}
+    </div>
+    <div class="separator"></div>
+    <div class="total">
+        <span>TOTAL</span>
+        <span>{{ "%.2f"|format(total) }} {{ currency }}</span>
+    </div>
+    {% if receipt_footer %}
+    <div class="separator"></div>
+    <div class="center footer">{{ receipt_footer }}</div>
+    {% else %}
+    <div class="separator"></div>
+    <div class="center footer">
+        THANK YOU FOR YOUR VISIT!<br>
+        Merci de votre visite!<br>
+        www.bakeryos.app
+    </div>
+    {% endif %}
+</body>
+</html>

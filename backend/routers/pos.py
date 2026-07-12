@@ -7,8 +7,10 @@ so that main.py can stay focused on app setup and middleware.
 import os
 import uuid
 from datetime import datetime, timezone
-from html import escape
+from pathlib import Path
 from typing import Optional
+
+from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 import sqlalchemy.orm
 from fastapi import APIRouter, Depends, Header, HTTPException
@@ -45,8 +47,12 @@ router = APIRouter()
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 DATA_DIR = os.path.join(BASE_DIR, "data")
 
-
-# get_user_settings is imported from services.core — see import block above.
+# Jinja2 environment — auto-escaping on for HTML templates (prevents XSS).
+_TEMPLATES_DIR = Path(__file__).parent.parent / "templates"
+_jinja_env = Environment(
+    loader=FileSystemLoader(str(_TEMPLATES_DIR)),
+    autoescape=select_autoescape(["html"]),
+)
 
 
 def _pdf_response(buffer, filename: str) -> Response:
@@ -499,8 +505,6 @@ async def get_receipt(
     currency = settings.get("currency", "MAD")
     # Use the tenant's bakery name so every receipt is personalised.
     bakery_name = settings.get("bakery_name", "BakeryOS")
-    safe_bakery_name = escape(str(bakery_name))
-    safe_currency = escape(str(currency))
     normalized_paper = "58mm" if paper.lower() == "58mm" else "80mm"
 
     if format.lower() == "pdf":
@@ -510,67 +514,25 @@ async def get_receipt(
         )
 
     # HTML fallback for browser-based printing.
-    html_content = f"""
-    <html>
-    <head>
-        <title>Receipt - {tx.id}</title>
-        <style>
-            body {{ font-family: 'Courier New', Courier, monospace; width: 80mm; margin: 0 auto; padding: 4mm; border: 1px solid #eee; background: white; color: black; }}
-            .center {{ text-align: center; }}
-            .header {{ font-weight: bold; font-size: 20px; margin-bottom: 5px; }}
-            .separator {{ border-bottom: 1px dashed #000; margin: 10px 0; }}
-            .item {{ display: flex; justify-content: space-between; margin-bottom: 5px; font-size: 14px; }}
-            .total {{ font-weight: bold; display: flex; justify-content: space-between; margin-top: 10px; font-size: 16px; }}
-            .footer {{ font-size: 12px; margin-top: 20px; color: #666; }}
-            @media print {{
-                @page {{ size: {normalized_paper} auto; margin: 0; }}
-                body {{ border: none; padding: 0; width: {normalized_paper}; }}
-                .no-print {{ display: none; }}
-            }}
-            .print-btn {{ background: #000; color: #fff; border: none; padding: 10px 20px; cursor: pointer; border-radius: 5px; margin-bottom: 20px; width: 100%; }}
-        </style>
-    </head>
-    <body>
-        <div class="no-print">
-            <button class="print-btn" onclick="window.print()">PRINT RECEIPT</button>
-        </div>
-        <div class="center">
-            <div class="header">BAKERY OS</div>
-            <div>{safe_bakery_name}</div>
-            <div class="separator"></div>
-            <div>ID: {tx.id}</div>
-            <div>{tx.timestamp.strftime('%Y-%m-%d %H:%M:%S')}</div>
-            <div class="separator"></div>
-        </div>
-        <div class="items">
-    """
-
-    if tx.items:
-        for item in tx.items:
-            html_content += f"""
-            <div class="item">
-                <span>{escape(str(item.get('name', 'Product')))} x{item.get('qty', 1)}</span>
-                <span>{round(item.get('price', 0) * item.get('qty', 1), 2)} {safe_currency}</span>
-            </div>
-            """
-
-    html_content += f"""
-        </div>
-        <div class="separator"></div>
-        <div class="total">
-            <span>TOTAL</span>
-            <span>{round(tx.total_revenue, 2)} {safe_currency}</span>
-        </div>
-        <div class="separator"></div>
-        <div class="center footer">
-            THANK YOU FOR YOUR VISIT!<br>
-            Merci de votre visite!<br>
-            www.bakeryos.app
-        </div>
-    </body>
-    </html>
-    """
-
+    items_data = [
+        {
+            "name": item.get("name", "Product"),
+            "qty": item.get("qty", 1),
+            "price": item.get("price", 0.0),
+        }
+        for item in (tx.items or [])
+    ]
+    template = _jinja_env.get_template("receipt.html")
+    html_content = template.render(
+        tx_id=tx.id,
+        bakery_name=bakery_name,
+        timestamp=tx.timestamp.strftime("%Y-%m-%d %H:%M:%S"),
+        items=items_data,
+        total=tx.total_revenue,
+        currency=currency,
+        paper=normalized_paper,
+        receipt_footer=settings.receipt_footer if settings else "",
+    )
     return HTMLResponse(content=html_content)
 
 
@@ -656,88 +618,19 @@ async def get_monthly_report(
         )
 
     # HTML fallback for browser-based printing.
-    html_content = f"""
-    <html>
-    <head>
-        <title>Monthly Report - {start_date.strftime('%B %Y')}</title>
-        <style>
-            body {{ font-family: 'Inter', sans-serif; padding: 40px; color: #1a1a1b; line-height: 1.6; max-width: 800px; margin: 0 auto; }}
-            .header {{ display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #f0f0f1; padding-bottom: 20px; margin-bottom: 40px; }}
-            .logo {{ font-size: 24px; font-weight: 800; letter-spacing: -1px; }}
-            .logo span {{ color: #d4af37; }}
-            .report-title {{ font-size: 32px; font-weight: 800; margin: 0; }}
-            .card {{ background: #f8f9fa; padding: 25px; border-radius: 15px; border: 1px solid #eee; }}
-            .card-label {{ font-size: 10px; font-weight: 900; text-transform: uppercase; letter-spacing: 2px; color: #888; margin-bottom: 5px; }}
-            .card-value {{ font-size: 24px; font-weight: 800; margin: 0; }}
-            .positive {{ color: #10b981; }}
-            .negative {{ color: #f43f5e; }}
-            table {{ width: 100%; border-collapse: collapse; margin-top: 20px; }}
-            th {{ text-align: left; font-size: 10px; text-transform: uppercase; color: #888; padding: 10px; border-bottom: 1px solid #eee; }}
-            td {{ padding: 15px 10px; border-bottom: 1px solid #f8f9fa; font-size: 14px; font-weight: 600; }}
-            .no-print {{ margin-bottom: 20px; }}
-            .btn {{ background: #000; color: #fff; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-weight: bold; }}
-            @media print {{ .no-print {{ display: none; }} body {{ padding: 0; }} }}
-        </style>
-    </head>
-    <body>
-        <div class="no-print">
-            <a href="#" class="btn" onclick="window.print()">Download as PDF</a>
-        </div>
-        <div class="header">
-            <div class="logo">Bakery<span>OS</span></div>
-            <div style="text-align: right;">
-                <p style="margin: 0; font-weight: bold;">Executive Financial Summary</p>
-                <p style="margin: 0; color: #888; font-size: 12px;">Period: {start_date.strftime('%B %Y')}</p>
-            </div>
-        </div>
-
-        <h1 class="report-title">Financial Performance</h1>
-        <p style="color: #888; margin-bottom: 40px;">This report summarizes the operational efficiency and net profitability for the selected period.</p>
-
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 40px;">
-            <div class="card">
-                <p class="card-label">Total Revenue</p>
-                <p class="card-value">{total_revenue:,.2f} {currency}</p>
-            </div>
-            <div class="card">
-                <p class="card-label">Net Profit</p>
-                <p class="card-value {'positive' if net_profit > 0 else 'negative'}">{net_profit:,.2f} {currency}</p>
-            </div>
-            <div class="card">
-                <p class="card-label">Cost of Goods</p>
-                <p class="card-value">{total_cogs:,.2f} {currency}</p>
-            </div>
-            <div class="card">
-                <p class="card-label">Waste Loss</p>
-                <p class="card-value" style="color: #f43f5e;">{total_waste:,.2f} {currency}</p>
-            </div>
-            <div class="card">
-                <p class="card-label">Fixed Overhead</p>
-                <p class="card-value" style="color: #f43f5e;">{total_overhead:,.2f} {currency}</p>
-            </div>
-        </div>
-
-        <div class="card" style="margin-bottom: 40px; background: #000; color: #fff; border: none;">
-            <p class="card-label" style="color: #aaa;">Operating Margin</p>
-            <p class="card-value" style="color: #d4af37;">{margin:.1f}%</p>
-        </div>
-
-        <h3>Revenue Breakdown</h3>
-        <table>
-            <thead>
-                <tr><th>Category</th><th>Transactions</th><th>Amount</th></tr>
-            </thead>
-            <tbody>
-                <tr><td>Direct Sales</td><td>{len([t for t in transactions if t.type == 'sale'])}</td><td>{total_revenue:,.2f} {currency}</td></tr>
-                <tr><td>Fixed Expenses</td><td>{len(expenses)}</td><td style="color: #f43f5e;">-{total_overhead:,.2f} {currency}</td></tr>
-                <tr><td>Waste Deductions</td><td>{len(waste_records)}</td><td style="color: #f43f5e;">-{total_waste:,.2f} {currency}</td></tr>
-            </tbody>
-        </table>
-
-        <div style="margin-top: 100px; text-align: center; font-size: 10px; color: #ccc; text-transform: uppercase; letter-spacing: 2px;">
-            Generated by BakeryOS Intel-Engine | {datetime.now().strftime('%Y-%m-%d %H:%M')}
-        </div>
-    </body>
-    </html>
-    """
+    template = _jinja_env.get_template("monthly_report.html")
+    html_content = template.render(
+        period=start_date.strftime("%B %Y"),
+        currency=currency,
+        total_revenue=total_revenue,
+        net_profit=net_profit,
+        total_cogs=total_cogs,
+        total_waste=total_waste,
+        total_overhead=total_overhead,
+        margin=margin,
+        sale_count=len([t for t in transactions if t.type == "sale"]),
+        expense_count=len(expenses),
+        waste_count=len(waste_records),
+        generated_at=datetime.now().strftime("%Y-%m-%d %H:%M"),
+    )
     return HTMLResponse(content=html_content)

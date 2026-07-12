@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Monthly Report - {{ period }}</title>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            padding: 40px; color: #1a1a1b;
+            line-height: 1.6; max-width: 800px; margin: 0 auto;
+        }
+        .header {
+            display: flex; justify-content: space-between;
+            align-items: center; border-bottom: 2px solid #f0f0f1;
+            padding-bottom: 20px; margin-bottom: 40px;
+        }
+        .logo { font-size: 24px; font-weight: 800; letter-spacing: -1px; }
+        .logo span { color: #d4af37; }
+        .report-title { font-size: 32px; font-weight: 800; margin: 0; }
+        .card {
+            background: #f8f9fa; padding: 25px;
+            border-radius: 15px; border: 1px solid #eee;
+        }
+        .card-label {
+            font-size: 10px; font-weight: 900;
+            text-transform: uppercase; letter-spacing: 2px;
+            color: #888; margin-bottom: 5px;
+        }
+        .card-value { font-size: 24px; font-weight: 800; margin: 0; }
+        .positive { color: #10b981; }
+        .negative { color: #f43f5e; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th {
+            text-align: left; font-size: 10px;
+            text-transform: uppercase; color: #888;
+            padding: 10px; border-bottom: 1px solid #eee;
+        }
+        td { padding: 15px 10px; border-bottom: 1px solid #f8f9fa; font-size: 14px; font-weight: 600; }
+        .no-print { margin-bottom: 20px; }
+        .btn {
+            background: #000; color: #fff; padding: 10px 20px;
+            border-radius: 8px; text-decoration: none; font-weight: bold;
+        }
+        @media print {
+            .no-print { display: none; }
+            body { padding: 0; }
+        }
+    </style>
+</head>
+<body>
+    <div class="no-print">
+        <a href="#" class="btn" onclick="window.print()">Download as PDF</a>
+    </div>
+    <div class="header">
+        <div class="logo">Bakery<span>OS</span></div>
+        <div style="text-align: right;">
+            <p style="margin: 0; font-weight: bold;">Executive Financial Summary</p>
+            <p style="margin: 0; color: #888; font-size: 12px;">Period: {{ period }}</p>
+        </div>
+    </div>
+
+    <h1 class="report-title">Financial Performance</h1>
+    <p style="color: #888; margin-bottom: 40px;">
+        This report summarizes the operational efficiency and net profitability for the selected period.
+    </p>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 40px;">
+        <div class="card">
+            <p class="card-label">Total Revenue</p>
+            <p class="card-value">{{ "%.2f"|format(total_revenue) }} {{ currency }}</p>
+        </div>
+        <div class="card">
+            <p class="card-label">Net Profit</p>
+            <p class="card-value {{ 'positive' if net_profit > 0 else 'negative' }}">
+                {{ "%.2f"|format(net_profit) }} {{ currency }}
+            </p>
+        </div>
+        <div class="card">
+            <p class="card-label">Cost of Goods</p>
+            <p class="card-value">{{ "%.2f"|format(total_cogs) }} {{ currency }}</p>
+        </div>
+        <div class="card">
+            <p class="card-label">Waste Loss</p>
+            <p class="card-value" style="color: #f43f5e;">{{ "%.2f"|format(total_waste) }} {{ currency }}</p>
+        </div>
+        <div class="card">
+            <p class="card-label">Fixed Overhead</p>
+            <p class="card-value" style="color: #f43f5e;">{{ "%.2f"|format(total_overhead) }} {{ currency }}</p>
+        </div>
+    </div>
+
+    <div class="card" style="margin-bottom: 40px; background: #000; color: #fff; border: none;">
+        <p class="card-label" style="color: #aaa;">Operating Margin</p>
+        <p class="card-value" style="color: #d4af37;">{{ "%.1f"|format(margin) }}%</p>
+    </div>
+
+    <h3>Revenue Breakdown</h3>
+    <table>
+        <thead>
+            <tr><th>Category</th><th>Transactions</th><th>Amount</th></tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>Direct Sales</td>
+                <td>{{ sale_count }}</td>
+                <td>{{ "%.2f"|format(total_revenue) }} {{ currency }}</td>
+            </tr>
+            <tr>
+                <td>Fixed Expenses</td>
+                <td>{{ expense_count }}</td>
+                <td style="color: #f43f5e;">-{{ "%.2f"|format(total_overhead) }} {{ currency }}</td>
+            </tr>
+            <tr>
+                <td>Waste Deductions</td>
+                <td>{{ waste_count }}</td>
+                <td style="color: #f43f5e;">-{{ "%.2f"|format(total_waste) }} {{ currency }}</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <div style="margin-top: 100px; text-align: center; font-size: 10px; color: #ccc; text-transform: uppercase; letter-spacing: 2px;">
+        Generated by BakeryOS Intel-Engine | {{ generated_at }}
+    </div>
+</body>
+</html>
