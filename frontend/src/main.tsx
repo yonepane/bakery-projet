@@ -5,8 +5,25 @@ import './index.css'
 import './i18n'
 import { registerSW } from 'virtual:pwa-register'
 import { GoogleOAuthProvider } from '@react-oauth/google'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { GOOGLE_CLIENT_ID } from './components/dashboard/constants'
 import Dashboard from './components/Dashboard'
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      // Don't retry on 4xx errors (auth failures, not-found, etc.)
+      retry: (failureCount, error: any) => {
+        if (error?.status >= 400 && error?.status < 500) return false;
+        return failureCount < 2;
+      },
+      // Keep data fresh for 60 seconds before a background refetch
+      staleTime: 60_000,
+      // Keep unused data in cache for 5 minutes
+      gcTime: 5 * 60_000,
+    },
+  },
+})
 
 // PERF: Start the service worker right away so the app can cache files and
 // support offline behavior. This is non-blocking by nature.
@@ -60,11 +77,13 @@ class ErrorBoundary extends React.Component<
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <ErrorBoundary>
-      <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
-        <Dashboard />
-      </GoogleOAuthProvider>
-    </ErrorBoundary>
+    <QueryClientProvider client={queryClient}>
+      <ErrorBoundary>
+        <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
+          <Dashboard />
+        </GoogleOAuthProvider>
+      </ErrorBoundary>
+    </QueryClientProvider>
   </React.StrictMode>,
 )
 

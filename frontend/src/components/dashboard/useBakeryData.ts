@@ -11,6 +11,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, processSyncQueue } from '../../lib/api';
 import { calcAlerts, calcProfitReport } from '../../lib/calculations';
 import type {
@@ -58,6 +59,35 @@ export interface BakeryAnalytics {
 // ---------------------------------------------------------------------------
 
 export function useBakeryData(user: UserSession | null, activeTab: string) {
+  const queryClient = useQueryClient();
+
+  // ── React Query — inventory (cached, background-refreshed, error-surfaced) ─
+  const {
+    data: inventoryData,
+    error: inventoryError,
+    refetch: refetchInventory,
+  } = useQuery({
+    queryKey: ['inventory'],
+    queryFn: () => api.get('/inventory'),
+    enabled: !!user,
+    staleTime: 30_000,
+  });
+
+  // ── React Query — settings ─────────────────────────────────────────────────
+  const {
+    data: settingsData,
+    error: settingsError,
+    refetch: refetchSettings,
+  } = useQuery({
+    queryKey: ['settings'],
+    queryFn: () => api.get('/settings'),
+    enabled: !!user,
+    staleTime: 120_000,
+  });
+
+  // Aggregate fetch error for consumers
+  const fetchError: Error | null = (inventoryError || settingsError) as Error | null;
+
   // ── Core data state ────────────────────────────────────────────────────────
   const [inventory, setInventory] = useState<BakeryInventory>({ materials: {}, products: [] });
   const [analytics, setAnalytics] = useState<BakeryAnalytics>({
@@ -112,6 +142,15 @@ export function useBakeryData(user: UserSession | null, activeTab: string) {
     if (!settData) return;
     setSettings(settData);
   }, []);
+
+  // ── Sync React Query data into local state ────────────────────────────────
+  useEffect(() => {
+    if (inventoryData) applyInventory(inventoryData);
+  }, [inventoryData, applyInventory]);
+
+  useEffect(() => {
+    if (settingsData) applySettings(settingsData);
+  }, [settingsData, applySettings]);
 
   // ── Exchange rates ─────────────────────────────────────────────────────────
 
@@ -322,10 +361,15 @@ export function useBakeryData(user: UserSession | null, activeTab: string) {
   }, [user, safeGet, applyInventory, applySettings]);
 
   /**
-   * fetchData — re-fetches only the currently active tab.
-   * Call this after any mutation (produce, sale, PO receive, etc.).
+   * fetchData — re-fetches the active tab AND invalidates cached queries so
+   * React Query will background-refresh inventory/settings automatically.
    */
-  const fetchData = useCallback(() => fetchTabData(activeTab), [fetchTabData, activeTab]);
+  const fetchData = useCallback(async () => {
+    // Invalidate React Query cache so fresh data is fetched on next read
+    await queryClient.invalidateQueries({ queryKey: ['inventory'] });
+    await queryClient.invalidateQueries({ queryKey: ['settings'] });
+    return fetchTabData(activeTab);
+  }, [fetchTabData, activeTab, queryClient]);
 
   // ── Effects ────────────────────────────────────────────────────────────────
 
@@ -368,5 +412,9 @@ export function useBakeryData(user: UserSession | null, activeTab: string) {
     setStaff, setSuppliers, setPurchaseOrders, setPurchasingSuggestions, setShiftLogs,
     // Functions
     fetchData, fetchTabData, applyInventory, applySettings,
+    // React Query error state
+    fetchError,
+    // React Query refetch helpers (for manual refresh buttons)
+    refetchInventory, refetchSettings,
   };
 }

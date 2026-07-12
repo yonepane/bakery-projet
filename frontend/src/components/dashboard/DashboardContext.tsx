@@ -71,6 +71,7 @@ export interface DashboardContextValue {
   shiftLogs: ReturnType<typeof useBakeryData>['shiftLogs'];
   loading: ReturnType<typeof useBakeryData>['loading'];
   setLoading: ReturnType<typeof useBakeryData>['setLoading'];
+  fetchError: Error | null;
   setInventory: ReturnType<typeof useBakeryData>['setInventory'];
   setAnalytics: ReturnType<typeof useBakeryData>['setAnalytics'];
   setHistory: ReturnType<typeof useBakeryData>['setHistory'];
@@ -854,6 +855,20 @@ export const DashboardProvider: React.FC<DashboardProviderProps> = ({ user, setU
 
   return (
     <DashboardContext.Provider value={value}>
+      {/* M1 — Surface fetch errors that were previously silent */}
+      {bakeryData.fetchError && (
+        <div
+          role="alert"
+          style={{
+            position: 'fixed', top: 0, left: 0, right: 0, zIndex: 9999,
+            background: '#f43f5e', color: '#fff',
+            padding: '8px 16px', fontSize: 12, fontWeight: 700,
+            textAlign: 'center', letterSpacing: '0.05em',
+          }}
+        >
+          ⚠ Data sync error — some information may be stale. Retrying…
+        </div>
+      )}
       {children}
     </DashboardContext.Provider>
   );
