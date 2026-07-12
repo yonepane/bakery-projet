@@ -10,10 +10,10 @@ from fastapi import APIRouter, Depends
 from fastapi.responses import Response
 
 try:
-    from .. import models
-    from ..auth import get_effective_owner_id, requires_roles
-    from ..database import get_db
-    from ..schemas import ExpenseCreate
+    import models
+    from auth import get_effective_owner_id, requires_roles
+    from database import get_db
+    from schemas import ExpenseCreate
 except ImportError:
     import models
     from auth import get_effective_owner_id, requires_roles

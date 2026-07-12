@@ -1,6 +1,5 @@
 import type {
   AccountingFeedItem,
-  AccountingMetricRow,
   AccountingRange,
   DashboardLanguage,
   Transaction,
@@ -96,7 +95,7 @@ export const deriveAccountingMetrics = ({
       return acc;
     }, {}),
   ).sort((a, b) => b[1] - a[1]);
-  const accountingFeed: AccountingFeedItem[] = [
+  const accountingFeed: any[] = [
     ...filteredExpenses.map((exp: any) => ({
       id: `expense-${exp.id}`,
       type: 'expense',
@@ -121,8 +120,8 @@ export const deriveAccountingMetrics = ({
   ]
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
     .slice(0, 8);
-  const productProfitability: AccountingMetricRow[] = Object.values(
-    filteredSales.reduce((acc: Record<string, AccountingMetricRow>, tx) => {
+  const productProfitability: any[] = Object.values(
+    filteredSales.reduce((acc: Record<string, any>, tx) => {
       let items = tx.items || [];
       if (typeof items === 'string') {
         try { items = JSON.parse(items); } catch(e) { items = []; }
@@ -145,8 +144,8 @@ export const deriveAccountingMetrics = ({
   )
     .sort((a, b) => (b.profit || 0) - (a.profit || 0))
     .slice(0, 6);
-  const wasteByProduct: AccountingMetricRow[] = Object.values(
-    filteredWaste.reduce((acc: Record<string, AccountingMetricRow>, record: any) => {
+  const wasteByProduct: any[] = Object.values(
+    filteredWaste.reduce((acc: Record<string, any>, record: any) => {
       const key = record.product_name || 'Unknown';
       if (!acc[key]) {
         acc[key] = { name: key, qty: 0, loss: 0 };

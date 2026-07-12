@@ -5,10 +5,10 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse
 
 try:
-    from .. import models
-    from ..auth import get_current_user, get_password_hash, requires_roles
-    from ..database import get_db
-    from ..schemas import StaffCreate
+    import models
+    from auth import get_current_user, get_password_hash, requires_roles
+    from database import get_db
+    from schemas import StaffCreate
 except ImportError:
     import models
     from auth import get_current_user, get_password_hash, requires_roles

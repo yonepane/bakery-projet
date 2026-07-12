@@ -17,14 +17,14 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import joinedload
 
 try:
-    from .. import models
-    from ..auth import get_current_user, get_effective_owner_id, requires_roles
-    from ..database import get_db
-    from ..schemas import ProductionBatch, SaleRequest
-    from ..services.core import calculate_product_cost, get_user_settings
-    from ..services.stock import apply_stock_delta, find_movements_by_client_mutation
-    from ..services.pdf import build_monthly_report_pdf, build_receipt_pdf
-    from ..services.excel import build_monthly_report_excel
+    import models
+    from auth import get_current_user, get_effective_owner_id, requires_roles
+    from database import get_db
+    from schemas import ProductionBatch, SaleRequest
+    from services.core import calculate_product_cost, get_user_settings
+    from services.stock import apply_stock_delta, find_movements_by_client_mutation
+    from services.pdf import build_monthly_report_pdf, build_receipt_pdf
+    from services.excel import build_monthly_report_excel
     from ..routers.intelligence import _analytics_cache
 except ImportError:
     import models

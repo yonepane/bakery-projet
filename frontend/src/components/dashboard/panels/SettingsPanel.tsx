@@ -33,6 +33,17 @@ const ToggleRow: React.FC<{
   </div>
 );
 
+interface SettingsFormState {
+  bakery_name: string;
+  bakery_phone: string;
+  bakery_address: string;
+  currency: string;
+  tax_rate: number;
+  receipt_footer: string;
+  hourly_wage: number;
+  low_stock_threshold: number;
+}
+
 /* ── Main panel ──────────────────────────────────────────────── */
 const SettingsPanel: React.FC = () => {
   const { isDarkMode, settings, lang, setLang, activeCurrency, setActiveCurrency,
@@ -149,7 +160,7 @@ const SettingsPanel: React.FC = () => {
           <div className="grid grid-cols-2 gap-6">
             <div>
               <label className={lbl}>{t('interface_language')}</label>
-              <select value={lang} onChange={e => { setLang(e.target.value); localStorage.setItem('bakery_lang', e.target.value); }}
+              <select value={lang} onChange={e => { setLang(e.target.value as any); localStorage.setItem('bakery_lang', e.target.value); }}
                 className={`appearance-none cursor-pointer pl-6 pr-12 py-4 text-[10px] font-black uppercase tracking-widest rounded-2xl border transition-all outline-none ${isDarkMode ? 'bg-black/80 border-gold/20 text-gold hover:bg-gold hover:text-charcoal' : 'bg-slate-50 border-slate-200 text-slate-900 hover:bg-slate-900 hover:text-white'}`}>
                 <option value="en" className={isDarkMode ? 'bg-[#0a0a0b] text-gold' : ''}>{t('english')}</option>
                 <option value="fr" className={isDarkMode ? 'bg-[#0a0a0b] text-gold' : ''}>{t('fran_ais')}</option>

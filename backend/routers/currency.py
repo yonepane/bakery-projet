@@ -14,9 +14,9 @@ import sqlalchemy.orm
 from fastapi import APIRouter, Depends
 
 try:
-    from .. import models
-    from ..auth import get_current_user, get_effective_owner_id
-    from ..database import get_db
+    import models
+    from auth import get_current_user, get_effective_owner_id
+    from database import get_db
 except ImportError:
     import models
     from auth import get_current_user, get_effective_owner_id

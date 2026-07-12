@@ -1,3 +1,4 @@
+/// <reference types="vite/client" />
 import axios from 'axios';
 
 // When the app runs locally, requests go straight to the FastAPI server.

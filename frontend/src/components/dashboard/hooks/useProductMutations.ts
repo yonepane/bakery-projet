@@ -35,7 +35,7 @@ export function useProductMutations({ fetchData, addToast }: MutationDeps) {
   const handleDuplicateProduct = useCallback(
     async (id: string) => {
       try {
-        const res = await api.post(`/products/${id}/duplicate`);
+        const res = await api.post(`/products/${id}/duplicate`, {});
         if (res.data.success) {
           addToast('Recipe duplicated successfully', 'success');
           fetchData();

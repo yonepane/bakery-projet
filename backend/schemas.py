@@ -199,6 +199,36 @@ class POCreate(BaseModel):
         return clean_text(value, max_length=1000, multiline=True)
 
 
+class PurchaseInvoiceCreate(BaseModel):
+    purchase_order_id: Optional[str] = Field(default=None, max_length=60)
+    supplier_id: int = Field(ge=1)
+    invoice_number: str = Field(min_length=1, max_length=80)
+    invoice_date: str = Field(min_length=10, max_length=40)  # ISO date
+    due_date: Optional[str] = Field(default=None, max_length=40)
+    total_ht: float = Field(ge=0, le=100_000_000)
+    tva_rate: float = Field(ge=0, le=100)
+    tva_amount: float = Field(ge=0, le=10_000_000)
+    total_ttc: float = Field(ge=0, le=100_000_000)
+    notes: Optional[str] = Field(default=None, max_length=1000)
+
+    @field_validator("invoice_number")
+    @classmethod
+    def sanitize_invoice_number(cls, value: str) -> str:
+        return clean_required_text(value, max_length=80)
+
+    @field_validator("notes")
+    @classmethod
+    def sanitize_notes(cls, value: str | None) -> str | None:
+        return clean_text(value, max_length=1000, multiline=True)
+
+
+class PurchaseInvoicePaymentCreate(BaseModel):
+    amount: float = Field(ge=0, le=10_000_000)
+    payment_method: Literal["cash", "bank_transfer", "card", "cheque"] = "bank_transfer"
+    paid_at: Optional[str] = Field(default=None, max_length=40)
+    reference: Optional[str] = Field(default=None, max_length=120)
+
+
 class ExpensePaymentCreate(BaseModel):
     amount: float = Field(ge=0, le=10_000_000)
     payment_method: Literal["cash", "bank_transfer", "card", "cheque"] = "cash"

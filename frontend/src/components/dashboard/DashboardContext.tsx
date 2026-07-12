@@ -281,6 +281,9 @@ export interface DashboardContextValue {
   handlePartialReceivePO: () => Promise<void>;
   openDocument: (url: string, fallbackFilename: string) => Promise<void>;
   handleSearchRecipes: () => Promise<void>;
+  api: any;
+  API_BASE: string;
+  displayUnit: (v: any, u: any) => string;
 }
 
 // ── Context creation ──────────────────────────────────────────────────────────
@@ -760,6 +763,7 @@ export const DashboardProvider: React.FC<DashboardProviderProps> = ({ user, setU
     isOperationsOpen, setIsOperationsOpen,
 
     // Display
+    API_BASE: http.defaults.baseURL || '',
     isDarkMode, setIsDarkMode,
     activeCurrency, setActiveCurrency,
     formatPrice,
@@ -795,8 +799,8 @@ export const DashboardProvider: React.FC<DashboardProviderProps> = ({ user, setU
     // Forms
     newExpense, setNewExpense,
     newSupplier, setNewSupplier,
-    generalNote, setGeneralNote,
-    isSavingGeneralNote, setIsSavingGeneralNote,
+    generalNote, setGeneralNote, isSavingGeneralNote, setIsSavingGeneralNote,
+    api, displayUnit: (v, u) => `${v}${u}`,
     accountingRange, setAccountingRange,
     lastTransaction, setLastTransaction,
     newProduct, setNewProduct,

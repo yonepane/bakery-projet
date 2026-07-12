@@ -8,10 +8,10 @@ from fastapi import APIRouter, Depends, HTTPException, Header
 from sqlalchemy.orm import joinedload
 
 try:
-    from ..auth import get_current_user, get_effective_owner_id, requires_roles
-    from ..database import get_db
-    from .. import models
-    from ..schemas import (
+    from auth import get_current_user, get_effective_owner_id, requires_roles
+    from database import get_db
+    import models
+    from schemas import (
         SemiFinishedItemCreate,
         SemiFinishedItemUpdate,
         SemiFinishedItemResponse,
@@ -20,7 +20,7 @@ try:
         SemiFinishedRecipeLineResponse,
         SemiFinishedProduceRequest,
     )
-    from ..services.stock import apply_stock_delta, find_movements_by_client_mutation
+    from services.stock import apply_stock_delta, find_movements_by_client_mutation
 except ImportError:
     from auth import get_current_user, get_effective_owner_id, requires_roles
     from database import get_db

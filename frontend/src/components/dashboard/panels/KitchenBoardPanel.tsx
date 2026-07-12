@@ -21,7 +21,7 @@ const STAGES = [
 ] as const;
 
 export const KitchenBoardPanel: React.FC = () => {
-  const { isDarkMode, batches, onAdvanceStage, isUpdating } = useDashboard();
+  const { isDarkMode, kitchenBatches: batches, handleAdvanceStage: onAdvanceStage, isKitchenUpdating: isUpdating } = useDashboard();
   const { t } = useTranslation();
 
   const getNextStage = (current: KitchenBatch['stage']): KitchenBatch['stage'] | null => {

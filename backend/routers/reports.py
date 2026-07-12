@@ -13,9 +13,9 @@ import io
 import json
 
 try:
-    from .. import models
-    from ..auth import get_effective_owner_id, requires_roles
-    from ..database import get_db
+    import models
+    from auth import get_effective_owner_id, requires_roles
+    from database import get_db
 except ImportError:
     import models
     from auth import get_effective_owner_id, requires_roles

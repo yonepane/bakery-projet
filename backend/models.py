@@ -6,7 +6,7 @@ Each class below becomes one table in the database.
 import datetime
 from datetime import timezone
 
-from sqlalchemy import CheckConstraint, Column, Integer, String, Float, ForeignKey, DateTime, JSON, Boolean, UniqueConstraint
+from sqlalchemy import CheckConstraint, Column, Integer, String, Float, ForeignKey, DateTime, JSON, Boolean, UniqueConstraint, Index
 from sqlalchemy.orm import relationship
 
 try:
@@ -296,6 +296,88 @@ class PurchaseOrder(Base):
     status = Column(String, default="draft") # Current purchase order state.
     archived = Column(Boolean, default=False)
 
+    # Phase 3 follow-up: Invoice and payment tracking on the PO itself.
+    # These fields allow tracking the invoice without a separate table for simple cases.
+    invoice_number = Column(String, nullable=True, index=True)
+    invoice_date = Column(DateTime, nullable=True)
+    invoice_amount_ht = Column(Float, default=0.0)  # HT amount
+    invoice_tva_amount = Column(Float, default=0.0)  # TVA amount
+    invoice_amount_ttc = Column(Float, default=0.0)  # TTC amount
+    payment_status = Column(String, default="unpaid")  # unpaid, partial, paid
+    payment_date = Column(DateTime, nullable=True)
+    payment_method = Column(String, nullable=True)  # cash, bank_transfer, card, cheque
+    payment_reference = Column(String, nullable=True)
+
+    invoices = relationship("PurchaseInvoice", back_populates="purchase_order")
+
+
+class PurchaseInvoice(Base):
+    """Phase 3 follow-up: Standalone purchase invoice for detailed tracking.
+    
+    Separate from PO invoice fields to support:
+    - Multiple invoices per PO (partial deliveries)
+    - Invoices without PO (direct purchases)
+    - Detailed line items with TVA breakdown
+    """
+    __tablename__ = "purchase_invoices"
+
+    id = Column(Integer, primary_key=True, index=True)
+    owner_id = Column(Integer, ForeignKey("users.id"), index=True)
+    supplier_id = Column(Integer, ForeignKey("suppliers.id"), index=True)
+    po_id = Column(String, ForeignKey("purchase_orders.id"), nullable=True, index=True)
+
+    # Invoice identification
+    invoice_number = Column(String, nullable=False, index=True)
+    invoice_date = Column(DateTime, nullable=False, index=True)
+    due_date = Column(DateTime, nullable=True, index=True)
+
+    # Amounts (all in base currency)
+    amount_ht = Column(Float, default=0.0)      # Hors taxes
+    tva_amount = Column(Float, default=0.0)     # TVA
+    amount_ttc = Column(Float, default=0.0)     # Toutes taxes comprises
+
+    # Payment tracking
+    payment_status = Column(String, default="unpaid", index=True)  # unpaid, partial, paid, cancelled
+    paid_amount = Column(Float, default=0.0)
+    payment_date = Column(DateTime, nullable=True)
+    payment_method = Column(String, nullable=True)  # cash, bank_transfer, card, cheque
+    payment_reference = Column(String, nullable=True)
+
+    # Metadata
+    notes = Column(String, nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.datetime.now(timezone.utc), index=True)
+    updated_at = Column(DateTime, default=lambda: datetime.datetime.now(timezone.utc), onupdate=lambda: datetime.datetime.now(timezone.utc))
+    created_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+
+    # Relationships
+    supplier = relationship("Supplier")
+    purchase_order = relationship("PurchaseOrder", back_populates="invoices")
+    payments = relationship("PurchaseInvoicePayment", back_populates="invoice", cascade="all, delete-orphan")
+    created_by = relationship("User", foreign_keys=[created_by_user_id])
+
+    __table_args__ = (
+        UniqueConstraint("owner_id", "invoice_number", name="uq_purchase_invoice_owner_number"),
+    )
+
+
+class PurchaseInvoicePayment(Base):
+    """Payment record against a purchase invoice."""
+    __tablename__ = "purchase_invoice_payments"
+
+    id = Column(Integer, primary_key=True, index=True)
+    owner_id = Column(Integer, ForeignKey("users.id"), index=True)
+    invoice_id = Column(Integer, ForeignKey("purchase_invoices.id"), index=True)
+
+    amount = Column(Float, default=0.0)
+    payment_date = Column(DateTime, default=lambda: datetime.datetime.now(timezone.utc), index=True)
+    payment_method = Column(String, nullable=False)  # cash, bank_transfer, card, cheque
+    reference = Column(String, nullable=True)
+    notes = Column(String, nullable=True)
+    created_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+
+    invoice = relationship("PurchaseInvoice", back_populates="payments")
+
+
 class Planner(Base):
     __tablename__ = "planner"
     # The planner stores the bakery's production schedule for future dates.
@@ -533,6 +615,156 @@ class RecipeVersionOutput(Base):
     product = relationship("Product")
 
 
+class FinancialEvent(Base):
+    """Phase 3b — Immutable financial event ledger.
+
+    Every financial action (sale, purchase, production, waste, expense, payment)
+    writes an append-only row here. This is the single source of truth for
+    all financial reporting, audit trails, and P&L reconstruction.
+
+    Rows are NEVER updated or deleted. Corrections are made via compensating
+    entries (new rows with negative amounts).
+    """
+    __tablename__ = "financial_events"
+
+    id = Column(Integer, primary_key=True, index=True)
+    owner_id = Column(Integer, ForeignKey("users.id"), index=True)
+
+    # What happened
+    event_type = Column(String, nullable=False, index=True)  # sale, purchase, production, waste, expense, payment, refund, adjustment
+    event_subtype = Column(String, nullable=True, index=True)  # sale_pos, sale_online, production_output, purchase_receive, waste_record, expense_payment, refund_cash, etc.
+
+    # Amounts (always in base currency, positive for credit/income, negative for debit/expense)
+    amount_ht = Column(Float, default=0.0)      # hors taxes (excl. VAT)
+    tva_rate = Column(Float, default=0.0)       # VAT rate applied (0, 7, 10, 14, 20)
+    tva_amount = Column(Float, default=0.0)     # TVA amount
+    amount_ttc = Column(Float, default=0.0)     # toutes taxes comprises (incl. VAT)
+
+    # References
+    source_type = Column(String, nullable=True, index=True)  # transaction, purchase_order, production_batch, waste_record, expense, invoice, payment
+    source_id = Column(String, nullable=True, index=True)     # ID of the source record
+
+    # Context
+    reference_number = Column(String, nullable=True, index=True)  # invoice number, PO number, etc.
+    description = Column(String, nullable=True)
+    customer_supplier_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)  # customer for sales, supplier for purchases
+
+    # Product/item context (for stock-related events)
+    item_type = Column(String, nullable=True, index=True)  # ingredient, semi_finished, product
+    item_id = Column(String, nullable=True, index=True)
+    item_name_snapshot = Column(String, nullable=True)
+    quantity = Column(Float, nullable=True)
+    unit = Column(String, nullable=True)
+    unit_cost = Column(Float, nullable=True)  # cost per unit at event time
+
+    # Timestamps
+    event_at = Column(DateTime, default=lambda: datetime.datetime.now(timezone.utc), index=True)
+    created_at = Column(DateTime, default=lambda: datetime.datetime.now(timezone.utc), index=True)
+    created_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+
+    # Relationships
+    created_by = relationship("User", foreign_keys=[created_by_user_id])
+    customer_supplier = relationship("User", foreign_keys=[customer_supplier_id])
+
+    __table_args__ = (
+        Index("ix_financial_events_owner_event_at", "owner_id", "event_at"),
+        Index("ix_financial_events_owner_type", "owner_id", "event_type"),
+        Index("ix_financial_events_source", "source_type", "source_id"),
+    )
+
+
+class HygieneLog(Base):
+    __tablename__ = "hygiene_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    owner_id = Column(Integer, ForeignKey("users.id"), index=True)
+    recorded_at = Column(DateTime, default=lambda: datetime.datetime.now(timezone.utc), index=True)
+    # What was done: deep_clean, sanitize, pest_check, equipment_check, other
+    task_type = Column(String, nullable=False, index=True)
+    area = Column(String, nullable=True, index=True)
+    notes = Column(String, nullable=True)
+    recorded_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+
+
+class CustomOrder(Base):
+    """Phase 5 — Custom Cake & Special Orders.
+
+    Supports the full lifecycle of custom cake orders from inquiry to delivery.
+    """
+    __tablename__ = "custom_orders"
+
+    id = Column(String, primary_key=True, index=True)  # UUID prefix "CO-"
+    owner_id = Column(Integer, ForeignKey("users.id"), index=True)
+
+    # Customer
+    customer_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    customer_name = Column(String, nullable=False)
+    customer_phone = Column(String, nullable=True)
+    customer_email = Column(String, nullable=True)
+
+    # Occasion & Timing
+    occasion = Column(String, nullable=True)  # birthday, wedding, anniversary, corporate, other
+    occasion_date = Column(DateTime, nullable=False, index=True)  # when the cake is needed
+    pickup_date = Column(DateTime, nullable=True)  # actual pickup/delivery date
+    delivery_required = Column(Boolean, default=False)
+    delivery_address = Column(String, nullable=True)
+
+    # Cake Design
+    portions = Column(Integer, nullable=False)  # number of servings
+    size = Column(String, nullable=True)  # e.g., "8 inch", "2 tiers"
+    shape = Column(String, nullable=True)  # round, square, heart, number, letter, tiered
+    
+    # Flavors & Fillings (JSON)
+    sponge_flavor = Column(String, nullable=True)  # vanilla, chocolate, red velvet, lemon, etc.
+    filling = Column(String, nullable=True)  # buttercream, ganache, jam, cream, mousse
+    frosting = Column(String, nullable=True)  # buttercream, fondant, ganache, whipped cream
+    decorations = Column(JSON, nullable=True)  # array of decoration items
+    
+    # Dietary
+    dietary_notes = Column(String, nullable=True)  # gluten-free, nut-free, vegan, etc.
+    allergens = Column(JSON, nullable=True)  # array of allergen strings
+
+    # Pricing & Payment
+    base_price = Column(Float, default=0.0)  # calculated base price
+    decoration_cost = Column(Float, default=0.0)  # additional decoration cost
+    delivery_fee = Column(Float, default=0.0)
+    total_price = Column(Float, default=0.0)  # final price
+    deposit_amount = Column(Float, default=0.0)  # deposit paid
+    deposit_paid = Column(Boolean, default=False)
+    balance_due = Column(Float, default=0.0)
+    payment_status = Column(String, default="pending")  # pending, deposit_paid, paid, refunded
+    payment_method = Column(String, nullable=True)  # cash, card, transfer
+
+    # Status & Workflow
+    status = Column(String, default="inquiry", index=True)  # inquiry, confirmed, in_progress, ready, delivered, cancelled
+    priority = Column(Integer, default=0)  # higher = more urgent
+    
+    # Design & Communication
+    reference_images = Column(JSON, nullable=True)  # array of image URLs
+    design_notes = Column(String, nullable=True)  # internal notes
+    customer_notes = Column(String, nullable=True)  # customer special requests
+    internal_notes = Column(String, nullable=True)  # baker notes
+    
+    # Images
+    design_image_url = Column(String, nullable=True)  # final design image
+    final_image_url = Column(String, nullable=True)  # photo of finished cake
+
+    # Timestamps
+    created_at = Column(DateTime, default=lambda: datetime.datetime.now(timezone.utc), index=True)
+    updated_at = Column(DateTime, default=lambda: datetime.datetime.now(timezone.utc), onupdate=lambda: datetime.datetime.now(timezone.utc))
+    confirmed_at = Column(DateTime, nullable=True)
+    ready_at = Column(DateTime, nullable=True)
+    delivered_at = Column(DateTime, nullable=True)
+
+    # Relationships
+    customer = relationship("User", foreign_keys=[customer_id])
+    owner = relationship("User", foreign_keys=[owner_id])
+
+    __table_args__ = (
+        Index("ix_custom_orders_owner_status", "owner_id", "status"),
+    )
+
+
 class TemperatureLog(Base):
     """Phase 6 — Cold-chain / oven temperature readings for food safety.
 
@@ -547,23 +779,5 @@ class TemperatureLog(Base):
     # What was measured: ambient, fridge, freezer, oven, proofer, display_counter, other
     location_label = Column(String, nullable=False, index=True)
     temperature_c = Column(Float, nullable=False)
-    notes = Column(String, nullable=True)
-    recorded_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
-
-
-class HygieneLog(Base):
-    """Phase 6 — Hygiene / cleaning checklist entries.
-
-    Owners log cleaning tasks (e.g. 'deep-cleaned oven', 'sanitized display
-    counter', ' pest check') to satisfy food safety audits.
-    """
-    __tablename__ = "hygiene_logs"
-
-    id = Column(Integer, primary_key=True, index=True)
-    owner_id = Column(Integer, ForeignKey("users.id"), index=True)
-    recorded_at = Column(DateTime, default=lambda: datetime.datetime.now(timezone.utc), index=True)
-    # What was done: deep_clean, sanitize, pest_check, equipment_check, other
-    task_type = Column(String, nullable=False, index=True)
-    area = Column(String, nullable=True, index=True)
     notes = Column(String, nullable=True)
     recorded_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)

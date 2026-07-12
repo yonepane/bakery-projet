@@ -431,7 +431,7 @@ const InsightCard = (props: InsightCardProps) => {
       </ul>
     ) : (
       <p className={`text-sm ${isDarkMode ? 'text-cream/30' : 'text-slate-400'}`}>
-        {t ? t('no_data', { defaultValue: '—' }) : '—'}
+        {'—'}
       </p>
     )}
   </div>

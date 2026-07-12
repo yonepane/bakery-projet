@@ -9,10 +9,10 @@ from sqlalchemy.orm import joinedload
 from pydantic import BaseModel, Field
 
 try:
-    from ..auth import get_current_user, get_effective_owner_id, requires_roles
-    from ..database import get_db
-    from .. import models
-    from ..services.stock import apply_stock_delta, find_movements_by_client_mutation
+    from auth import get_current_user, get_effective_owner_id, requires_roles
+    from database import get_db
+    import models
+    from services.stock import apply_stock_delta, find_movements_by_client_mutation
 except ImportError:
     from auth import get_current_user, get_effective_owner_id, requires_roles
     from database import get_db

@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useDashboard } from '../DashboardContext';
 import { Activity, ArrowDown, ArrowUp, Boxes, Package, Search } from 'lucide-react';
+import type { StockMovement } from '../types';
 
 const movementStyles: Record<string, string> = {
   sale: 'bg-rose-500/10 text-rose-500',

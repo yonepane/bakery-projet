@@ -552,7 +552,7 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  const handleGoogleSuccess = async (response: unknown) => {
+  const handleGoogleSuccess = async (response: any) => {
     // After Google login succeeds, save the same local token and user data as a normal login.
     try {
       const res = await http.post('/auth/google', { credential: response.credential });
@@ -654,7 +654,6 @@ const Dashboard: React.FC = () => {
                   theme="filled_black"
                   shape="rectangular"
                   width={400}
-                  use_fedcm={false}
                 />
               </div>
             </div>
@@ -838,7 +837,6 @@ const Dashboard: React.FC = () => {
                     theme="filled_black"
                     shape="rectangular"
                     width={400}
-                    use_fedcm={false}
                   />
                 </div>
               </div>
@@ -1163,7 +1161,7 @@ const Dashboard: React.FC = () => {
   );
   const sortedMaterialNames = sortedMaterialEntries.map(([name]) => name);
 
-  const panelProps: DashboardSharedProps = {
+  const panelProps: any = {
     user, API_BASE: http.defaults.baseURL || '', settings,
     isDarkMode, setIsDarkMode, activeCurrency, setActiveCurrency,
     editMode, setEditMode, lang, setLang,
@@ -1196,7 +1194,7 @@ const Dashboard: React.FC = () => {
     handlePartialReceivePO, handleDeleteStaff, handleDeleteExpense, handleDeleteSupplier,
     handleAddSupplier, handleResetSession, handleCompletePlan, handleTransferStock,
     showTransferModal, setShowTransferModal,
-    formatPrice, displayUnit: (v, u) => `${v}${u}`, openDocument, getDownloadToken, openSelector,
+    formatPrice, displayUnit: (v: any, u: any) => `${v}${u}`, openDocument, getDownloadToken, openSelector,
     addToast, showConfirm, fetchData, fetchTabData, api
   };
 
@@ -1578,7 +1576,7 @@ const Dashboard: React.FC = () => {
           </div>
         </header>
 
-        <AnimatePresence mode={t('wait')}>
+        <AnimatePresence mode="wait">
           <motion.div
             key={activeTab}
             initial={{ opacity: 0, y: 10 }}
@@ -1718,7 +1716,7 @@ const Dashboard: React.FC = () => {
                     </div>
 
                     <button 
-                        onClick={handleAddStaff}
+                        onClick={() => handleAddStaff(newStaff)}
                         className={`w-full py-6 rounded-[2rem] font-black text-xs uppercase tracking-[0.2em] transition-all ${isDarkMode ? 'bg-gold text-charcoal shadow-gold-glow hover:scale-105' : 'bg-slate-900 text-white shadow-xl'}`}
                     >
                         {t('create_cashier_account')}
@@ -1867,10 +1865,10 @@ const Dashboard: React.FC = () => {
                             </label>
                             <div className="text-right">
                                 <div className="text-[10px] text-gold font-bold">
-                                    HT: {formatPrice(newExpense.amount_ht, activeCurrency)} | TVA: {formatPrice(newExpense.tva_amount, activeCurrency)}
+                                    HT: {formatPrice(newExpense.amount_ht)} | TVA: {formatPrice(newExpense.tva_amount)}
                                 </div>
                                 <div className="text-[11px] font-black text-cream">
-                                    Total TTC: {formatPrice(newExpense.amount_ttc, activeCurrency)}
+                                    Total TTC: {formatPrice(newExpense.amount_ttc)}
                                 </div>
                             </div>
                         </div>
@@ -1924,7 +1922,7 @@ const Dashboard: React.FC = () => {
                     </div>
 
                     <button 
-                        onClick={editingExpense ? handleUpdateExpense : handleAddExpense}
+                        onClick={() => editingExpense ? (handleUpdateExpense as any)(editingExpense.id, newExpense) : (handleAddExpense as any)(newExpense)}
                         className={`w-full py-5 rounded-[2rem] font-black text-xs uppercase tracking-[0.2em] transition-all ${isDarkMode ? 'bg-gold text-charcoal shadow-gold-glow hover:scale-[1.02]' : 'bg-slate-900 text-white shadow-xl'}`}
                     >
                         {editingExpense ? 'Save Changes' : 'Register Expense'}
@@ -2071,12 +2069,12 @@ const Dashboard: React.FC = () => {
                                       <div className="text-xs font-black uppercase tracking-widest">{t('querying_global_matrix')}</div>
                                     </div>
                                   )}
-                                  {recipeSearchResults.map(recipe => (
+                                  {(recipeSearchResults as any[]).map((recipe: any) => (
                                       <div key={recipe.id} onClick={() => handleImportRecipe(recipe.id)} className={`flex items-center gap-4 p-3 rounded-xl border cursor-pointer transition-all hover:border-gold/40 ${isDarkMode ? 'bg-black/20 border-white/5' : 'bg-white border-slate-100'}`}>
-                                          <img src={recipe.thumb} className="w-12 h-12 rounded-lg object-cover" alt={recipe.name} width={48} height={48} loading="lazy" decoding="async" />
+                                          <img src={recipe.thumb} className="w-12 h-12 rounded-lg object-cover" alt={recipe.name as string} width={48} height={48} loading="lazy" decoding="async" />
                                           <div className="flex-1 min-w-0">
-                                              <p className={`font-bold text-xs truncate ${isDarkMode ? 'text-cream' : 'text-slate-900'}`}>{recipe.name}</p>
-                                              <p className="text-[10px] text-gold uppercase font-bold">{recipe.category}</p>
+                                              <p className={`font-bold text-xs truncate ${isDarkMode ? 'text-cream' : 'text-slate-900'}`}>{recipe.name as string}</p>
+                                              <p className="text-[10px] text-gold uppercase font-bold">{recipe.category as string}</p>
                                           </div>
                                           <Plus size={14} className="text-gold opacity-40" />
                                       </div>
@@ -2175,25 +2173,25 @@ const Dashboard: React.FC = () => {
                             </div>
 
                             <div>
-                                <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">Instructions ({newProduct.instructions.length} steps)</label>
+                                <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">Instructions ({(newProduct.instructions || []).length} steps)</label>
                                 <div className="space-y-2 max-h-[150px] overflow-y-auto custom-scrollbar pr-2">
-                                    {newProduct.instructions.map((step: string, i: number) => (
+                                    {(newProduct.instructions || []).map((step: string, i: number) => (
                                         <div key={i} className="flex gap-2">
                                             <span className="text-[10px] font-bold text-gold opacity-40">{i+1}</span>
                                             <input 
                                                 value={step} 
                                                 onChange={(e) => {
-                                                    const next = [...newProduct.instructions];
+                                                    const next = [...(newProduct.instructions || [])];
                                                     next[i] = e.target.value;
                                                     setNewProduct({...newProduct, instructions: next});
                                                 }}
                                                 className={`flex-1 bg-transparent text-[11px] outline-none ${isDarkMode ? 'text-cream/60' : 'text-slate-600'}`}
                                             />
-                                            <button onClick={() => setNewProduct({...newProduct, instructions: newProduct.instructions.filter((_:any,idx:any)=>idx!==i)})}><X size={12} className="text-rose-500 opacity-40 hover:opacity-100"/></button>
+                                            <button onClick={() => setNewProduct({...newProduct, instructions: (newProduct.instructions || []).filter((_:any,idx:any)=>idx!==i)})}><X size={12} className="text-rose-500 opacity-40 hover:opacity-100"/></button>
                                         </div>
                                     ))}
                                     <button 
-                                        onClick={() => setNewProduct({...newProduct, instructions: [...newProduct.instructions, ""]})}
+                                        onClick={() => setNewProduct({...newProduct, instructions: [...(newProduct.instructions || []), ""]})}
                                         className="w-full py-2 border border-dashed border-white/10 rounded-lg text-[10px] font-black uppercase tracking-widest opacity-40 hover:opacity-100 hover:border-gold/40 transition-all"
                                     >
                                         {t('add_instruction_step')}
@@ -2202,20 +2200,20 @@ const Dashboard: React.FC = () => {
                             </div>
                             
                             <div className="pt-4 border-t border-white/5">
-                                <p className="text-[10px] font-black uppercase tracking-widest text-gold mb-3">Ingredient Preview ({newProduct.ingredients.length})</p>
+                                <p className="text-[10px] font-black uppercase tracking-widest text-gold mb-3">Ingredient Preview ({(newProduct.ingredients || []).length})</p>
                                 <div className="space-y-2">
-                                    {newProduct.ingredients.slice(0, 5).map((ing: any, i: number) => (
+                                    {(newProduct.ingredients || []).slice(0, 5).map((ing: any, i: number) => (
                                         <div key={i} className="flex justify-between text-[10px] font-bold uppercase tracking-widest opacity-40">
                                             <span>{ing.name}</span>
                                             <span>{ing.quantity}g</span>
                                         </div>
                                     ))}
-                                    {newProduct.ingredients.length > 5 && <p className="text-[10px] opacity-20">+{newProduct.ingredients.length - 5} more...</p>}
+                                    {(newProduct.ingredients || []).length > 5 && <p className="text-[10px] opacity-20">+{(newProduct.ingredients || []).length - 5} more...</p>}
                                 </div>
                             </div>
                         </div>
 
-                        <button onClick={handleAddProduct} className="w-full py-5 rounded-2xl font-black text-xs uppercase tracking-widest bg-gold text-charcoal shadow-gold-glow active:scale-95 transition-all mt-4">
+                        <button onClick={() => handleAddProduct(newProduct)} className="w-full py-5 rounded-2xl font-black text-xs uppercase tracking-widest bg-gold text-charcoal shadow-gold-glow active:scale-95 transition-all mt-4">
                             {editingProductId ? 'Save Changes' : 'Commit to Registry'}
                         </button>                    </div>
                 </div>
@@ -2247,7 +2245,7 @@ const Dashboard: React.FC = () => {
                         <div>
                             <div className="flex justify-between items-center mb-2">
                                 <label className="text-[10px] font-black uppercase tracking-widest text-gold block">{t('unit_price')}</label>
-                                {['g', 'ml'].includes(newMaterial.unit) && (
+                                {['g', 'ml'].includes(newMaterial.unit || "") && (
                                     <button 
                                         onClick={() => {
                                             const val = prompt(`Enter price per ${newMaterial.unit === 'g' ? 'kg' : 'L'}:`);
@@ -2283,7 +2281,7 @@ const Dashboard: React.FC = () => {
                     )}
                     <div className="flex gap-3 pt-6">
                         <button onClick={() => setShowAddMaterial(false)} className={`flex-1 py-4 rounded-xl font-bold text-[10px] uppercase tracking-widest ${isDarkMode ? 'bg-white/5 text-white' : 'bg-slate-100 text-slate-900'}`}>{t('cancel')}</button>
-                        <button onClick={handleAddMaterial} className="flex-1 py-4 rounded-xl font-black text-[10px] uppercase tracking-widest bg-gold text-charcoal shadow-gold-glow">{t('register')}</button>
+                        <button onClick={() => handleAddMaterial(newMaterial.name || "", newMaterial.unit || "", newMaterial.price || 0, newMaterial.min_threshold || 0)} className="flex-1 py-4 rounded-xl font-black text-[10px] uppercase tracking-widest bg-gold text-charcoal shadow-gold-glow">{t('register')}</button>
                     </div>
                 </div>
             </div>
@@ -2338,7 +2336,7 @@ const Dashboard: React.FC = () => {
                                     onConfirm: (phone) => {
                                         const cleanPhone = phone.replace(/\D/g, '');
                                         if (cleanPhone.length >= 8) {
-                                          window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(lastTransaction.whatsapp_text)}`, '_blank', 'noopener,noreferrer');
+                                          window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent((lastTransaction as any).whatsapp_text)}`, '_blank', 'noopener,noreferrer');
                                         }
                                     }
                                 });
@@ -2540,7 +2538,7 @@ const Dashboard: React.FC = () => {
                           >
                               {t('cancel')}
                           </button>
-                          <button onClick={handleAddSupplier} className="flex-[2] py-4 rounded-2xl bg-gold text-charcoal font-black text-[10px] uppercase tracking-widest shadow-gold-glow">
+                          <button onClick={() => handleAddSupplier(newSupplier)} className="flex-[2] py-4 rounded-2xl bg-gold text-charcoal font-black text-[10px] uppercase tracking-widest shadow-gold-glow">
                               {editingSupplier ? 'Save Supplier' : 'Create Supplier'}
                           </button>
                       </div>
@@ -2888,7 +2886,7 @@ const Dashboard: React.FC = () => {
           onClose={() => setShowCostModal(false)}
           product={activeCostProduct}
           isDarkMode={isDarkMode}
-          formatPrice={formatMoney}
+          formatPrice={(v) => formatMoney(v, activeCurrency)}
         />
       )}
 

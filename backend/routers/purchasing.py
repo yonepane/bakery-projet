@@ -9,12 +9,12 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.orm import joinedload
 
 try:
-    from .. import models
-    from ..auth import get_current_user, get_effective_owner_id, requires_roles
-    from ..database import get_db
-    from ..schemas import POCreate, POReceive, SupplierCreate
-    from ..services.locations import ensure_default_stock_locations
-    from ..services.stock import apply_stock_delta, find_movements_by_client_mutation
+    import models
+    from auth import get_current_user, get_effective_owner_id, requires_roles
+    from database import get_db
+    from schemas import POCreate, POReceive, SupplierCreate
+    from services.locations import ensure_default_stock_locations
+    from services.stock import apply_stock_delta, find_movements_by_client_mutation
 except ImportError:
     import models
     from auth import get_current_user, get_effective_owner_id, requires_roles

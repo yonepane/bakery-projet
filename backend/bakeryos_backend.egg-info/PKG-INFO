@@ -1,0 +1,29 @@
+Metadata-Version: 2.4
+Name: bakeryos_backend
+Version: 0.1.0
+Summary: BakeryOS Backend API
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+Requires-Dist: fastapi>=0.100.0
+Requires-Dist: uvicorn[standard]>=0.23.0
+Requires-Dist: sqlalchemy>=2.0.0
+Requires-Dist: pydantic>=2.0.0
+Requires-Dist: pydantic[email]
+Requires-Dist: python-jose[cryptography]
+Requires-Dist: passlib[bcrypt]
+Requires-Dist: python-multipart
+Requires-Dist: python-jose
+Requires-Dist: slowapi
+Requires-Dist: httpx
+Requires-Dist: pandas
+Requires-Dist: openpyxl
+Requires-Dist: reportlab
+Requires-Dist: python-dotenv
+Requires-Dist: alembic
+Requires-Dist: psycopg2-binary
+Requires-Dist: python-jose[cryptography]
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0.0; extra == "dev"
+Requires-Dist: pytest-asyncio; extra == "dev"
+Requires-Dist: httpx; extra == "dev"
+Requires-Dist: pytest-cov; extra == "dev"

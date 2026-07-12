@@ -7,12 +7,12 @@ from sqlalchemy import text
 from sqlalchemy.orm import joinedload
 
 try:
-    from .. import models
-    from ..auth import get_current_user, get_effective_owner_id, requires_roles
-    from ..database import get_db
-    from ..schemas import MaterialCreate, ProductCreate, ProductUpdate, StockAdjust
-    from ..services.stock import apply_stock_delta, find_movements_by_client_mutation
-    from ..services.core import calculate_product_cost, _cost_semi_finished
+    import models
+    from auth import get_current_user, get_effective_owner_id, requires_roles
+    from database import get_db
+    from schemas import MaterialCreate, ProductCreate, ProductUpdate, StockAdjust
+    from services.stock import apply_stock_delta, find_movements_by_client_mutation
+    from services.core import calculate_product_cost, _cost_semi_finished
 except ImportError:
     import models
     from auth import get_current_user, get_effective_owner_id, requires_roles

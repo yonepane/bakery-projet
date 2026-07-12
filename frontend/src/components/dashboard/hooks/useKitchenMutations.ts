@@ -34,7 +34,7 @@ export function useKitchenMutations({
   fetchTabData,
   addToast,
 }: {
-  fetchTabData: () => Promise<void>;
+  fetchTabData: (tab: string) => Promise<void>;
   addToast: (msg: string, type: 'success' | 'error' | 'info') => void;
 }) {
   const [isUpdating, setIsUpdating] = useState(false);
@@ -45,7 +45,7 @@ export function useKitchenMutations({
       try {
         await api.put(`/api/kitchen/batches/${batchId}/stage`, { stage: newStage });
         addToast(`Batch moved to ${newStage}`, 'success');
-        await fetchTabData(); // Refresh board and inventory
+        await fetchTabData('kitchen_board'); // Refresh board and inventory
       } catch (err: any) {
         console.error(err);
         addToast(err.response?.data?.detail || 'Failed to update stage', 'error');

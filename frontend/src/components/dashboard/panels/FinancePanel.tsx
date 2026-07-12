@@ -11,15 +11,38 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { FileText, TrendingDown, TrendingUp, Briefcase, FileClock, Table, Plus } from 'lucide-react';
 import http from '../../../lib/http';
 
+import { deriveAccountingMetrics } from '../utils';
 
 const FinancePanel: React.FC = () => {
   const { isDarkMode, formatPrice, accountingRange, setAccountingRange,
-  filteredSales, filteredExpenses, filteredWaste, filteredPurchaseOrders,
-  monthlySales, monthlyExpensesTotal, monthlyNetAfterExpenses, draftPurchaseCommitment,
-  expenseBreakdown, productProfitability, wasteByProduct, accountingFeed,
-  openDocument, API_BASE, orders, expenses, suppliers,
+  history, wasteRecords, purchaseOrders,
+  openDocument, orders, expenses, suppliers,
   setShowAddExpense, editingExpense, setEditingExpense, handleDeleteExpense,
   showConfirm, addToast } = useDashboard();
+  
+  const {
+    accountingFeed,
+    draftPurchaseCommitment,
+    expenseBreakdown,
+    filteredExpenses,
+    filteredPurchaseOrders,
+    filteredSales,
+    filteredWaste,
+    monthlyExpensesTotal,
+    monthlyNetAfterExpenses,
+    monthlySales,
+    productProfitability,
+    wasteByProduct,
+  } = deriveAccountingMetrics({
+    history,
+    expenses,
+    purchaseOrders,
+    wasteRecords,
+    suppliers,
+    accountingRange,
+  });
+
+  const API_BASE = http.defaults.baseURL || '';
   const { t } = useTranslation();
 
   const [isHT, setIsHT] = useState(false);

@@ -25,3 +25,6 @@ nohup.out
 .vercel
 .env*.local
 *.log
+*.db.*
+scratch/
+test_limiter*.py

@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next';
 import React, { useState } from 'react';
 import { useDashboard } from '../DashboardContext';
 import { Users, Plus, Star, Phone, Mail, Trash2, X } from 'lucide-react';
+import type { Customer } from '../types';
 
 const CustomersPanel: React.FC = () => {
   const { isDarkMode, customers, api, addToast, fetchData, showConfirm } = useDashboard();

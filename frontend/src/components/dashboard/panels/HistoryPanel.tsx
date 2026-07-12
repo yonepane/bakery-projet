@@ -4,8 +4,16 @@ import { useDashboard } from '../DashboardContext';
 import { createPortal } from 'react-dom';
 import { FileText, Search, TrendingUp, TrendingDown, Calendar, RotateCcw, X, AlertTriangle, Trash2 } from 'lucide-react';
 
-const RefundModal: React.FC = () => {
-  const { tx, isDarkMode, formatPrice, onConfirm, onCancel, loading } = useDashboard();
+interface RefundProps {
+  tx: any;
+  isDarkMode: boolean;
+  formatPrice: (amount: number) => string;
+  onConfirm: () => Promise<void>;
+  onCancel: () => void;
+  loading: boolean;
+}
+
+const RefundModal: React.FC<RefundProps> = ({ tx, isDarkMode, formatPrice, onConfirm, onCancel, loading }) => {
   const { t } = useTranslation();
   
   // Prevent body scroll when modal is open
@@ -92,7 +100,8 @@ const RefundModal: React.FC = () => {
 };
 
 // ─── Main Panel ───────────────────────────────────────────────────────────────
-const HistoryPanel: React.FC<Props> = ({ isDarkMode, history, formatPrice, openDocument, getDownloadToken, openSelector, API_BASE, api, fetchData, fetchTabData, addToast, showConfirm }) => {
+const HistoryPanel: React.FC = () => {
+  const { isDarkMode, history, formatPrice, openDocument, getDownloadToken, openSelector, API_BASE, api, fetchData, fetchTabData, addToast, showConfirm } = useDashboard();
   const { t } = useTranslation();
 
   const [search, setSearch] = useState('');

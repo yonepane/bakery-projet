@@ -1,16 +1,19 @@
 """External recipe integration routes for BakeryOS."""
 
+import logging
 import os
 import re
 import urllib.parse
 import uuid
 
+logger = logging.getLogger(__name__)
+
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
 
 try:
-    from .. import models
-    from ..auth import get_current_user
+    import models
+    from auth import get_current_user
 except ImportError:
     import models
     from auth import get_current_user
@@ -94,7 +97,7 @@ async def search_external_recipes(
                                 }
                             )
         except Exception as exc:
-            print(f"TheMealDB Error: {exc}")
+            logger.exception("TheMealDB search failed for query %r", query)
 
         sp_key = os.getenv("SPOONACULAR_API_KEY")
         if sp_key:
@@ -115,7 +118,7 @@ async def search_external_recipes(
                                 }
                             )
             except Exception as exc:
-                print(f"Spoonacular Error: {exc}")
+                logger.exception("Spoonacular search failed for query %r", query)
 
         ed_id = os.getenv("EDAMAM_APP_ID")
         ed_key = os.getenv("EDAMAM_APP_KEY")
@@ -140,7 +143,7 @@ async def search_external_recipes(
                                 }
                             )
             except Exception as exc:
-                print(f"Edamam Error: {exc}")
+                logger.exception("Edamam search failed for query %r", query)
 
     return results
 

@@ -6,11 +6,15 @@ import { parseQtyString } from '../utils';
 import SemiFinishedPanel from './SemiFinishedPanel';
 
 const InventoryPanel: React.FC = () => {
-  const { isDarkMode, inventory, sortedMaterialEntries, editMode, formatPrice,
+  const { isDarkMode, inventory, editMode, formatPrice,
   handleAdjustStock, openSelector, startEditingMaterial, handleDeleteMaterial,
   setShowAddProduct, setShowAddMaterial, setEditingMaterialName, setNewMaterial,
   handleUpdateProductPrice, stockLocations, stockLotBalances, semiFinishedItems,
-  onOpenTransferModal, onAddSemiFinished, onEditRecipe, onProduceBatch, onShowCost, } = useDashboard();
+  setShowTransferModal, addToast, setActiveSFItem, setShowRecipeModal, setShowProduceModal, setActiveCostProduct, setShowCostModal } = useDashboard();
+  
+  const sortedMaterialEntries = React.useMemo(() => 
+    Object.entries(inventory?.materials || {}).sort(([a], [b]) => a.localeCompare(b))
+  , [inventory?.materials]);
   const { t } = useTranslation();
   const [lotStatusFilter, setLotStatusFilter] = React.useState<'all' | 'active' | 'quarantined' | 'recalled'>('all');
 
@@ -98,7 +102,7 @@ const InventoryPanel: React.FC = () => {
                           </button>
                         )}
                         <button
-                          onClick={() => onShowCost(p)}
+                          onClick={() => { setActiveCostProduct(p); setShowCostModal(true); }}
                           className={`text-[8px] font-black uppercase tracking-widest px-2 py-1 rounded transition-all ${isDarkMode ? 'bg-white/5 text-white/40 hover:text-gold hover:bg-gold/10' : 'bg-slate-100 text-slate-500 hover:text-slate-900 hover:bg-slate-200'}`}
                         >
                           Cost
@@ -140,7 +144,7 @@ const InventoryPanel: React.FC = () => {
             </tr>
           </thead>
           <tbody className={`divide-y ${isDarkMode ? 'divide-white/5' : 'divide-slate-100'}`}>
-            {sortedMaterialEntries.map(([name, data]) => (
+            {sortedMaterialEntries.map(([name, data]: [string, any]) => (
               <tr key={name} className="group hover:bg-white/[0.02] transition-colors">
                 <td className="px-4 py-5 pl-8">
                   <p className={`font-bold truncate ${isDarkMode ? 'text-cream' : 'text-slate-900'}`}>{name}</p>
@@ -220,7 +224,7 @@ const InventoryPanel: React.FC = () => {
               <option value="quarantined">Quarantined</option>
               <option value="recalled">Recalled</option>
             </select>
-            <button onClick={onOpenTransferModal} className={`px-4 py-2 text-xs font-bold uppercase tracking-widest rounded-lg transition-colors ${isDarkMode ? 'bg-white/10 hover:bg-white/20 text-white' : 'bg-slate-100 hover:bg-slate-200 text-slate-900'}`}>
+            <button onClick={() => setShowTransferModal(true)} className={`px-4 py-2 text-xs font-bold uppercase tracking-widest rounded-lg transition-colors ${isDarkMode ? 'bg-white/10 hover:bg-white/20 text-white' : 'bg-slate-100 hover:bg-slate-200 text-slate-900'}`}>
               Transfer Stock
             </button>
           </div>
@@ -286,9 +290,9 @@ const InventoryPanel: React.FC = () => {
       isDarkMode={isDarkMode}
       semiFinishedItems={semiFinishedItems}
       editMode={editMode}
-      onAddItem={onAddSemiFinished}
-      onEditRecipe={onEditRecipe}
-      onProduceBatch={onProduceBatch}
+      onAddItem={() => addToast(t('use_recipe_to_setup_new_item'), 'info')}
+      onEditRecipe={(item) => { setActiveSFItem(item); setShowRecipeModal(true); }}
+      onProduceBatch={(item) => { setActiveSFItem(item); setShowProduceModal(true); }}
     />
   </div>
   );

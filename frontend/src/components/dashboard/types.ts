@@ -74,7 +74,7 @@ export interface DashboardSharedProps {
   setShowReceiptModal: (v: boolean) => void;
   setShowBookingModal: (v: boolean) => void;
   bookingForm: { name: string; phone: string; date: string; source: 'pos' | 'ledger'; notes?: string };
-  setBookingForm: (f: Partial<Order>) => void;
+  setBookingForm: React.Dispatch<React.SetStateAction<any>>;
   setShowAddProduct: (v: boolean) => void;
   setShowAddMaterial: (v: boolean) => void;
   setShowAddExpense: (v: boolean) => void;
@@ -104,7 +104,7 @@ export interface DashboardSharedProps {
     expires_at?: string;
     location_id?: number | null;
   }>;
-  setPoReceiveDraft: (d: Partial<PurchaseOrder>) => void;
+  setPoReceiveDraft: React.Dispatch<React.SetStateAction<any>>;
 
   // ─── Planner / simulation ─────────────────────────────────────────────────
   simPrices: Record<string, number>;
@@ -124,8 +124,8 @@ export interface DashboardSharedProps {
   generalNote: string;
   setGeneralNote: (n: string) => void;
   isSavingGeneralNote: boolean;
-  handleSaveGeneralNote: () => void;
-  handleDeleteShiftLog: (id: string) => void;
+  handleUpdateGeneralNote: (content: string) => Promise<void>;
+  handleDeleteShiftLog: (id: number) => Promise<void>;
 
   // ─── Sorted material helpers ──────────────────────────────────────────────
   sortedMaterialEntries: [string, Ingredient][];
@@ -147,10 +147,10 @@ export interface DashboardSharedProps {
   openPOModal: (po: PurchaseOrder) => void;
   handleSavePO: () => void;
   handlePartialReceivePO: () => void;
-  handleDeleteStaff: (username: string) => void;
+  handleDeleteStaff: (username: string) => Promise<void>;
   handleDeleteExpense: (id: number) => void;
-  handleDeleteSupplier: (supp: Supplier) => void;
-  handleAddSupplier: () => void;
+  handleDeleteSupplier: (id: number) => Promise<void>;
+  handleAddSupplier: (supplierData: Record<string, unknown>) => Promise<void>;
   handleCreateLocation: (payload: { name: string; type: string; branch_name?: string }) => void;
   handleTransferStock: (payload: { item_type: string; item_id: string; from_location_id: number; to_location_id: number; quantity: number; lot_id?: number | null }) => void;
   handleResetSession: () => void;
@@ -161,12 +161,12 @@ export interface DashboardSharedProps {
   displayUnit: (v: number, unit: string) => string;
   openDocument: (url: string, filename: string) => void;
   getDownloadToken: () => Promise<string>;
-  openSelector: (config: SelectorConfig) => void;
+  openSelector: (config: Omit<{ isOpen: boolean; title: string; label: string; value: string; type: "date" | "text" | "datetime"; onConfirm: (val: string) => void; }, "isOpen">) => void;
   addToast: (msg: string, type?: 'success' | 'error' | 'info') => void;
-  showConfirm: (config: ConfirmConfig) => void;
-  fetchData: () => void;
+  showConfirm: (config: Omit<ConfirmConfig, 'isOpen'>) => void;
+  fetchData: (tab?: string) => void;
   fetchTabData: (tab: string) => void;
-  api: unknown;
+  api: import('axios').AxiosInstance;
 }
 
 // ─── Re-export core types used across panels ──────────────────────────────────
@@ -224,6 +224,7 @@ export interface PlanItem {
 
 export interface Transaction {
   id: string;
+  transaction_id?: string;
   timestamp: string;
   type: string;
   status?: string; // 'completed' | 'refunded'
@@ -328,7 +329,7 @@ export interface DashboardAlert {
   id: string;
   type: string;
   message: string;
-  severity: 'high' | 'medium';
+  severity: 'high' | 'medium' | 'low';
 }
 
 export interface Toast {
@@ -421,6 +422,13 @@ export interface MutationDeps {
   showConfirm: (config: ConfirmConfig) => void;
 }
 
+export type DashboardLanguage = 'en' | 'fr' | 'ar';
+
+export interface AccountingRange {
+  start: string;
+  end: string;
+}
+
 // --- New Interfaces replacing 'any' ---
 export interface Order {
   id: string;
@@ -431,7 +439,7 @@ export interface Order {
   total_price: number;
   deposit_paid: number;
   pickup_date: string;
-  status: 'pending' | 'completed' | 'cancelled';
+  status: 'pending' | 'baking' | 'completed' | 'cancelled';
   notes?: string;
   created_at: string;
 }
@@ -461,14 +469,19 @@ export interface PurchaseOrder {
   created_at: string;
   updated_at?: string;
   total_price?: number;
+  archived?: boolean;
+  date?: string;
 }
 
 export interface PurchasingSuggestion {
-  item_name: string;
-  suggested_qty: number;
+  name: string;
+  suggested_buy: number;
   reason: string;
   current_stock: number;
   supplier_id?: number;
+  unit?: string;
+  min_threshold?: number;
+  estimated_cost?: number;
 }
 
 export interface Staff {
@@ -506,27 +519,34 @@ export interface WasteRecord {
 export interface AccountingFeedItem {
   id: string;
   date: string;
-  description: string;
+  description?: string;
+  label?: string;
+  meta?: string;
+  status?: string;
+  archived?: boolean;
   amount: number;
   type: 'sale' | 'expense' | 'purchase';
   reference?: string;
 }
 
 export interface ProductProfitability {
-  product_id: string;
+  product_id?: string;
   name: string;
   revenue: number;
   cost: number;
   profit: number;
-  margin: number;
-  sales_count: number;
+  margin?: number;
+  sales_count?: number;
+  qty?: number;
 }
 
 export interface WasteByProduct {
-  product_id: string;
+  product_id?: string;
   name: string;
-  waste_quantity: number;
-  waste_cost: number;
+  waste_quantity?: number;
+  waste_cost?: number;
+  qty?: number;
+  loss?: number;
 }
 
 export interface SimulationResult {

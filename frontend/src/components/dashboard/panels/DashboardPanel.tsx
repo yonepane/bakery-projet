@@ -185,8 +185,8 @@ const DashboardPanel: React.FC = () => {
                 <Tooltip 
                   content={({ active, payload, label }) => {
                     if (active && payload && payload.length) {
-                      const rev = payload[0].value || 0;
-                      const cost = payload[1]?.value || 0;
+                      const rev = Number(payload[0].value) || 0;
+                      const cost = Number(payload[1]?.value) || 0;
                       const profit = rev - cost;
                       return (
                         <div className={`p-4 rounded-2xl border backdrop-blur-xl transition-all duration-300 shadow-2xl ${
@@ -278,17 +278,20 @@ const DashboardPanel: React.FC = () => {
               <textarea
                 value={generalNote}
                 onChange={(e) => setGeneralNote(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleUpdateGeneralNote(generalNote); } }}
+                onBlur={() => handleSaveGeneralNote(generalNote)}
+                disabled={isSavingGeneralNote}
                 placeholder={t('type_a_handoff_note')}
-                className={`w-full min-h-[100px] resize-none rounded-2xl border p-4 text-sm leading-relaxed outline-none transition-all ${isDarkMode ? 'bg-white/5 border-white/10 text-cream placeholder:text-cream/20 focus:border-gold/30' : 'bg-slate-50 border-slate-200 text-slate-900 placeholder:text-slate-400 focus:border-slate-400'}`}
+                className={`w-full bg-transparent resize-none outline-none text-sm font-medium leading-relaxed
+                  ${isDarkMode ? 'text-cream/80 placeholder:text-cream/20' : 'text-slate-600 placeholder:text-slate-400'}
+                `}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') {
+                    (e.target as HTMLTextAreaElement).blur();
+                  } else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                    handleSaveGeneralNote(generalNote);
+                  }
+                }}
               />
-              <button
-                onClick={() => handleUpdateGeneralNote(generalNote)}
-                disabled={isSavingGeneralNote || !generalNote.trim()}
-                className={`absolute bottom-3 right-3 p-3 rounded-xl transition-all disabled:opacity-20 ${isDarkMode ? 'bg-gold text-charcoal shadow-gold-glow' : 'bg-slate-900 text-white shadow-xl'}`}
-              >
-                {isSavingGeneralNote ? <div className="w-4 h-4 border-2 border-charcoal/20 border-t-charcoal rounded-full animate-spin" /> : <Send size={16} />}
-              </button>
             </div>
           </div>
         </div>

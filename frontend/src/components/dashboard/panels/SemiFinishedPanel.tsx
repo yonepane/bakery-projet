@@ -2,9 +2,19 @@ import React from 'react';
 import { useDashboard } from '../DashboardContext';
 import { Plus, FlaskConical, ChefHat } from 'lucide-react';
 
+interface Props {
+  isDarkMode: boolean;
+  semiFinishedItems: any[];
+  editMode: boolean;
+  onAddItem: () => void;
+  onEditRecipe: (item: any) => void;
+  onProduceBatch: (item: any) => void;
+}
+
 const SemiFinishedPanel: React.FC<Props> = ({
-  isDarkMode, semiFinishedItems, onAddItem, onEditRecipe, onProduceBatch
-}) => (
+  isDarkMode, semiFinishedItems, editMode, onAddItem, onEditRecipe, onProduceBatch
+}) => {
+  return (
   <div className={`rounded-[2rem] border overflow-hidden transition-colors ${isDarkMode ? 'bg-[#0a0a0b] border-white/5 shadow-glass backdrop-blur-xl' : 'bg-white border-slate-200 shadow-xl'}`}>
     <div className="p-8 border-b border-white/5 flex justify-between items-center">
       <h3 className={`text-xl font-bold luxury-font uppercase ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
@@ -49,7 +59,7 @@ const SemiFinishedPanel: React.FC<Props> = ({
                     <p className={`text-[10px] uppercase tracking-widest ${isDarkMode ? 'text-gold/50' : 'text-slate-400'}`}>{item.unit}</p>
                     {item.allergens && item.allergens.length > 0 && (
                       <div className="allergen-badges">
-                        {item.allergens.map(a => <span key={a} className="allergen-badge">{a}</span>)}
+                        {item.allergens.map((a: string) => <span key={a} className="allergen-badge">{a}</span>)}
                       </div>
                     )}
                   </div>
@@ -99,6 +109,7 @@ const SemiFinishedPanel: React.FC<Props> = ({
       </tbody>
     </table>
   </div>
-);
+  );
+};
 
 export default SemiFinishedPanel;

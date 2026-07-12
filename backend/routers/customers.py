@@ -7,10 +7,10 @@ from fastapi.responses import JSONResponse
 import sqlalchemy.orm
 
 try:
-    from .. import models
-    from ..auth import get_effective_owner_id, requires_roles
-    from ..database import get_db
-    from ..schemas import CustomerCreate, CustomerUpdate
+    import models
+    from auth import get_effective_owner_id, requires_roles
+    from database import get_db
+    from schemas import CustomerCreate, CustomerUpdate
 except ImportError:
     import models
     from auth import get_effective_owner_id, requires_roles

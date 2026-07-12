@@ -15,8 +15,8 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 try:
-    from .. import models
-    from ..auth import (
+    import models
+    from auth import (
         ALGORITHM,
         MIN_PASSWORD_LENGTH,
         SECRET_KEY,
@@ -27,8 +27,8 @@ try:
         get_password_hash,
         verify_password,
     )
-    from ..database import get_db
-    from ..schemas import GoogleLoginRequest, LoginRequest, RefreshRequest, Token
+    from database import get_db
+    from schemas import GoogleLoginRequest, LoginRequest, RefreshRequest, Token
 except ImportError:
     import models
     from auth import (
