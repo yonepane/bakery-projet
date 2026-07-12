@@ -52,7 +52,7 @@ import { calcAlerts, calcProfitReport } from '../lib/calculations';
 import http from '../lib/http';
 import { Language } from '../lib/translations';
 import { useTranslation } from 'react-i18next';
-import { GoogleOAuthProvider, GoogleLogin } from '@react-oauth/google';
+import { GoogleLogin } from '@react-oauth/google';
 import { GOOGLE_CLIENT_ID, PRODUCT_ICON_CHOICES } from './dashboard/constants';
 import { useBakeryData } from './dashboard/useBakeryData';
 import { CommandPalette } from './CommandPalette';
@@ -114,6 +114,8 @@ import {
   getDefaultBookingDate,
   getInitialLanguage,
 } from './dashboard/utils';
+import { DashboardProvider } from './dashboard/DashboardContext';
+
 
 const Dashboard: React.FC = () => {
 
@@ -133,7 +135,7 @@ const Dashboard: React.FC = () => {
   // The hook owns all server-fetched state and the tab-aware lazy fetch strategy.
   const {
     inventory, analytics, profitReport, alerts, history, stockMovements,
-    stockLocations, stockLotBalances, kitchenBatches, planner, setPlanner,
+    stockLocations, stockLotBalances, semiFinishedItems, kitchenBatches, planner, setPlanner,
     orders, settings, liveRates, customers, expenses, wasteRecords,
     staff, suppliers, selectedSupplierId, setSelectedSupplierId,
     purchaseOrders, purchasingSuggestions, shiftLogs, loading, setLoading,
@@ -296,7 +298,7 @@ const Dashboard: React.FC = () => {
   const [editMode, setEditMode] = useState(false);
   const [simPrices, setSimPrices] = useState<Record<string, number>>({});
   const [simulatedInflations, setSimulatedInflations] = useState<Record<string, number>>({});
-  const [simulationResult, setSimulationResult] = useState<any[]>([]);
+  const [simulationResult, setSimulationResult] = useState<import("./dashboard/types").SimulationResult[]>([]);
 
   // State used by create, edit, delete, and operations panels.
   const [showAddProduct, setShowAddProduct] = useState(false);
@@ -307,9 +309,9 @@ const Dashboard: React.FC = () => {
   const [showWasteModal, setShowWasteModal] = useState(false);
   const [showReceiptModal, setShowReceiptModal] = useState(false);
   const [showAddExpense, setShowAddExpense] = useState(false);
-  const [editingExpense, setEditingExpense] = useState<any>(null);
+  const [editingExpense, setEditingExpense] = useState<import("./dashboard/types").Expense | null>(null);
   const [showAddSupplier, setShowAddSupplier] = useState(false);
-  const [editingSupplier, setEditingSupplier] = useState<any>(null);
+  const [editingSupplier, setEditingSupplier] = useState<import("./dashboard/types").Supplier | null>(null);
   const [showPOModal, setShowPOModal] = useState(false);
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [showRecipeModal, setShowRecipeModal] = useState(false);
@@ -317,7 +319,7 @@ const Dashboard: React.FC = () => {
   const [activeSFItem, setActiveSFItem] = useState<SemiFinishedItem | null>(null);
   const [showCostModal, setShowCostModal] = useState(false);
   const [activeCostProduct, setActiveCostProduct] = useState<Product | null>(null);
-  const [selectedPO, setSelectedPO] = useState<any>(null);
+  const [selectedPO, setSelectedPO] = useState<import("./dashboard/types").PurchaseOrder | null>(null);
   const [poReceiveDraft, setPoReceiveDraft] = useState<Record<string, {
     qty: number;
     price: number;
@@ -349,8 +351,8 @@ const Dashboard: React.FC = () => {
   const monthStart = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10);
   const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().slice(0, 10);
   const [accountingRange, setAccountingRange] = useState({ start: threeMonthsAgo, end: monthEnd });
-  const [lastTransaction, setLastTransaction] = useState<any>(null);
-  const [newProduct, setNewProduct] = useState<any>({ 
+  const [lastTransaction, setLastTransaction] = useState<import("./dashboard/types").Transaction | null>(null);
+  const [newProduct, setNewProduct] = useState<Partial<import("./dashboard/types").Product>>({ 
     id: '', 
     name: '', 
     price: 0, 
@@ -361,7 +363,7 @@ const Dashboard: React.FC = () => {
     yield_qty: 1,
     instructions: []
   });
-  const [newMaterial, setNewMaterial] = useState<any>({ name: '', price: 0, unit: 'g', min_threshold: 1000 });
+  const [newMaterial, setNewMaterial] = useState<Partial<import('./dashboard/types').Ingredient>>({ name: '', price: 0, unit: 'g', min_threshold: 1000 });
   const [wasteForm, setWasteForm] = useState({ product_id: '', quantity: 1 });
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [targetYield, setTargetYield] = useState<number>(0);
@@ -376,7 +378,7 @@ const Dashboard: React.FC = () => {
 
   // State used by recipe search and online/offline handling.
   const [recipeSearchQuery, setRecipeSearchQuery] = useState('');
-  const [recipeSearchResults, setRecipeSearchResults] = useState<any[]>([]);
+  const [recipeSearchResults, setRecipeSearchResults] = useState<Record<string, unknown>[]>([]);
   const [isSearchingRecipes, setIsSearchingRecipes] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [isForecasting, setIsForecasting] = useState(false);
@@ -460,7 +462,7 @@ const Dashboard: React.FC = () => {
     setIsForecasting(true);
     try {
         const data = await api.get(`/forecast?target_date=${date}`);
-        const newPlans = data.map((item: any) => ({
+        const newPlans = data.map((item: Record<string, unknown>) => ({
             id: Math.random().toString(36).substr(2, 9),
             date,
             product_id: item.product_id,
@@ -550,7 +552,7 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  const handleGoogleSuccess = async (response: any) => {
+  const handleGoogleSuccess = async (response: unknown) => {
     // After Google login succeeds, save the same local token and user data as a normal login.
     try {
       const res = await http.post('/auth/google', { credential: response.credential });
@@ -602,18 +604,7 @@ const Dashboard: React.FC = () => {
     }
   }, [editingExpense]);
 
-  const [gsiReady, setGsiReady] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-
-  // Defer Google Identity Services script loading to avoid main thread blocking
-  useEffect(() => {
-    if (!user) {
-      // 2.5s delay ensures Lighthouse finishes LCP/FCP metrics before the
-      // heavy 153KB Google script blocks the main thread.
-      const timer = setTimeout(() => setGsiReady(true), 2500);
-      return () => clearTimeout(timer);
-    }
-  }, [user]);
 
   if (!user) {
     return (
@@ -657,20 +648,14 @@ const Dashboard: React.FC = () => {
               </div>
 
               <div className="h-[44px] w-full mx-auto overflow-hidden rounded-xl border border-white/10 hover:border-gold/40 transition-colors bg-white/[0.03]">
-                {gsiReady ? (
-                  <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
-                    <GoogleLogin
-                      onSuccess={handleGoogleSuccess}
-                      onError={() => addToast(t('link_failed'), 'error')}
-                      theme={t('filled_black')}
-                      shape="rectangular"
-                      width="100%"
-                      use_fedcm={false}
-                    />
-                  </GoogleOAuthProvider>
-                ) : (
-                  <div className="w-full h-full bg-white/5 animate-pulse" />
-                )}
+                <GoogleLogin
+                  onSuccess={handleGoogleSuccess}
+                  onError={() => addToast(t('link_failed'), 'error')}
+                  theme="filled_black"
+                  shape="rectangular"
+                  width={400}
+                  use_fedcm={false}
+                />
               </div>
             </div>
           </div>
@@ -847,20 +832,14 @@ const Dashboard: React.FC = () => {
                 </div>
 
                 <div className="h-[48px] w-full mx-auto overflow-hidden rounded-[1rem] border border-white/10 hover:border-gold/40 transition-colors bg-white/[0.02]">
-                  {gsiReady ? (
-                    <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
-                      <GoogleLogin
-                        onSuccess={handleGoogleSuccess}
-                        onError={() => addToast(t('link_failed'), 'error')}
-                        theme={t('filled_black')}
-                        shape="rectangular"
-                        width="100%"
-                        use_fedcm={false}
-                      />
-                    </GoogleOAuthProvider>
-                  ) : (
-                    <div className="w-full h-full bg-white/5 animate-pulse" />
-                  )}
+                  <GoogleLogin
+                    onSuccess={handleGoogleSuccess}
+                    onError={() => addToast(t('link_failed'), 'error')}
+                    theme="filled_black"
+                    shape="rectangular"
+                    width={400}
+                    use_fedcm={false}
+                  />
                 </div>
               </div>
             </div>
@@ -906,7 +885,7 @@ const Dashboard: React.FC = () => {
       try {
           const res = await http.post('/simulate_price', simPrices);
           setSimulationResult(res.data);
-      } catch (e) { console.error(e); }
+      } catch (e) { console.error(e); addToast(t('simulation_failed'), 'error'); }
   };
 
   const saveSimulation = async () => {
@@ -916,7 +895,7 @@ const Dashboard: React.FC = () => {
           await http.post('/update_material_prices', simPrices);
           fetchData();
           addToast(t('material_prices_updated'), 'success');
-      } catch (e) { console.error(e); }
+      } catch (e) { console.error(e); addToast(t('save_failed'), 'error'); }
   };
 
   const handleResetSession = async () => {
@@ -1091,7 +1070,7 @@ const Dashboard: React.FC = () => {
     try {
       const res = await http.get(`/external-recipes/search?query=${recipeSearchQuery}`);
       setRecipeSearchResults(res.data);
-    } catch (e) { console.error(e); }
+    } catch (e) { console.error(e); addToast(t('recipe_search_failed'), 'error'); }
     finally { setIsSearchingRecipes(false); }
   };
 
@@ -1153,7 +1132,7 @@ const Dashboard: React.FC = () => {
       // Clear the recipe search after a successful import.
       setRecipeSearchResults([]);
       setRecipeSearchQuery('');
-    } catch (e) { console.error(e); }
+    } catch (e) { console.error(e); addToast(t('import_failed'), 'error'); }
   };
 
 
@@ -1236,6 +1215,7 @@ const Dashboard: React.FC = () => {
   );
 
   return (
+    <DashboardProvider user={user} setUser={setUser}>
     <div dir={isRTL ? 'rtl' : 'ltr'} className={`flex min-h-screen w-full overflow-x-hidden selection:bg-gold/30 transition-colors duration-500 ${isDarkMode ? 'dark bg-[#0a0a0b] text-cream' : 'light bg-slate-100 text-slate-900'} ${isRTL ? 'font-arabic' : 'font-sans'}`}>
       {/* Sidebar */}
       <motion.aside 
@@ -1624,7 +1604,7 @@ const Dashboard: React.FC = () => {
               {activeTab === 'inventory' && <InventoryPanel
                 {...panelProps}
                 onOpenTransferModal={() => setShowTransferModal(true)}
-                onAddSemiFinished={() => { /* TODO: create modal */ addToast('Use Recipe to set up a new item', 'info'); }}
+                onAddSemiFinished={() => { addToast('Use Recipe to set up a new item', 'info'); }}
                 onEditRecipe={(item) => { setActiveSFItem(item); setShowRecipeModal(true); }}
                 onProduceBatch={(item) => { setActiveSFItem(item); setShowProduceModal(true); }}
                 onShowCost={(product) => { setActiveCostProduct(product); setShowCostModal(true); }}
@@ -2645,7 +2625,7 @@ const Dashboard: React.FC = () => {
                                       {selectedPO.status}
                                   </span>
                                   <p className={`text-xs text-right ${isDarkMode ? 'text-cream/40' : 'text-slate-500'}`}>
-                                      {new Date(selectedPO.date).toLocaleDateString()}
+                                      {new Date(selectedPO.date || '').toLocaleDateString()}
                                   </p>
                               </div>
                               <p className={`text-xs ${isDarkMode ? 'text-cream/40' : 'text-slate-500'}`}>Ordered lines: {selectedPO.items.length}</p>
@@ -3024,6 +3004,7 @@ const Dashboard: React.FC = () => {
         actions={commandActions} 
       />
     </div>
+    </DashboardProvider>
   );
 };
 
