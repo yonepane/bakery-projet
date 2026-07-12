@@ -11,7 +11,7 @@ import React, { createContext, useContext, useState, useEffect, useRef, useCallb
 import { useTranslation } from 'react-i18next';
 import { api, processSyncQueue } from '../../lib/api';
 import http from '../../lib/http';
-import { Language } from '../../lib/translations';
+import { type Language } from '../../i18n';
 import {
   CartItem,
   ConfirmConfig,

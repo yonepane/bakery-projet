@@ -50,7 +50,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import { api, processSyncQueue } from '../lib/api';
 import { calcAlerts, calcProfitReport } from '../lib/calculations';
 import http from '../lib/http';
-import { Language } from '../lib/translations';
+import { type Language } from '../i18n';
 import { useTranslation } from 'react-i18next';
 import { GoogleLogin } from '@react-oauth/google';
 import { GOOGLE_CLIENT_ID, PRODUCT_ICON_CHOICES } from './dashboard/constants';
