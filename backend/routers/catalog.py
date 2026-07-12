@@ -392,8 +392,26 @@ class RecipeItemUpdate(BaseModel):
     semi_finished_id: Optional[int] = None
     quantity: float
 
+class RecipeOutputCreate(BaseModel):
+    product_id: str
+    output_type: str = "main_product"  # main_product, byproduct, trim_loss, waste
+    output_quantity: float
+    output_unit: str
+    cost_allocation_pct: float = 100.0
+
+class RecipeSubstitutionCreate(BaseModel):
+    recipe_line_index: int  # index in the recipe_lines array
+    original_ingredient_id: int
+    substitute_ingredient_id: int
+    conversion_factor: float = 1.0
+    cost_delta_per_unit: float = 0.0
+    is_active: bool = True
+    notes: Optional[str] = None
+
 class RecipeUpdateRequest(BaseModel):
     items: List[RecipeItemUpdate]
+    outputs: List[RecipeOutputCreate] = []
+    substitutions: List[RecipeSubstitutionCreate] = []
 
 @router.put("/api/catalog/{product_id}/recipe", dependencies=[Depends(requires_roles(["owner"]))])
 async def update_product_recipe(
@@ -461,20 +479,78 @@ async def update_product_recipe(
                 "unit": sf.unit,
             })
 
-    snap = models.RecipeSnapshot(
-        owner_id=owner_id,
-        product_id=product_id,
-        changed_by_user_id=current_user.id,
-        snapshot=snapshot_lines,
-    )
-    db.add(snap)
+        snap = models.RecipeSnapshot(
+            owner_id=owner_id,
+            product_id=product_id,
+            changed_by_user_id=current_user.id,
+            snapshot=snapshot_lines,
+        )
+        db.add(snap)
 
-    # ── Phase 3 — Recipe versioning ──────────────────────────────────────
-    archive_previous_active_and_create_new_version(
+        # Phase 3 follow-up: Handle recipe outputs (multi-product recipes)
+    for output in body.outputs:
+        output_product = db.query(models.Product).filter(
+            models.Product.id == output.product_id,
+            models.Product.owner_id == owner_id,
+        ).first()
+        if not output_product:
+            raise HTTPException(status_code=400, detail=f"Output product {output.product_id} not found")
+        out = models.RecipeVersionOutput(
+            owner_id=owner_id,
+            recipe_version_id=None,  # Will be set after version creation
+            product_id=output.product_id,
+            output_type=output.output_type,
+            output_quantity=output.output_quantity,
+            output_unit=output.output_unit,
+            cost_allocation_pct=output.cost_allocation_pct,
+        )
+        db.add(out)
+
+    # Phase 3 follow-up: Handle ingredient substitutions
+    for sub in body.substitutions:
+        original_ing = db.query(models.Ingredient).filter(
+            models.Ingredient.id == sub.original_ingredient_id,
+            models.Ingredient.owner_id == owner_id,
+        ).first()
+        if not original_ing:
+            raise HTTPException(status_code=400, detail=f"Original ingredient {sub.original_ingredient_id} not found")
+        sub_ing = db.query(models.Ingredient).filter(
+            models.Ingredient.id == sub.substitute_ingredient_id,
+            models.Ingredient.owner_id == owner_id,
+        ).first()
+        if not sub_ing:
+            raise HTTPException(status_code=400, detail=f"Substitute ingredient {sub.substitute_ingredient_id} not found")
+        sub_rec = models.RecipeVersionIngredientSubstitution(
+            owner_id=owner_id,
+            recipe_version_id=None,  # Will be set after version creation
+            recipe_line_index=sub.recipe_line_index,
+            original_ingredient_id=sub.original_ingredient_id,
+            substitute_ingredient_id=sub.substitute_ingredient_id,
+            conversion_factor=sub.conversion_factor,
+            cost_delta_per_unit=sub.cost_delta_per_unit,
+            is_active=sub.is_active,
+            notes=sub.notes,
+        )
+        db.add(sub_rec)
+
+    # Phase 3 — Recipe versioning
+    version = archive_previous_active_and_create_new_version(
         db, owner_id, product_id, snapshot_lines,
         product, current_user.id,
     )
-    # ─────────────────────────────────────────────────────────────────────
+
+    # Link outputs and substitutions to the new version
+    for out in db.query(models.RecipeVersionOutput).filter(
+        models.RecipeVersionOutput.recipe_version_id == None,
+        models.RecipeVersionOutput.owner_id == owner_id,
+    ).all():
+        out.recipe_version_id = version.id
+
+    for sub in db.query(models.RecipeVersionIngredientSubstitution).filter(
+        models.RecipeVersionIngredientSubstitution.recipe_version_id == None,
+        models.RecipeVersionIngredientSubstitution.owner_id == owner_id,
+    ).all():
+        sub.recipe_version_id = version.id
 
     db.commit()
     return {"success": True}
@@ -635,3 +711,86 @@ async def get_cost_breakdown(
         "lines": lines,
         "history": history,
     }
+
+# Phase 3 follow-up — Multi-output and substitution endpoints
+
+@router.get("/api/catalog/{product_id}/recipe-outputs", dependencies=[Depends(requires_roles(["owner"]))])
+async def get_recipe_outputs(
+    product_id: str,
+    db: sqlalchemy.orm.Session = Depends(get_db),
+    owner_id: int = Depends(get_effective_owner_id),
+):
+    """Get all outputs for the product's active recipe version."""
+    version = (
+        db.query(models.RecipeVersion)
+        .filter(
+            models.RecipeVersion.product_id == product_id,
+            models.RecipeVersion.owner_id == owner_id,
+            models.RecipeVersion.status == "active",
+        )
+        .first()
+    )
+    if not version:
+        raise HTTPException(status_code=404, detail="No active recipe version for product")
+    
+    outputs = db.query(models.RecipeVersionOutput).filter(
+        models.RecipeVersionOutput.recipe_version_id == version.id
+    ).all()
+    
+    return [
+        {
+            "id": out.id,
+            "product_id": out.product_id,
+            "product_name": out.product.name if out.product else None,
+            "output_type": out.output_type,
+            "output_quantity": out.output_quantity,
+            "output_unit": out.output_unit,
+            "cost_allocation_pct": out.cost_allocation_pct,
+        }
+        for out in outputs
+    ]
+
+
+@router.get("/api/catalog/{product_id}/recipe-substitutions", dependencies=[Depends(requires_roles(["owner"]))])
+async def get_recipe_substitutions(
+    product_id: str,
+    db: sqlalchemy.orm.Session = Depends(get_db),
+    owner_id: int = Depends(get_effective_owner_id),
+):
+    """Get all active ingredient substitutions for the product's active recipe version."""
+    version = (
+        db.query(models.RecipeVersion)
+        .filter(
+            models.RecipeVersion.product_id == product_id,
+            models.RecipeVersion.owner_id == owner_id,
+            models.RecipeVersion.status == "active",
+        )
+        .first()
+    )
+    if not version:
+        raise HTTPException(status_code=404, detail="No active recipe version for product")
+    
+    subs = db.query(models.RecipeVersionIngredientSubstitution).filter(
+        models.RecipeVersionIngredientSubstitution.recipe_version_id == version.id,
+        models.RecipeVersionIngredientSubstitution.is_active == True,
+    ).all()
+    
+    return [
+        {
+            "id": sub.id,
+            "recipe_line_index": sub.recipe_line_index,
+            "original_ingredient": {
+                "id": sub.original_ingredient.id,
+                "name": sub.original_ingredient.name,
+            } if sub.original_ingredient else None,
+            "substitute_ingredient": {
+                "id": sub.substitute_ingredient.id,
+                "name": sub.substitute_ingredient.name,
+                "price": sub.substitute_ingredient.price,
+            } if sub.substitute_ingredient else None,
+            "conversion_factor": sub.conversion_factor,
+            "cost_delta_per_unit": sub.cost_delta_per_unit,
+            "notes": sub.notes,
+        }
+        for sub in subs
+    ]

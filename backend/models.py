@@ -64,9 +64,19 @@ class RecipeItem(Base):
     ingredient_id = Column(Integer, ForeignKey("ingredients.id"), nullable=True)
     semi_finished_id = Column(Integer, ForeignKey("semi_finished_items.id"), nullable=True)
     quantity = Column(Float)
-    
+
+    # Phase 3 follow-up — ingredient substitution: if the primary ingredient
+    # is out of stock, this ingredient is an acceptable substitute.
+    # The cost engine uses the substitute's price when the primary isn't available.
+    substitutes_for_ingredient_id = Column(
+        Integer, ForeignKey("ingredients.id"), nullable=True, index=True
+    )
+
     product = relationship("Product", back_populates="recipe_items")
-    ingredient = relationship("Ingredient")
+    ingredient = relationship("Ingredient", foreign_keys=[ingredient_id])
+    substitute_ingredient = relationship(
+        "Ingredient", foreign_keys=[substitutes_for_ingredient_id]
+    )
     semi_finished = relationship("SemiFinishedItem")
 
 class Transaction(Base):
@@ -430,6 +440,38 @@ class RecipeVersion(Base):
         UniqueConstraint("owner_id", "product_id", "version_number", name="uq_recipe_version_owner_product_number"),
     )
 
+
+class RecipeVersionIngredientSubstitution(Base):
+    """Phase 3 follow-up — Ingredient substitutions within a recipe version.
+
+    Allows defining an alternative ingredient for a specific recipe line,
+    with cost impact tracking. When the primary ingredient is unavailable,
+    the substitution can be used automatically (or with approval).
+    """
+    __tablename__ = "recipe_version_ingredient_substitutions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    owner_id = Column(Integer, ForeignKey("users.id"), index=True)
+    recipe_version_id = Column(Integer, ForeignKey("recipe_versions.id"), index=True)
+    recipe_line_index = Column(Integer)  # index into recipe_lines JSON array
+    # The original ingredient that this substitution replaces
+    original_ingredient_id = Column(Integer, ForeignKey("ingredients.id"))
+    # The substitute ingredient
+    substitute_ingredient_id = Column(Integer, ForeignKey("ingredients.id"))
+    # Conversion factor: how many units of substitute replace 1 unit of original
+    conversion_factor = Column(Float, default=1.0)
+    # Whether this substitution is currently enabled/approved
+    is_active = Column(Boolean, default=True)
+    # Cost delta per unit (substitute_cost - original_cost)
+    cost_delta_per_unit = Column(Float, default=0.0)
+    # Notes on why this substitution exists
+    notes = Column(String, nullable=True)
+
+    recipe_version = relationship("RecipeVersion")
+    original_ingredient = relationship("Ingredient", foreign_keys=[original_ingredient_id])
+    substitute_ingredient = relationship("Ingredient", foreign_keys=[substitute_ingredient_id])
+
+
 class ProductionBatch(Base):
     """Tracks a specific production run through kitchen stages."""
     __tablename__ = "production_batches"
@@ -463,6 +505,32 @@ class ProductionBatch(Base):
     assigned_to = relationship("User", foreign_keys=[assigned_to_id])
     product = relationship("Product")
     recipe_version = relationship("RecipeVersion")
+
+
+class RecipeVersionOutput(Base):
+    """Phase 3 follow-up — Multiple outputs from a single recipe version.
+
+    A recipe version (e.g. sponge recipe) can produce multiple products:
+    - main product (sponge cake)
+    - byproducts (trimmings, off-cuts)
+    - secondary products (cupcakes from excess batter)
+
+    Each output gets a share of the recipe's total cost, enabling accurate
+    per-unit cost for every produced item.
+    """
+    __tablename__ = "recipe_version_outputs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    owner_id = Column(Integer, ForeignKey("users.id"), index=True)
+    recipe_version_id = Column(Integer, ForeignKey("recipe_versions.id"), index=True)
+    product_id = Column(String, ForeignKey("products.id"), index=True)
+    output_type = Column(String, default="main_product")  # main_product, byproduct, trim_loss, waste
+    output_quantity = Column(Float)  # how many units of product per recipe execution
+    output_unit = Column(String)  # unit of the output (e.g. "pcs", "kg")
+    cost_allocation_pct = Column(Float, default=100.0)  # % of recipe cost allocated to this output
+
+    recipe_version = relationship("RecipeVersion")
+    product = relationship("Product")
 
 
 class TemperatureLog(Base):
