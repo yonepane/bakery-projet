@@ -88,6 +88,7 @@ const IntelligencePanel = React.lazy(() => import('./dashboard/panels/Intelligen
 const KitchenPanel = React.lazy(() => import('./dashboard/panels/KitchenPanel'));
 const KitchenBoardPanel = React.lazy(() => import('./dashboard/panels/KitchenBoardPanel'));
 const CustomersPanel = React.lazy(() => import('./dashboard/panels/CustomersPanel'));
+const ForecastPanel = React.lazy(() => import('./dashboard/panels/ForecastPanel'));
 import {
   useInventoryMutations,
   useProductMutations,
@@ -404,6 +405,7 @@ const Dashboard: React.FC = () => {
     { id: 'fiche', label: t('fiche') },
     { id: 'purchasing', label: t('purchasing') },
     { id: 'simulator', label: t('simulator') },
+    { id: 'forecast', label: t('forecast') || 'Forecast' },
     { id: 'history', label: t('history') },
     { id: 'stock_movements', label: 'Stock Ledger' },
     { id: 'planner', label: t('planner') },
@@ -415,7 +417,7 @@ const Dashboard: React.FC = () => {
     { id: 'customers', label: t('customers') }
   ];
 
-  const cashierRestrictedTabs = ['simulator', 'inventory', 'purchasing', 'intelligence', 'staff', 'stock_movements', 'expenses', 'comptabilite'];
+  const cashierRestrictedTabs = ['simulator', 'inventory', 'purchasing', 'intelligence', 'staff', 'stock_movements', 'expenses', 'comptabilite', 'forecast'];
 
   const filteredNavItems = allNavItems.filter(item => {
     if (user?.role === 'cashier' && cashierRestrictedTabs.includes(item.id)) return false;
@@ -1425,6 +1427,7 @@ const Dashboard: React.FC = () => {
                 {activeTab === 'kitchen' && t('kitchen')}
                 {activeTab === 'kitchen_board' && 'Kitchen Board'}
                 {activeTab === 'intelligence' && 'Intelligence'}
+                {activeTab === 'forecast' && (t('forecast') || 'Forecast')}
                 {activeTab === 'orders' && t('orders')}
                 {activeTab === 'staff' && t('staff')}
                 {activeTab === 'settings' && t('settings')}
@@ -1640,6 +1643,7 @@ const Dashboard: React.FC = () => {
               {activeTab === 'stock_movements' && <StockMovementsPanel {...panelProps} />}
               {activeTab === 'kitchen' && <KitchenPanel {...panelProps} />}
               {activeTab === 'intelligence' && <IntelligencePanel {...panelProps} />}
+              {activeTab === 'forecast' && <ForecastPanel {...panelProps} />}
               {activeTab === 'planner' && <PlannerPanel {...panelProps} />}
               {activeTab === 'orders' && <OrdersPanel {...panelProps} />}
               {activeTab === 'purchasing' && <PurchasingPanel {...panelProps} />}
