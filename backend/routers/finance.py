@@ -1,13 +1,16 @@
-"""Expenses, exports, and shift-closing routes for BakeryOS."""
+"""Expenses, exports, and shift-closing routes for BakeryOS.
 
-import csv
+Routers handle only HTTP concerns: auth, parameter parsing, and response wrapping.
+DB aggregation and CSV building is delegated to services/finance_summary.
+"""
 from datetime import datetime, timedelta, timezone
-from io import StringIO
 
 import sqlalchemy.orm
 from sqlalchemy.orm import joinedload
 from fastapi import APIRouter, Depends
 from fastapi.responses import Response
+
+from services.finance_summary import _csv_safe
 
 try:
     import models
@@ -23,15 +26,7 @@ except ImportError:
 router = APIRouter()
 
 
-def _csv_safe(value):
-    """Prevent spreadsheet formula injection in exported CSV cells."""
-    if not isinstance(value, str):
-        return value
-    value = value.replace("\x00", "").strip()
-    if value.startswith(("=", "+", "-", "@")):
-        return "'" + value
-    return value
-
+# ── Expenses CRUD ─────────────────────────────────────────────────────────────
 
 @router.get("/api/expenses", dependencies=[Depends(requires_roles(["owner"]))])
 async def get_expenses(
@@ -60,7 +55,7 @@ async def add_expense(
     new_exp = models.Expense(**exp_data, owner_id=owner_id)
     db.add(new_exp)
     db.flush()
-    
+
     if exp.payments:
         for p in exp.payments:
             payment = models.ExpensePayment(
@@ -70,7 +65,7 @@ async def add_expense(
                 paid_at=datetime.fromisoformat(p.paid_at) if p.paid_at else datetime.now(timezone.utc)
             )
             db.add(payment)
-            
+
     db.commit()
     return {"success": True}
 
@@ -94,9 +89,7 @@ async def update_expense(
     for key, val in exp_data.items():
         setattr(existing, key, val)
 
-    # Re-sync payments if provided
     if exp.payments is not None:
-        # Delete old payments and re-create
         db.query(models.ExpensePayment).filter(
             models.ExpensePayment.expense_id == expense_id
         ).delete()
@@ -132,6 +125,8 @@ async def delete_expense(
     return {"success": True}
 
 
+# ── Accounting CSV Export ─────────────────────────────────────────────────────
+
 @router.get("/api/accounting/export", dependencies=[Depends(requires_roles(["owner"]))])
 async def export_accounting(
     start: str,
@@ -139,6 +134,9 @@ async def export_accounting(
     db: sqlalchemy.orm.Session = Depends(get_db),
     owner_id: int = Depends(get_effective_owner_id),
 ):
+    from io import StringIO
+    import csv
+
     start_date = datetime.fromisoformat(start)
     end_date = datetime.fromisoformat(end) + timedelta(days=1)
 
@@ -183,6 +181,8 @@ async def export_accounting(
         headers={"Content-Disposition": f'attachment; filename="accounting-{start}-to-{end}.csv"'},
     )
 
+
+# ── Maintenance ────────────────────────────────────────────────────────────────
 
 @router.post("/api/maintenance/reset-session", dependencies=[Depends(requires_roles(["owner"]))])
 async def reset_session(
