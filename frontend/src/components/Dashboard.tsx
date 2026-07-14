@@ -916,7 +916,7 @@ const DashboardInner: React.FC = () => {
           item={activeSFItem} 
           rawMaterials={inventory.materials} 
           onSave={(itemId, lines) => {
-            // Handle recipe save
+            handleSaveRecipe(itemId, lines);
           }} 
           isDarkMode={isDarkMode} 
         />}

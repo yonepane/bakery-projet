@@ -46,6 +46,7 @@ interface MutationContextValue {
   handleSaveRecipe: ReturnType<typeof useSemiFinishedMutations>['handleSaveRecipe'];
   handleProduceBatch: ReturnType<typeof useSemiFinishedMutations>['handleProduceBatch'];
   handleCreateSemiFinished: ReturnType<typeof useSemiFinishedMutations>['handleCreateSemiFinished'];
+  handleDeleteSemiFinished: ReturnType<typeof useSemiFinishedMutations>['handleDeleteSemiFinished'];
   handleAdvanceStage: ReturnType<typeof useKitchenMutations>['handleAdvanceStage'];
   isKitchenUpdating: boolean;
 }
@@ -87,11 +88,9 @@ export const MutationProvider: React.FC<MutationProviderProps> = ({ children }) 
       ...purchasingMutations,
       ...staffMutations,
       ...plannerMutations,
-      handleSaveRecipe: () => Promise.resolve(),
-      handleProduceBatch: () => Promise.resolve(),
-      handleCreateSemiFinished: () => Promise.resolve(),
-      handleAdvanceStage: () => Promise.resolve(),
-      isKitchenUpdating: false,
+      ...sfMutations,
+      handleAdvanceStage: kitchenMutations.handleAdvanceStage,
+      isKitchenUpdating: kitchenMutations.isUpdating,
     }}>
     {children}
     </MutationContext.Provider>

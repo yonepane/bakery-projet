@@ -6,8 +6,8 @@ import { Calendar, Plus, Trash2, Lock, X, CheckCircle, Users, Search } from 'luc
 import { QRCodeSVG } from 'qrcode.react';
 
 const HoldableButton: React.FC<{ onClick: () => void; className?: string; children: React.ReactNode }> = ({ onClick, className, children }) => {
-  const holdIntervalRef = React.useRef<NodeJS.Timeout | null>(null);
-  const holdTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+  const holdIntervalRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
+  const holdTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const startHold = (e: React.PointerEvent) => {
     // Only start on primary mouse button or touch
