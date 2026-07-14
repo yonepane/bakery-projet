@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import React from 'react';
 import { useDashboard } from '../DashboardContext';
+import type { Product } from '../types';
 import { Brain, TrendingUp, TrendingDown, Zap, Trophy, Star, Sparkles, ArrowUpRight, Activity, Coins, ShieldAlert, Layers, Percent } from 'lucide-react';
 
 const IntelligencePanel: React.FC = () => {
@@ -26,7 +27,7 @@ const IntelligencePanel: React.FC = () => {
 
   // Normalize the profit report — backend may return product_name/cost_price/selling_price
   // or name/unit_cost/sell_price depending on cache state. Support both shapes.
-  const normalizedReport = (profitReport.length > 0 ? profitReport : inventory.products.map(p => ({
+  const normalizedReport = (profitReport.length > 0 ? profitReport : inventory.products.map((p: Product) => ({
     product_name: p.name,
     name: p.name,
     icon: p.icon,
@@ -45,7 +46,7 @@ const IntelligencePanel: React.FC = () => {
   }));
 
   const topProduct = [...normalizedReport].sort((a, b) => b.margin - a.margin)[0];
-  const atRisk = normalizedReport.filter(p => p.margin < 25);
+  const atRisk = normalizedReport.filter((p: { margin: number }) => p.margin < 25);
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
@@ -328,7 +329,7 @@ const IntelligencePanel: React.FC = () => {
             </tr>
           </thead>
           <tbody className={`divide-y ${isDarkMode ? 'divide-white/5' : 'divide-slate-100'}`}>
-            {normalizedReport.map((p, i) => {
+            {normalizedReport.map((p: { name: string; icon: string; sellPrice: number; unitCost: number; margin: number; roi: number }, i: number) => {
               const isHealthy = p.margin >= 25;
               return (
                 <tr key={i} className="group hover:bg-white/[0.02] transition-colors">

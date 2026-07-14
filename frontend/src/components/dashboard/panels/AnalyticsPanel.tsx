@@ -1,13 +1,14 @@
 import { useTranslation } from 'react-i18next';
 import React, { useMemo } from 'react';
 import { useDashboard } from '../DashboardContext';
+import type { Product, Ingredient } from '../types';
 import { FileText, Plus, TrendingUp, X } from 'lucide-react';
 import { BarChart, Bar, XAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { motion } from 'framer-motion';
 
 const PIE_COLORS = ['#d4af37', '#b8860b', '#f3e5ab', '#10b981', '#f43f5e'];
 
-const CustomTooltip = ({ active, payload, label, isDarkMode }: any) => {
+const CustomTooltip = ({ active, payload, label, isDarkMode }: { active?: boolean; payload?: any[]; label?: string; isDarkMode: boolean }) => {
   if (active && payload && payload.length) {
     return (
       <div className={`p-4 luxury-card ${isDarkMode ? 'shadow-gold-glow' : 'shadow-xl'}`}>
@@ -30,7 +31,7 @@ const AnalyticsPanel: React.FC = () => {
 
   const allIngredients = useMemo(() => {
     const ingredients = new Set<string>();
-    inventory.products.forEach(p => p.ingredients.forEach(ing => ingredients.add(ing.name)));
+    inventory.products.forEach((p: Product) => p.ingredients.forEach((ing: { name: string; quantity: number }) => ingredients.add(ing.name)));
     return Array.from(ingredients).sort();
   }, [inventory]);
 
@@ -154,15 +155,15 @@ const AnalyticsPanel: React.FC = () => {
         <div className="space-y-4">
           <h4 className={`text-[11px] font-black uppercase tracking-[0.3em] mb-6 ${isDarkMode ? 'text-gold' : 'text-slate-500'}`}>{t('product_price_adjustment_profi')}</h4>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {inventory.products.map(p => {
+            {inventory.products.map((p: Product) => {
               // 1. Calculate Old vs New Cost
-              const oldCost = p.ingredients.reduce((sum, ing) => {
+              const oldCost = p.ingredients.reduce((sum: number, ing: { name: string; quantity: number }) => {
                 const mat = inventory.materials[ing.name];
                 const factor = mat && ['kg', 'L', 'l'].includes(mat.unit) ? 1000 : 1;
                 return sum + ((ing.quantity / factor) * (mat ? mat.price : 0));
               }, 0) || p.live_cost || 0;
 
-              const newCost = p.ingredients.reduce((sum, ing) => {
+              const newCost = p.ingredients.reduce((sum: number, ing: { name: string; quantity: number }) => {
                 const mat = inventory.materials[ing.name];
                 const factor = mat && ['kg', 'L', 'l'].includes(mat.unit) ? 1000 : 1;
                 const basePrice = mat ? mat.price : 0;
@@ -260,14 +261,14 @@ const AnalyticsPanel: React.FC = () => {
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie data={analytics.topProducts} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
-                  {analytics.topProducts.map((_, idx) => <Cell key={idx} fill={PIE_COLORS[idx % 5]} />)}
+                  {analytics.topProducts.map((_: any, idx: number) => <Cell key={idx} fill={PIE_COLORS[idx % 5]} />)}
                 </Pie>
                 <Tooltip content={<CustomTooltip isDarkMode={isDarkMode} />} />
               </PieChart>
             </ResponsiveContainer>
           </div>
           <div className="flex flex-wrap justify-center gap-4 mt-4">
-            {analytics.topProducts.map((p, i) => (
+            {analytics.topProducts.map((p: { name: string }, i: number) => (
               <div key={i} className="flex items-center gap-2">
                 <div className="w-2 h-2 rounded-full" style={{ backgroundColor: PIE_COLORS[i % 5] }} />
                 <span className="text-[11px] font-bold uppercase tracking-widest opacity-60">{p.name}</span>

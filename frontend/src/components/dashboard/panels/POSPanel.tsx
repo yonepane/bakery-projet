@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import React, { useState, useEffect } from 'react';
 import { useDashboard } from '../DashboardContext';
+import type { Product } from '../types';
 import { Calendar, Plus, Trash2, Lock, X, CheckCircle, Users, Search } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 
@@ -57,7 +58,7 @@ const POSPanel: React.FC = () => {
     if (cart.length === 0) setCashGiven(null);
   }, [cart.length]);
 
-  const filteredProducts = inventory.products.filter(p =>
+  const filteredProducts = inventory.products.filter((p: Product) =>
     p.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
@@ -114,7 +115,7 @@ const POSPanel: React.FC = () => {
 
         {/* Product Grid */}
         <div className="flex-1 grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3 overflow-y-auto pr-1 custom-scrollbar content-start">
-          {filteredProducts.map(p => (
+          {filteredProducts.map((p: Product) => (
             <div key={p.id} onClick={() => addToCart(p)}
               className={`p-4 rounded-[1.4rem] border transition-all duration-300 cursor-pointer group active:scale-95 ${isDarkMode ? 'glass-panel hover:-translate-y-1' : 'border-slate-200 bg-white hover:border-slate-400 shadow-sm'}`}>
               <div className="text-3xl mb-2.5 group-hover:scale-110 transition-transform">{p.icon}</div>
@@ -190,7 +191,7 @@ const POSPanel: React.FC = () => {
                   <HoldableButton onClick={() => setCart(prev => prev.map(i => i.id === item.id ? { ...i, qty: i.qty + 1 } : i))} className={`w-6 h-6 rounded-md flex items-center justify-center text-xs ${isDarkMode ? 'bg-white/5 hover:bg-white/10 text-cream' : 'bg-slate-200 hover:bg-slate-300 text-slate-700'}`}>+</HoldableButton>
                   <button 
                     onClick={() => {
-                      const product = inventory.products.find(p => p.id === item.id);
+                      const product = inventory.products.find((p: Product) => p.id === item.id);
                       if (product && product.stock > 0) {
                         setCart(prev => prev.map(i => i.id === item.id ? { ...i, qty: product.stock } : i));
                       }

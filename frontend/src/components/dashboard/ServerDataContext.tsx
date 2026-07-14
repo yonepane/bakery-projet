@@ -1,67 +1,102 @@
 /**
- * useBakeryData — server data layer for BakeryOS Dashboard.
- *
- * This hook owns ALL server-fetched state (inventory, analytics, history,
- * orders, etc.) and the tab-aware lazy fetch strategy.  Extracted from
- * Dashboard.tsx so that component stays focused on layout and UI state.
- *
- * Usage:
- *   const bakery = useBakeryData(user, activeTab);
- *   const { inventory, analytics, fetchData } = bakery;
+ * ServerDataContext — Raw server data cache + React Query integration.
+ * Updates only when React Query cache invalidates or explicit fetch.
+ * Pure data container — no derived/computed values.
  */
-
-import { useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, processSyncQueue } from '../../lib/api';
-import { calcAlerts, calcProfitReport } from '../../lib/calculations';
 import type {
-  DashboardAlert,
-  Ingredient,
-  PlanItem,
-  Product,
-  SemiFinishedItem,
-  StockLocation,
-  StockLotBalance,
-  StockMovement,
-  Transaction,
-  UserSession,
-  Customer,
+  DashboardAlert, Ingredient, PlanItem, Product, SemiFinishedItem,
+  StockLocation, StockLotBalance, StockMovement, Transaction, UserSession, Customer,
 } from './types';
 import type { KitchenBatch } from './hooks/useKitchenMutations';
+import type { PurchaseOrder, Supplier, Expense, WasteRecord } from './types';
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
+type AnyRecord = Record<string, any>;
 
-export interface BakeryInventory {
-  materials: Record<string, Ingredient>;
-  products: Product[];
+interface ServerDataContextValue {
+  inventory: any;
+  analytics: any;
+  profitReport: any[];
+  alerts: any[];
+  history: Transaction[];
+  stockMovements: any[];
+  stockLocations: any[];
+  stockLotBalances: any[];
+  semiFinishedItems: any[];
+  kitchenBatches: any[];
+  planner: PlanItem[];
+  orders: any[];
+  settings: AnyRecord;
+  liveRates: Record<string, number>;
+  customers: Customer[];
+  expenses: Expense[];
+  wasteRecords: WasteRecord[];
+  staff: any[];
+  suppliers: Supplier[];
+  selectedSupplierId: number | null;
+  purchaseOrders: any[];
+  purchasingSuggestions: any[];
+  shiftLogs: any[];
+  loading: boolean;
+  fetchError: Error | null;
+
+  setInventory: React.Dispatch<React.SetStateAction<any>>;
+  setAnalytics: React.Dispatch<React.SetStateAction<any>>;
+  setProfitReport: React.Dispatch<React.SetStateAction<any[]>>;
+  setAlerts: React.Dispatch<React.SetStateAction<any[]>>;
+  setHistory: React.Dispatch<React.SetStateAction<Transaction[]>>;
+  setStockMovements: React.Dispatch<React.SetStateAction<any[]>>;
+  setStockLocations: React.Dispatch<React.SetStateAction<any[]>>;
+  setStockLotBalances: React.Dispatch<React.SetStateAction<any[]>>;
+  setSemiFinishedItems: React.Dispatch<React.SetStateAction<any[]>>;
+  setKitchenBatches: React.Dispatch<React.SetStateAction<any[]>>;
+  setPlanner: React.Dispatch<React.SetStateAction<PlanItem[]>>;
+  setOrders: React.Dispatch<React.SetStateAction<any[]>>;
+  setSettings: React.Dispatch<React.SetStateAction<AnyRecord>>;
+  setLiveRates: React.Dispatch<React.SetStateAction<Record<string, number>>>;
+  setCustomers: React.Dispatch<React.SetStateAction<Customer[]>>;
+  setExpenses: React.Dispatch<React.SetStateAction<Expense[]>>;
+  setWasteRecords: React.Dispatch<React.SetStateAction<WasteRecord[]>>;
+  setStaff: React.Dispatch<React.SetStateAction<any[]>>;
+  setSuppliers: React.Dispatch<React.SetStateAction<Supplier[]>>;
+  setSelectedSupplierId: React.Dispatch<React.SetStateAction<number | null>>;
+  setPurchaseOrders: React.Dispatch<React.SetStateAction<any[]>>;
+  setPurchasingSuggestions: React.Dispatch<React.SetStateAction<any[]>>;
+  setShiftLogs: React.Dispatch<React.SetStateAction<any[]>>;
+  setLoading: React.Dispatch<React.SetStateAction<boolean>>;
+
+  refetchInventory: () => void;
+  refetchSettings: () => void;
+
+  fetchData: () => Promise<void>;
+  fetchTabData: (tab: string) => Promise<void>;
+  fetchLiveRates: () => Promise<void>;
+  applyInventory: (invData: any) => void;
+  applySettings: (settData: any) => void;
 }
 
-export interface BakeryAnalytics {
-  revenue: number;
-  cost: number;
-  today_revenue: number;
-  today_cost: number;
-  currency: string;
-  chartData: any[];
-  hourlySales: any[];
-  topProducts: any[];
-  intelligence: {
-    total_portfolio_cost: number;
-    average_margin: string;
-    products_count: number;
-  };
+const ServerDataContext = createContext<ServerDataContextValue | null>(null);
+
+export const useServerData = (): ServerDataContextValue => {
+  const ctx = useContext(ServerDataContext);
+  if (!ctx) throw new Error('useServerData must be used inside <ServerDataProvider>');
+  return ctx;
+};
+
+interface ServerDataProviderProps {
+  user: any;
+  activeTab: string;
+  onDataChange?: () => void;
+  children: React.ReactNode;
 }
 
-// ---------------------------------------------------------------------------
-// Hook
-// ---------------------------------------------------------------------------
-
-export function useBakeryData(user: UserSession | null, activeTab: string) {
+export const ServerDataProvider: React.FC<ServerDataProviderProps> = ({
+  user, activeTab, onDataChange, children
+}) => {
   const queryClient = useQueryClient();
 
-  // ── React Query — inventory (cached, background-refreshed, error-surfaced) ─
   const {
     data: inventoryData,
     error: inventoryError,
@@ -73,7 +108,6 @@ export function useBakeryData(user: UserSession | null, activeTab: string) {
     staleTime: 30_000,
   });
 
-  // ── React Query — settings ─────────────────────────────────────────────────
   const {
     data: settingsData,
     error: settingsError,
@@ -85,24 +119,13 @@ export function useBakeryData(user: UserSession | null, activeTab: string) {
     staleTime: 120_000,
   });
 
-  // Aggregate fetch error for consumers
-  const fetchError: Error | null = (inventoryError || settingsError) as Error | null;
-
-  // ── Core data state ────────────────────────────────────────────────────────
-  const [inventory, setInventory] = useState<BakeryInventory>({ materials: {}, products: [] });
-  const [analytics, setAnalytics] = useState<BakeryAnalytics>({
-    revenue: 0, cost: 0, today_revenue: 0, today_cost: 0, currency: 'MAD',
-    chartData: [], hourlySales: [], topProducts: [],
-    intelligence: { total_portfolio_cost: 0, average_margin: '0%', products_count: 0 },
-  });
-  const [profitReport, setProfitReport] = useState<any[]>([]);
-  const [alerts, setAlerts] = useState<DashboardAlert[]>([]);
-  const [history, setHistory] = useState<Transaction[]>([]);
-  const [stockMovements, setStockMovements] = useState<StockMovement[]>([]);
-  const [stockLocations, setStockLocations] = useState<StockLocation[]>([]);
-  const [stockLotBalances, setStockLotBalances] = useState<StockLotBalance[]>([]);
-  const [semiFinishedItems, setSemiFinishedItems] = useState<SemiFinishedItem[]>([]);
-  const [kitchenBatches, setKitchenBatches] = useState<KitchenBatch[]>([]);
+  const [inventory, setInventory] = useState<any>({ materials: {}, products: [] });
+  const [history, setHistory] = useState<any[]>([]);
+  const [stockMovements, setStockMovements] = useState<any[]>([]);
+  const [stockLocations, setStockLocations] = useState<any[]>([]);
+  const [stockLotBalances, setStockLotBalances] = useState<any[]>([]);
+  const [semiFinishedItems, setSemiFinishedItems] = useState<any[]>([]);
+  const [kitchenBatches, setKitchenBatches] = useState<any[]>([]);
   const [planner, setPlanner] = useState<PlanItem[]>([]);
   const [orders, setOrders] = useState<any[]>([]);
   const [settings, setSettings] = useState<any>({ currency: 'MAD' });
@@ -110,32 +133,35 @@ export function useBakeryData(user: UserSession | null, activeTab: string) {
     MAD: 1.0, EUR: 0.0916, USD: 0.0998, GBP: 0.0787,
   });
   const [customers, setCustomers] = useState<Customer[]>([]);
-  const [expenses, setExpenses] = useState<any[]>([]);
-  const [wasteRecords, setWasteRecords] = useState<any[]>([]);
+  const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [wasteRecords, setWasteRecords] = useState<WasteRecord[]>([]);
   const [staff, setStaff] = useState<any[]>([]);
-  const [suppliers, setSuppliers] = useState<any[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [selectedSupplierId, setSelectedSupplierId] = useState<number | null>(null);
   const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
   const [purchasingSuggestions, setPurchasingSuggestions] = useState<any[]>([]);
   const [shiftLogs, setShiftLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // ── Helpers ────────────────────────────────────────────────────────────────
+  const [analytics, setAnalytics] = useState<any>({
+    revenue: 0, cost: 0, today_revenue: 0, today_cost: 0, currency: 'MAD',
+    chartData: [], hourlySales: [], topProducts: [],
+    intelligence: { total_portfolio_cost: 0, average_margin: '0%', products_count: 0 },
+  });
+  const [profitReport, setProfitReport] = useState<any[]>([]);
+  const [alerts, setAlerts] = useState<any[]>([]);
 
   const safeGet = useCallback(async (url: string, fallback: any = null) => {
     try { return await api.get(url); }
     catch (e) { console.warn(`Failed to fetch ${url}:`, e); return fallback; }
   }, []);
 
-  /** Parse an /inventory response, derive client-side alerts + profit report. */
   const applyInventory = useCallback((invData: any) => {
     if (!invData) return;
     if (invData.products) {
       invData.products.sort((a: any, b: any) => (a.name || '').localeCompare(b.name || ''));
     }
     setInventory(invData);
-    setAlerts(calcAlerts(invData.products || [], invData.materials || {}));
-    setProfitReport(calcProfitReport(invData.products || []));
   }, []);
 
   const applySettings = useCallback((settData: any) => {
@@ -143,27 +169,22 @@ export function useBakeryData(user: UserSession | null, activeTab: string) {
     setSettings(settData);
   }, []);
 
-  // ── Sync React Query data into local state ────────────────────────────────
-  useEffect(() => {
-    if (inventoryData) applyInventory(inventoryData);
-  }, [inventoryData, applyInventory]);
+  useEffect(() => { if (inventoryData) applyInventory(inventoryData); }, [inventoryData]);
+  useEffect(() => { if (settingsData) applySettings(settingsData); }, [settingsData]);
 
   useEffect(() => {
-    if (settingsData) applySettings(settingsData);
-  }, [settingsData, applySettings]);
-
-  // ── Exchange rates ─────────────────────────────────────────────────────────
+    if (onDataChange) onDataChange();
+  }, [inventory, history, stockMovements, stockLocations, stockLotBalances,
+      semiFinishedItems, kitchenBatches, planner, orders, settings, liveRates,
+      customers, expenses, wasteRecords, staff, suppliers, selectedSupplierId,
+      purchaseOrders, purchasingSuggestions, shiftLogs, onDataChange]);
 
   const fetchLiveRates = useCallback(async () => {
     try {
       const data = await api.get('/currency/rates');
       if (data?.rates && typeof data.rates === 'object') setLiveRates(data.rates);
-    } catch {
-      console.warn('Could not fetch live exchange rates — using fallback rates.');
-    }
+    } catch { console.warn('Could not fetch live exchange rates — using fallback rates.'); }
   }, []);
-
-  // ── Tab-aware lazy fetch ───────────────────────────────────────────────────
 
   const fetchTabData = useCallback(async (tab: string) => {
     if (!user) return;
@@ -174,7 +195,7 @@ export function useBakeryData(user: UserSession | null, activeTab: string) {
         case 'dashboard': {
           const [invData, anaData, settData, logData] = await Promise.all([
             safeGet('/inventory'),
-            isOwner ? safeGet('/analytics') : Promise.resolve(null),
+            safeGet('/analytics'),
             safeGet('/settings'),
             safeGet('/shift-logs', []),
           ]);
@@ -184,7 +205,6 @@ export function useBakeryData(user: UserSession | null, activeTab: string) {
           if (logData) setShiftLogs(logData);
           break;
         }
-
         case 'pos': {
           const [invData, ordData, custData, settData] = await Promise.all([
             safeGet('/inventory'),
@@ -198,7 +218,6 @@ export function useBakeryData(user: UserSession | null, activeTab: string) {
           applySettings(settData);
           break;
         }
-
         case 'inventory': {
           const [invData, locRes, balRes, sfRes] = await Promise.all([
             safeGet('/inventory'),
@@ -212,44 +231,40 @@ export function useBakeryData(user: UserSession | null, activeTab: string) {
           setSemiFinishedItems(sfRes ?? []);
           break;
         }
-
         case 'history': {
           const histData = await safeGet('/history', []);
           if (histData) setHistory(histData);
           break;
         }
-
         case 'stock_movements': {
           const [movementData, locRes, balRes] = await Promise.all([
-            isOwner ? safeGet('/stock-movements', []) : Promise.resolve([]),
+            safeGet('/stock-movements', []),
             safeGet('/stock-locations', []),
-            safeGet('/stock-lot-balances', [])
+            safeGet('/stock-lot-balances', []),
           ]);
           if (movementData) setStockMovements(movementData);
           setStockLocations(locRes);
           setStockLotBalances(balRes);
           break;
         }
-
         case 'intelligence': {
           const [invData, anaData] = await Promise.all([
             safeGet('/inventory'),
-            isOwner ? safeGet('/analytics') : Promise.resolve(null),
+            safeGet('/analytics'),
           ]);
           applyInventory(invData);
           if (anaData) setAnalytics(anaData);
           break;
         }
-
         case 'comptabilite':
         case 'expenses':
         case 'finance': {
           const [histData, expData, wasteData, ordData, suppData] = await Promise.all([
             safeGet('/history', []),
-            isOwner ? safeGet('/expenses', []) : Promise.resolve([]),
-            isOwner ? safeGet('/waste', []) : Promise.resolve([]),
+            safeGet('/expenses', []),
+            safeGet('/waste', []),
             safeGet('/orders', []),
-            isOwner ? safeGet('/suppliers', []) : Promise.resolve([]),
+            safeGet('/suppliers', []),
           ]);
           if (histData) setHistory(histData);
           if (expData) setExpenses(expData);
@@ -258,12 +273,11 @@ export function useBakeryData(user: UserSession | null, activeTab: string) {
           if (suppData) setSuppliers(suppData);
           break;
         }
-
         case 'purchasing': {
           const [purData, suppData, posData, invData] = await Promise.all([
-            isOwner ? safeGet('/purchasing/suggest', []) : Promise.resolve([]),
-            isOwner ? safeGet('/suppliers', []) : Promise.resolve([]),
-            isOwner ? safeGet('/purchase-orders', []) : Promise.resolve([]),
+            safeGet('/purchasing/suggest', []),
+            safeGet('/suppliers', []),
+            safeGet('/purchase-orders', []),
             safeGet('/inventory'),
           ]);
           if (purData) setPurchasingSuggestions(purData);
@@ -275,35 +289,30 @@ export function useBakeryData(user: UserSession | null, activeTab: string) {
               return suppData[0].id;
             });
           }
-          if (posData) {
-            setPurchaseOrders([...posData].sort(
-              (a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime()
-            ));
-          }
+          if (posData) setPurchaseOrders([...posData].sort(
+            (a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime()
+          ));
           applyInventory(invData);
           break;
         }
-
         case 'planner': {
           const [planData, invData] = await Promise.all([
-            isOwner ? safeGet('/planner', []) : Promise.resolve([]),
+            safeGet('/planner', []),
             safeGet('/inventory'),
           ]);
           if (planData) setPlanner(planData);
           applyInventory(invData);
           break;
         }
-
         case 'staff': {
           const [staffData, logData] = await Promise.all([
-            isOwner ? safeGet('/staff', []) : Promise.resolve([]),
+            safeGet('/staff', []),
             safeGet('/shift-logs', []),
           ]);
           if (staffData) setStaff(staffData);
           if (logData) setShiftLogs(logData);
           break;
         }
-
         case 'kitchen': {
           const [invData, planData, batches] = await Promise.all([
             safeGet('/inventory'),
@@ -315,13 +324,11 @@ export function useBakeryData(user: UserSession | null, activeTab: string) {
           setKitchenBatches(batches || []);
           break;
         }
-
         case 'kitchen_board': {
           const batches = await safeGet('/kitchen/batches', []);
           setKitchenBatches(batches || []);
           break;
         }
-
         case 'orders': {
           const [ordData, custData] = await Promise.all([
             safeGet('/orders', []),
@@ -331,19 +338,16 @@ export function useBakeryData(user: UserSession | null, activeTab: string) {
           if (custData) setCustomers(custData);
           break;
         }
-
         case 'customers': {
           const custData = await safeGet('/customers', []);
           if (custData) setCustomers(custData);
           break;
         }
-
         case 'settings': {
           const settData = await safeGet('/settings');
           applySettings(settData);
           break;
         }
-
         default: {
           const [invData, settData] = await Promise.all([
             safeGet('/inventory'),
@@ -358,63 +362,65 @@ export function useBakeryData(user: UserSession | null, activeTab: string) {
     } finally {
       setLoading(false);
     }
-  }, [user, safeGet, applyInventory, applySettings]);
+  }, [user, safeGet]);
 
-  /**
-   * fetchData — re-fetches the active tab AND invalidates cached queries so
-   * React Query will background-refresh inventory/settings automatically.
-   */
   const fetchData = useCallback(async () => {
-    // Invalidate React Query cache so fresh data is fetched on next read
     await queryClient.invalidateQueries({ queryKey: ['inventory'] });
     await queryClient.invalidateQueries({ queryKey: ['settings'] });
     return fetchTabData(activeTab);
   }, [fetchTabData, activeTab, queryClient]);
 
-  // ── Effects ────────────────────────────────────────────────────────────────
-
-  // Online/offline: replay sync queue and refresh tab data when connectivity returns.
-  useEffect(() => {
-    const handleOnline = () => {
-      processSyncQueue().then(() => fetchTabData(activeTab));
-    };
-    window.addEventListener('online', handleOnline);
-    return () => window.removeEventListener('online', handleOnline);
-  }, [activeTab, fetchTabData]);
-
-  // On first login, fetch rates + initial tab data.
   useEffect(() => {
     if (user) {
       fetchLiveRates();
       fetchTabData(activeTab);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
-  // Re-fetch on tab change (lazy loading).
   useEffect(() => {
-    if (user) fetchTabData(activeTab);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab]);
+    const handleOnline = () => { processSyncQueue().then(() => fetchTabData(activeTab)); };
+    window.addEventListener('online', handleOnline);
+    return () => window.removeEventListener('online', handleOnline);
+  }, [activeTab, fetchTabData]);
 
-  // ── Return ─────────────────────────────────────────────────────────────────
+  useEffect(() => { if (user) fetchTabData(activeTab); }, [activeTab]);
 
-  return {
-    // State
-    inventory, analytics, profitReport, alerts, history, stockMovements,
-    stockLocations, stockLotBalances, semiFinishedItems, kitchenBatches, planner, setPlanner,
-    orders, settings, liveRates, customers, expenses, wasteRecords,
-    staff, suppliers, selectedSupplierId, setSelectedSupplierId,
-    purchaseOrders, purchasingSuggestions, shiftLogs, loading, setLoading,
-    // Internal setters needed by mutation handlers in Dashboard.tsx
-    setInventory, setAnalytics, setProfitReport, setAlerts, setHistory, setStockMovements,
-    setOrders, setSettings, setCustomers, setExpenses, setWasteRecords,
-    setStaff, setSuppliers, setPurchaseOrders, setPurchasingSuggestions, setShiftLogs,
-    // Functions
-    fetchData, fetchTabData, applyInventory, applySettings,
-    // React Query error state
-    fetchError,
-    // React Query refetch helpers (for manual refresh buttons)
-    refetchInventory, refetchSettings,
-  };
-}
+  return (
+    <ServerDataContext.Provider value={{
+      inventory, setInventory,
+      analytics, setAnalytics,
+      profitReport, setProfitReport,
+      alerts, setAlerts,
+      history, setHistory,
+      stockMovements, setStockMovements,
+      stockLocations, setStockLocations,
+      stockLotBalances, setStockLotBalances,
+      semiFinishedItems, setSemiFinishedItems,
+      kitchenBatches, setKitchenBatches,
+      planner, setPlanner,
+      orders, setOrders,
+      settings, setSettings,
+      liveRates, setLiveRates,
+      customers, setCustomers,
+      expenses, setExpenses,
+      wasteRecords, setWasteRecords,
+      staff, setStaff,
+      suppliers, setSuppliers,
+      selectedSupplierId, setSelectedSupplierId,
+      purchaseOrders, setPurchaseOrders,
+      purchasingSuggestions, setPurchasingSuggestions,
+      shiftLogs, setShiftLogs,
+      loading, setLoading,
+      fetchError: (settingsError || inventoryError) as Error | null,
+      refetchInventory,
+      refetchSettings,
+      fetchData,
+      fetchTabData,
+      fetchLiveRates,
+      applyInventory,
+      applySettings,
+    }}>
+      {children}
+    </ServerDataContext.Provider>
+  );
+};

@@ -171,6 +171,11 @@ export interface DashboardSharedProps {
 
 // ─── Re-export core types used across panels ──────────────────────────────────
 
+export interface BakeryInventory {
+  materials: Record<string, Ingredient>;
+  products: Product[];
+}
+
 export interface UserSession {
   username: string;
   role: string;
@@ -363,6 +368,22 @@ export interface Analytics {
   };
 }
 
+export interface BakeryAnalytics {
+  revenue: number;
+  cost: number;
+  today_revenue: number;
+  today_cost: number;
+  currency: string;
+  chartData: any[];
+  hourlySales: any[];
+  topProducts: any[];
+  intelligence: {
+    total_portfolio_cost: number;
+    average_margin: string;
+    products_count: number;
+  };
+}
+
 export interface Customer {
   id: string;
   name: string;
@@ -418,8 +439,9 @@ export interface Supplier {
 /** Minimal shared dependencies passed into every mutation hook. */
 export interface MutationDeps {
   fetchData: () => void;
+  fetchTabData?: (tab: string) => Promise<void>;
   addToast: (msg: string, type?: 'success' | 'error' | 'info') => void;
-  showConfirm: (config: ConfirmConfig) => void;
+  showConfirm?: (config: ConfirmConfig) => void;
 }
 
 export type DashboardLanguage = 'en' | 'fr' | 'ar';

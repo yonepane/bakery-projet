@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import React, { useState } from 'react';
 import { useDashboard } from '../DashboardContext';
+import type { Product } from '../types';
 import { Calendar, CheckCircle, FileText, Zap, Croissant, Cake, AlertTriangle } from 'lucide-react';
 
 const KitchenPanel: React.FC = () => {
@@ -21,12 +22,12 @@ const KitchenPanel: React.FC = () => {
 
   const pendingBatches = planner.filter(p => p.status === 'pending');
   const categoryBatches = pendingBatches.filter(batch => {
-    const product = inventory.products.find(x => x.id === batch.product_id);
+    const product = inventory.products.find((x: Product) => x.id === batch.product_id);
     return product && getCategory(product.name) === activeCategory;
   });
 
   // Calculate Low Stock (less than or equal to 5 units) that don't already have a pending batch
-  const lowStockAlerts = inventory.products.filter(p => 
+  const lowStockAlerts = inventory.products.filter((p: Product) => 
     p.stock <= 5 && 
     getCategory(p.name) === activeCategory &&
     !pendingBatches.some(b => b.product_id === p.id)
@@ -67,7 +68,7 @@ const KitchenPanel: React.FC = () => {
           
           <div className="space-y-4">
             {/* Show Low Stock Alerts First */}
-            {lowStockAlerts.map(product => (
+            {lowStockAlerts.map((product: Product) => (
               <div key={`low-${product.id}`} className={`p-6 rounded-[2rem] border-2 border-dashed flex items-center justify-between group transition-all ${isDarkMode ? 'bg-rose-500/5 border-rose-500/30' : 'bg-rose-50 border-rose-200 shadow-sm'}`}>
                 <div className="flex items-center gap-6">
                   <div className="text-4xl">{product.icon}</div>
@@ -92,15 +93,15 @@ const KitchenPanel: React.FC = () => {
             {categoryBatches.map(batch => (
               <div key={batch.id} className={`p-8 rounded-[2rem] border flex items-center justify-between group transition-all ${isDarkMode ? 'bg-white/5 border-white/5 hover:border-gold/20' : 'bg-white border-slate-200 shadow-sm'}`}>
                 <div className="flex items-center gap-6">
-                  <div className="text-5xl">{inventory.products.find(x => x.id === batch.product_id)?.icon}</div>
+                  <div className="text-5xl">{inventory.products.find((x: Product) => x.id === batch.product_id)?.icon}</div>
                   <div>
-                    <p className={`text-xl font-bold mb-1 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{inventory.products.find(x => x.id === batch.product_id)?.name}</p>
+                    <p className={`text-xl font-bold mb-1 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{inventory.products.find((x: Product) => x.id === batch.product_id)?.name}</p>
                     <p className="text-xs font-black text-gold uppercase tracking-widest">Bake {batch.quantity} Units</p>
                   </div>
                 </div>
                 <div className="flex gap-3">
                   <button
-                    onClick={() => setSelectedProduct(inventory.products.find(x => x.id === batch.product_id) || null)}
+                    onClick={() => setSelectedProduct(inventory.products.find((x: Product) => x.id === batch.product_id) || null)}
                     className={`p-4 rounded-2xl transition-all ${isDarkMode ? 'bg-white/5 hover:bg-white/10 text-white/40 hover:text-white' : 'bg-slate-50 hover:bg-slate-100 text-slate-400 hover:text-slate-900'}`}
                     title={t('view_recipe')}
                   >
@@ -142,7 +143,7 @@ const KitchenPanel: React.FC = () => {
                   <div className="flex gap-1 mt-2">
                     {order.items.map((it: any, idx: number) => (
                       <span key={idx} className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${isDarkMode ? 'bg-white/5 text-white' : 'bg-white border text-slate-700'}`}>
-                        {it.qty}x {inventory.products.find(x => x.id === it.id)?.name}
+                        {it.qty}x {inventory.products.find((x: Product) => x.id === it.id)?.name}
                       </span>
                     ))}
                   </div>

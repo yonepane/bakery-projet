@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { api } from '../../../lib/api';
+import type { MutationDeps } from '../types';
 
 export interface KitchenBatch {
   id: string;
@@ -30,13 +31,8 @@ export interface KitchenBatch {
   assigned_to_id: number | null;
 }
 
-export function useKitchenMutations({
-  fetchTabData,
-  addToast,
-}: {
-  fetchTabData: (tab: string) => Promise<void>;
-  addToast: (msg: string, type: 'success' | 'error' | 'info') => void;
-}) {
+export function useKitchenMutations(deps: MutationDeps & { fetchTabData?: (tab: string) => Promise<void> }) {
+  const { fetchData, addToast, fetchTabData } = deps;
   const [isUpdating, setIsUpdating] = useState(false);
 
   const handleAdvanceStage = useCallback(
@@ -45,7 +41,7 @@ export function useKitchenMutations({
       try {
         await api.put(`/api/kitchen/batches/${batchId}/stage`, { stage: newStage });
         addToast(`Batch moved to ${newStage}`, 'success');
-        await fetchTabData('kitchen_board'); // Refresh board and inventory
+        await (fetchTabData?.('kitchen_board') ?? fetchData());
       } catch (err: any) {
         console.error(err);
         addToast(err.response?.data?.detail || 'Failed to update stage', 'error');
@@ -53,7 +49,7 @@ export function useKitchenMutations({
         setIsUpdating(false);
       }
     },
-    [fetchTabData, addToast]
+    [fetchTabData, fetchData, addToast]
   );
 
   return {

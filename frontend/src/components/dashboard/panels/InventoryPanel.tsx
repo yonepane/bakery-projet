@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import React from 'react';
 import { useDashboard } from '../DashboardContext';
+import type { Product } from '../types';
 import { Edit2, Plus, Trash2 } from 'lucide-react';
 import { parseQtyString } from '../utils';
 import SemiFinishedPanel from './SemiFinishedPanel';
@@ -43,7 +44,7 @@ const InventoryPanel: React.FC = () => {
             </tr>
           </thead>
           <tbody className={`divide-y ${isDarkMode ? 'divide-white/5' : 'divide-slate-100'}`}>
-            {inventory.products.map(p => {
+            {inventory.products.map((p: Product) => {
               const totalValue = p.stock * p.price;
               return (
                 <tr key={p.id} className="group hover:bg-white/[0.02] transition-colors">

@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import React, { useMemo } from 'react';
 import { useDashboard } from '../DashboardContext';
+import type { Product } from '../types';
 import { Edit2, Plus, Trash2, X, Copy } from 'lucide-react';
 import { parseQtyString } from '../utils';
 
@@ -15,18 +16,18 @@ const FichePanel: React.FC = () => {
   // Extract all unique ingredients across all products to populate the quick-add dropdown
   const allIngredients = useMemo(() => {
     const ingredients = new Set<string>();
-    inventory.products.forEach(p => p.ingredients.forEach(ing => ingredients.add(ing.name)));
+    inventory.products.forEach((p: Product) => p.ingredients.forEach((ing: { name: string }) => ingredients.add(ing.name)));
     // Also add any raw materials from inventory that might not be in any product yet
-    Object.keys(inventory.materials).forEach(m => ingredients.add(m));
+    Object.keys(inventory.materials).forEach((m: string) => ingredients.add(m));
     return Array.from(ingredients).sort();
   }, [inventory]);
 
   return (
     <div className="space-y-8">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-        {inventory.products.map(p => {
+        {inventory.products.map((p: Product) => {
           // Real-time Margin Logic with Labor Cost Engine
-          const materialCost = p.ingredients.reduce((sum, ing) => {
+          const materialCost = p.ingredients.reduce((sum: number, ing: { name: string; quantity: number }) => {
             const mat = inventory.materials[ing.name];
             const factor = mat && ['kg', 'L', 'l'].includes(mat.unit) ? 1000 : 1;
             const basePrice = mat ? mat.price : 0;
@@ -55,7 +56,7 @@ const FichePanel: React.FC = () => {
                     {isLowMargin && <span className="text-[8px] uppercase tracking-widest font-black text-rose-500 bg-rose-500/10 px-2 py-1 rounded-md mt-2 inline-block">{t('low_margin_warning')}</span>}
                     {isLowMargin && editMode && (
                       <button onClick={() => {
-                        const sorted = [...p.ingredients].sort((a,b) => {
+                        const sorted = [...p.ingredients].sort((a: { name: string; quantity: number }, b: { name: string; quantity: number }) => {
                           const matA = inventory.materials[a.name];
                           const factorA = matA && ['kg', 'L', 'l'].includes(matA.unit) ? 1000 : 1;
                           const costA = (matA?.price || 0) * (a.quantity/factorA) * (1 + ((simulatedInflations[a.name] || 0) / 100));

@@ -162,7 +162,7 @@ const PurchasingPanel: React.FC = () => {
                   <p className={`text-[10px] uppercase tracking-widest font-black truncate ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>{supp.contact_info || 'No contact info'}</p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                  <button onClick={() => { setEditingSupplier(supp); setNewSupplier({ name: supp.name || '', contact_info: supp.contact_info || '' }); setShowAddSupplier(true); }} className={`p-2 rounded-xl ${isDarkMode ? 'bg-white/5 hover:bg-white/10 text-gold' : 'bg-white hover:bg-slate-100 text-slate-700'}`}><Edit2 size={14} /></button>
+                  <button onClick={() => { setEditingSupplier(supp); setNewSupplier({ name: supp.name || '', contact_info: supp.contact_info || '', ice: supp.ice || '', email: supp.email || '', phone: supp.phone || '' }); setShowAddSupplier(true); }} className={`p-2 rounded-xl ${isDarkMode ? 'bg-white/5 hover:bg-white/10 text-gold' : 'bg-white hover:bg-slate-100 text-slate-700'}`}><Edit2 size={14} /></button>
                   <button onClick={() => handleDeleteSupplier(supp.id)} className={`p-2 rounded-xl ${isDarkMode ? 'bg-white/5 hover:bg-rose-500/20 text-rose-400' : 'bg-white hover:bg-rose-50 text-rose-600'}`}><Trash2 size={14} /></button>
                 </div>
               </div>

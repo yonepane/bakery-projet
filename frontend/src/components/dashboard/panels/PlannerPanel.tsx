@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import React from 'react';
 import { useDashboard } from '../DashboardContext';
+import type { Product } from '../types';
 import { FileText, Plus, Trash2, Zap } from 'lucide-react';
 
 const PlannerPanel: React.FC = () => {
@@ -10,9 +11,9 @@ const PlannerPanel: React.FC = () => {
   const { t } = useTranslation();
 
   const resourceForecast = Object.entries(
-    planner.filter(p => p.status === 'pending').reduce((acc, item) => {
-      const prod = inventory.products.find(p => p.id === item.product_id);
-      prod?.ingredients.forEach(ing => { acc[ing.name] = (acc[ing.name] || 0) + (ing.quantity * item.quantity); });
+    planner.filter((p: { status: string }) => p.status === 'pending').reduce((acc: Record<string, number>, item: { product_id: string; quantity: number }) => {
+      const prod = inventory.products.find((p: Product) => p.id === item.product_id);
+      prod?.ingredients.forEach((ing: { name: string; quantity: number }) => { acc[ing.name] = (acc[ing.name] || 0) + (ing.quantity * item.quantity); });
       return acc;
     }, {} as Record<string, number>)
   ).sort(([a], [b]) => a.localeCompare(b));
@@ -64,11 +65,11 @@ const PlannerPanel: React.FC = () => {
           <div className="space-y-6">
             <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">{t('initialize_batch')}</label>
             <select onChange={(e) => {
-              const p = inventory.products.find(x => x.id === e.target.value);
+              const p = inventory.products.find((x: Product) => x.id === e.target.value);
               if (p) setPlanner([...planner, { id: Math.random().toString(36).substr(2, 9), date: new Date().toISOString(), product_id: p.id, quantity: 10, status: 'pending' }]);
             }} className={`appearance-none cursor-pointer pl-6 pr-12 py-4 text-[10px] font-black uppercase tracking-widest rounded-2xl border transition-all outline-none ${isDarkMode ? 'bg-black/80 border-gold/20 text-gold hover:bg-gold hover:text-charcoal' : 'bg-slate-50 border-slate-200 text-slate-900 hover:bg-slate-900 hover:text-white'}`}>
               <option value="" disabled className={isDarkMode ? 'bg-[#0a0a0b] text-gold/50' : ''}>{t('select_entity')}</option>
-              {inventory.products.map(p => <option key={p.id} value={p.id} className={isDarkMode ? 'bg-[#0a0a0b] text-gold' : ''}>{p.name}</option>)}
+              {inventory.products.map((p: Product) => <option key={p.id} value={p.id} className={isDarkMode ? 'bg-[#0a0a0b] text-gold' : ''}>{p.name}</option>)}
             </select>
 
             <div className="space-y-4">
@@ -85,9 +86,9 @@ const PlannerPanel: React.FC = () => {
                 <div key={item.id} className={`p-6 rounded-2xl border transition-all ${isDarkMode ? 'bg-white/5 border-white/10' : 'bg-white border-slate-100'} ${isHighWasteRisk ? 'border-amber-500/40 shadow-[0_0_20px_rgba(245,158,11,0.1)]' : ''}`}>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4">
-                      <div className="text-2xl">{inventory.products.find(p => p.id === item.product_id)?.icon}</div>
+                      <div className="text-2xl">{inventory.products.find((p: Product) => p.id === item.product_id)?.icon}</div>
                       <div>
-                        <p className={`font-bold text-sm ${isDarkMode ? 'text-cream' : 'text-slate-900'}`}>{inventory.products.find(p => p.id === item.product_id)?.name}</p>
+                        <p className={`font-bold text-sm ${isDarkMode ? 'text-cream' : 'text-slate-900'}`}>{inventory.products.find((p: Product) => p.id === item.product_id)?.name}</p>
                         {isHighWasteRisk ? (
                           <div className="flex items-center gap-2 mt-1">
                             <span className="text-[8px] font-black uppercase tracking-widest bg-amber-500/10 text-amber-500 px-2 py-0.5 rounded-full">{t('high_waste_risk')}</span>
