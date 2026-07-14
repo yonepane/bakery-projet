@@ -9,6 +9,11 @@ export default defineConfig({
     typescript({
       tsconfig: './tsconfig.json',
       include: ['src/**/*'],
+      compilerOptions: {
+        // The plugin emits JS for bundling, which conflicts with this
+        // tsconfig's editor-only noEmit/allowImportingTsExtensions pairing.
+        allowImportingTsExtensions: false,
+      },
     }),
     VitePWA({
       registerType: 'autoUpdate',
