@@ -1,74 +1,34 @@
 /**
  * usePurchasingMutations — async handlers for suppliers and purchase orders.
  */
-import { useCallback } from 'react';
 import { api } from '../../../lib/api';
 import type { MutationDeps } from '../types';
+import { useMutation } from '../../../hooks/useMutation';
 
 export function usePurchasingMutations({ fetchData, addToast }: MutationDeps) {
-  const handleAddSupplier = useCallback(
-    async (supplierData: Record<string, unknown>) => {
-      try {
-        await api.post('/suppliers', supplierData);
-        fetchData();
-        addToast('Supplier added', 'success');
-      } catch {
-        addToast('Failed to add supplier', 'error');
-      }
-    },
-    [fetchData, addToast]
+  const { execute: handleAddSupplier } = useMutation(
+    async (supplierData: Record<string, unknown>) => api.post('/suppliers', supplierData),
+    { refetch: fetchData, addToast, successMessage: 'Supplier added', errorMessage: 'Failed to add supplier' }
   );
 
-  const handleDeleteSupplier = useCallback(
-    async (id: number) => {
-      try {
-        await api.delete(`/suppliers/${id}`);
-        fetchData();
-        addToast('Supplier deleted', 'success');
-      } catch {
-        addToast('Failed to delete supplier', 'error');
-      }
-    },
-    [fetchData, addToast]
+  const { execute: handleDeleteSupplier } = useMutation(
+    async (id: number) => api.delete(`/suppliers/${id}`),
+    { refetch: fetchData, addToast, successMessage: 'Supplier deleted', errorMessage: 'Failed to delete supplier' }
   );
 
-  const handleCreatePO = useCallback(
-    async (data: { supplier_id: number; items: unknown[] }) => {
-      try {
-        await api.post('/purchase-orders', data);
-        fetchData();
-        addToast('Purchase order created', 'success');
-      } catch {
-        addToast('Failed to create PO', 'error');
-      }
-    },
-    [fetchData, addToast]
+  const { execute: handleCreatePO } = useMutation(
+    async (data: { supplier_id: number; items: unknown[] }) => api.post('/purchase-orders', data),
+    { refetch: fetchData, addToast, successMessage: 'Purchase order created', errorMessage: 'Failed to create PO' }
   );
 
-  const handleReceivePO = useCallback(
-    async (id: string, payload?: { items?: unknown[] }) => {
-      try {
-        await api.post(`/purchase-orders/${id}/receive`, payload ?? {});
-        fetchData();
-        addToast('PO received', 'success');
-      } catch {
-        addToast('Failed to receive PO', 'error');
-      }
-    },
-    [fetchData, addToast]
+  const { execute: handleReceivePO } = useMutation(
+    async (id: string, payload?: { items?: unknown[] }) => api.post(`/purchase-orders/${id}/receive`, payload ?? {}),
+    { refetch: fetchData, addToast, successMessage: 'PO received', errorMessage: 'Failed to receive PO' }
   );
 
-  const handleDeletePO = useCallback(
-    async (id: string) => {
-      try {
-        await api.delete(`/purchase-orders/${id}`);
-        fetchData();
-        addToast('PO deleted', 'success');
-      } catch {
-        addToast('Failed to delete PO', 'error');
-      }
-    },
-    [fetchData, addToast]
+  const { execute: handleDeletePO } = useMutation(
+    async (id: string) => api.delete(`/purchase-orders/${id}`),
+    { refetch: fetchData, addToast, successMessage: 'PO deleted', errorMessage: 'Failed to delete PO' }
   );
 
   return { handleAddSupplier, handleDeleteSupplier, handleCreatePO, handleReceivePO, handleDeletePO };

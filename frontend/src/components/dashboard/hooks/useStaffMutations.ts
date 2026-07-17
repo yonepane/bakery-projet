@@ -1,60 +1,29 @@
 /**
  * useStaffMutations — async handlers for staff and shift log operations.
  */
-import { useCallback } from 'react';
 import { api } from '../../../lib/api';
 import type { MutationDeps } from '../types';
+import { useMutation } from '../../../hooks/useMutation';
 
 export function useStaffMutations({ fetchData, addToast }: MutationDeps) {
-  const handleAddStaff = useCallback(
-    async (staffData: Record<string, unknown>) => {
-      try {
-        await api.post('/staff', staffData);
-        fetchData();
-        addToast('Staff member added', 'success');
-      } catch {
-        addToast('Failed to add staff', 'error');
-      }
-    },
-    [fetchData, addToast]
+  const { execute: handleAddStaff } = useMutation(
+    async (staffData: Record<string, unknown>) => api.post('/staff', staffData),
+    { refetch: fetchData, addToast, successMessage: 'Staff member added', errorMessage: 'Failed to add staff' }
   );
 
-  const handleDeleteStaff = useCallback(
-    async (username: string) => {
-      try {
-        await api.delete(`/staff/${encodeURIComponent(username)}`);
-        fetchData();
-        addToast('Staff member removed', 'success');
-      } catch {
-        addToast('Failed to delete staff', 'error');
-      }
-    },
-    [fetchData, addToast]
+  const { execute: handleDeleteStaff } = useMutation(
+    async (username: string) => api.delete(`/staff/${encodeURIComponent(username)}`),
+    { refetch: fetchData, addToast, successMessage: 'Staff member removed', errorMessage: 'Failed to delete staff' }
   );
 
-  const handleDeleteShiftLog = useCallback(
-    async (id: number) => {
-      try {
-        await api.delete(`/shift-logs/${id}`);
-        fetchData();
-      } catch {
-        addToast('Failed to delete log', 'error');
-      }
-    },
-    [fetchData, addToast]
+  const { execute: handleDeleteShiftLog } = useMutation(
+    async (id: number) => api.delete(`/shift-logs/${id}`),
+    { refetch: fetchData, addToast, errorMessage: 'Failed to delete log' }
   );
 
-  const handleSaveGeneralNote = useCallback(
-    async (content: string) => {
-      try {
-        await api.post('/shift-logs', { content });
-        fetchData();
-        addToast('Note saved', 'success');
-      } catch {
-        addToast('Failed to save note', 'error');
-      }
-    },
-    [fetchData, addToast]
+  const { execute: handleSaveGeneralNote } = useMutation(
+    async (content: string) => api.post('/shift-logs', { content }),
+    { refetch: fetchData, addToast, successMessage: 'Note saved', errorMessage: 'Failed to save note' }
   );
 
   return { handleAddStaff, handleDeleteStaff, handleDeleteShiftLog, handleSaveGeneralNote };

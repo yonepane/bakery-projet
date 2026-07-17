@@ -1,97 +1,49 @@
 /**
  * useProductMutations — async handlers for catalog/product operations.
  */
-import { useCallback } from 'react';
 import { api } from '../../../lib/api';
 import type { MutationDeps } from '../types';
+import { useMutation } from '../../../hooks/useMutation';
 
 export function useProductMutations({ fetchData, addToast }: MutationDeps) {
-  const handleAddProduct = useCallback(
-    async (productData: Record<string, unknown>) => {
-      try {
-        await api.post('/products', productData);
-        fetchData();
-        addToast('Product added', 'success');
-      } catch {
-        addToast('Failed to add product', 'error');
-      }
-    },
-    [fetchData, addToast]
+  const { execute: handleAddProduct } = useMutation(
+    async (productData: Record<string, unknown>) => api.post('/products', productData),
+    { refetch: fetchData, addToast, successMessage: 'Product added', errorMessage: 'Failed to add product' }
   );
 
-  const handleDeleteProduct = useCallback(
+  const { execute: handleDeleteProduct } = useMutation(
+    async (id: string) => api.delete(`/products/${id}`),
+    { refetch: fetchData, addToast, successMessage: 'Product deleted', errorMessage: 'Failed to delete product' }
+  );
+
+  const { execute: handleDuplicateProduct } = useMutation(
     async (id: string) => {
-      try {
-        await api.delete(`/products/${id}`);
-        fetchData();
-        addToast('Product deleted', 'success');
-      } catch {
-        addToast('Failed to delete product', 'error');
-      }
+      const res = await api.post(`/products/${id}/duplicate`, {});
+      if (!res.data.success) throw new Error('Duplicate failed');
+      return res;
     },
-    [fetchData, addToast]
+    { refetch: fetchData, addToast, successMessage: 'Recipe duplicated successfully', errorMessage: 'Failed to duplicate recipe' }
   );
 
-  const handleDuplicateProduct = useCallback(
-    async (id: string) => {
-      try {
-        const res = await api.post(`/products/${id}/duplicate`, {});
-        if (res.data.success) {
-          addToast('Recipe duplicated successfully', 'success');
-          fetchData();
-        }
-      } catch {
-        addToast('Failed to duplicate recipe', 'error');
-      }
-    },
-    [fetchData, addToast]
+  const { execute: handleUpdateProductPrice } = useMutation(
+    async (productId: string, newPrice: number) => api.put(`/products/${productId}`, { price: newPrice }),
+    { refetch: fetchData, addToast, errorMessage: 'Failed to update price' }
   );
 
-  const handleUpdateProductPrice = useCallback(
-    async (productId: string, newPrice: number) => {
-      try {
-        await api.put(`/products/${productId}`, { price: newPrice });
-        fetchData();
-      } catch {
-        addToast('Failed to update price', 'error');
-      }
-    },
-    [fetchData, addToast]
+  const { execute: handleUpdateProductField } = useMutation(
+    async (productId: string, field: string, value: unknown) => api.put(`/products/${productId}`, { [field]: value }),
+    { refetch: fetchData, addToast, errorMessage: 'Failed to update product' }
   );
 
-  const handleUpdateProductField = useCallback(
-    async (productId: string, field: string, value: unknown) => {
-      try {
-        await api.put(`/products/${productId}`, { [field]: value });
-        fetchData();
-      } catch {
-        addToast('Failed to update product', 'error');
-      }
-    },
-    [fetchData, addToast]
+  const { execute: handleUpdateProductIngredients } = useMutation(
+    async (productId: string, ingredients: unknown[]) => api.put(`/products/${productId}`, { ingredients }),
+    { refetch: fetchData, addToast, errorMessage: 'Failed to update ingredients' }
   );
 
-  const handleUpdateProductIngredients = useCallback(
-    async (productId: string, ingredients: unknown[]) => {
-      try {
-        await api.put(`/products/${productId}`, { ingredients });
-        fetchData();
-      } catch {
-        addToast('Failed to update ingredients', 'error');
-      }
-    },
-    [fetchData, addToast]
+  const { execute: handleCleanupProducts } = useMutation(
+    async () => api.post('/maintenance/cleanup-products', {}),
+    { refetch: fetchData, addToast, successMessage: 'Cleanup complete', errorMessage: 'Cleanup failed' }
   );
-
-  const handleCleanupProducts = useCallback(async () => {
-    try {
-      await api.post('/maintenance/cleanup-products', {});
-      fetchData();
-      addToast('Cleanup complete', 'success');
-    } catch {
-      addToast('Cleanup failed', 'error');
-    }
-  }, [fetchData, addToast]);
 
   return {
     handleAddProduct,

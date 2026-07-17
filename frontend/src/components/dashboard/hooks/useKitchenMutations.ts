@@ -31,25 +31,19 @@ export interface KitchenBatch {
   assigned_to_id: number | null;
 }
 
+import { useMutation } from '../../../hooks/useMutation';
+
 export function useKitchenMutations(deps: MutationDeps & { fetchTabData?: (tab: string) => Promise<void> }) {
   const { fetchData, addToast, fetchTabData } = deps;
-  const [isUpdating, setIsUpdating] = useState(false);
 
-  const handleAdvanceStage = useCallback(
-    async (batchId: string, newStage: KitchenBatch['stage']) => {
-      setIsUpdating(true);
-      try {
-        await api.put(`/api/kitchen/batches/${batchId}/stage`, { stage: newStage });
-        addToast(`Batch moved to ${newStage}`, 'success');
-        await (fetchTabData?.('kitchen_board') ?? fetchData());
-      } catch (err: any) {
-        console.error(err);
-        addToast(err.response?.data?.detail || 'Failed to update stage', 'error');
-      } finally {
-        setIsUpdating(false);
-      }
-    },
-    [fetchTabData, fetchData, addToast]
+  const { execute: handleAdvanceStage, isLoading: isUpdating } = useMutation(
+    async (batchId: string, newStage: KitchenBatch['stage']) => api.put(`/api/kitchen/batches/${batchId}/stage`, { stage: newStage }),
+    { 
+      refetch: () => fetchTabData ? fetchTabData('kitchen_board') : fetchData(), 
+      addToast, 
+      successMessage: (res: any, batchId: string, newStage: string) => `Batch moved to ${newStage}`, 
+      errorMessage: (err: any) => err.response?.data?.detail || 'Failed to update stage' 
+    }
   );
 
   return {
