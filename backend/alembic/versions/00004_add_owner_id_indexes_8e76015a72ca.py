@@ -36,6 +36,28 @@ def drop_index_if_exists(index_name: str, table_name: str) -> None:
         op.drop_index(op.f(index_name), table_name=table_name)
 
 
+def _drop_fk_on_column(table_name: str, column_name: str) -> None:
+    """Find and drop the FK constraint on table_name whose constrained
+    column is column_name, by its real (reflected) name -- portable
+    across SQLite and PostgreSQL, unlike passing None. Safe no-op if no
+    matching FK currently exists."""
+    bind = op.get_bind()
+    for fk in inspect(bind).get_foreign_keys(table_name):
+        if column_name in fk.get("constrained_columns", []):
+            name = fk.get("name")
+            if name:
+                op.drop_constraint(name, table_name, type_="foreignkey")
+            return
+
+
+def _has_fk_on_column(table_name: str, column_name: str) -> bool:
+    bind = op.get_bind()
+    for fk in inspect(bind).get_foreign_keys(table_name):
+        if column_name in fk.get("constrained_columns", []):
+            return True
+    return False
+
+
 def upgrade() -> None:
     """Upgrade schema."""
     # Index creation is safe on all dialects. ALTER COLUMN TYPE is PostgreSQL-only.
@@ -112,7 +134,7 @@ def upgrade() -> None:
                    existing_nullable=True)
     create_index_if_not_exists('ix_recipe_items_id', 'recipe_items', ['id'])
     if not is_sqlite:
-        op.drop_constraint(None, 'recipe_items', type_='foreignkey')
+        _drop_fk_on_column('recipe_items', 'ingredient_id')
         op.create_foreign_key(None, 'recipe_items', 'ingredients', ['ingredient_id'], ['id'])
     create_index_if_not_exists('ix_shift_logs_owner_id', 'shift_logs', ['owner_id'])
     create_index_if_not_exists('ix_shift_records_owner_id', 'shift_records', ['owner_id'])
@@ -120,7 +142,16 @@ def upgrade() -> None:
     create_index_if_not_exists('ix_suppliers_name', 'suppliers', ['name'])
     create_index_if_not_exists('ix_suppliers_owner_id', 'suppliers', ['owner_id'])
     if not is_sqlite:
-        op.create_foreign_key(None, 'system_settings', 'users', ['owner_id'], ['id'])
+        # NOTE: migration 00000 already establishes this FK at table
+        # creation. This block used to unconditionally re-add it with
+        # create_foreign_key(None, ...), which is harmless on databases
+        # where the constraint was never named (SQLite) but creates a
+        # redundant, functionally-duplicate constraint on PostgreSQL,
+        # where op.create_foreign_key(None, ...) lets the dialect
+        # auto-name a brand new one alongside the original. Guarded so
+        # it only runs if the FK is genuinely missing.
+        if not _has_fk_on_column('system_settings', 'owner_id'):
+            op.create_foreign_key(None, 'system_settings', 'users', ['owner_id'], ['id'])
         op.alter_column('transactions', 'status',
                    existing_type=sa.TEXT(),
                    type_=sa.String(),
@@ -161,7 +192,7 @@ def downgrade() -> None:
     drop_index_if_exists('ix_users_id', 'users')
     drop_index_if_exists('ix_transactions_owner_id', 'transactions')
     if not is_sqlite:
-        op.drop_constraint(None, 'system_settings', type_='foreignkey')
+        _drop_fk_on_column('system_settings', 'owner_id')
     drop_index_if_exists('ix_suppliers_owner_id', 'suppliers')
     drop_index_if_exists('ix_suppliers_name', 'suppliers')
     # Downgrade restores the old unique constraint on suppliers.name
@@ -173,7 +204,7 @@ def downgrade() -> None:
     drop_index_if_exists('ix_shift_records_owner_id', 'shift_records')
     drop_index_if_exists('ix_shift_logs_owner_id', 'shift_logs')
     if not is_sqlite:
-        op.drop_constraint(None, 'recipe_items', type_='foreignkey')
+        _drop_fk_on_column('recipe_items', 'ingredient_id')
         op.create_foreign_key(None, 'recipe_items', 'ingredients_old', ['ingredient_id'], ['id'])
     drop_index_if_exists('ix_recipe_items_id', 'recipe_items')
     drop_index_if_exists('ix_purchase_orders_owner_id', 'purchase_orders')

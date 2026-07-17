@@ -9,6 +9,7 @@ from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy import inspect
 
 
 # revision identifiers, used by Alembic.
@@ -16,6 +17,14 @@ revision: str = 'c61cf028c5b2'
 down_revision: Union[str, Sequence[str], None] = '0017'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
+
+
+def _has_fk_on_column(table_name: str, column_name: str) -> bool:
+    bind = op.get_bind()
+    for fk in inspect(bind).get_foreign_keys(table_name):
+        if column_name in fk.get("constrained_columns", []):
+            return True
+    return False
 
 
 def upgrade() -> None:
@@ -51,8 +60,9 @@ def upgrade() -> None:
     with op.batch_alter_table('suppliers', schema=None) as batch_op:
         batch_op.create_index(batch_op.f('ix_suppliers_id'), ['id'], unique=False)
 
-    with op.batch_alter_table('system_settings', schema=None) as batch_op:
-        batch_op.create_foreign_key('fk_system_settings_users', 'users', ['owner_id'], ['id'])
+    if not _has_fk_on_column('system_settings', 'owner_id'):
+        with op.batch_alter_table('system_settings', schema=None) as batch_op:
+            batch_op.create_foreign_key('fk_system_settings_users', 'users', ['owner_id'], ['id'])
 
     with op.batch_alter_table('transactions', schema=None) as batch_op:
         batch_op.create_index(batch_op.f('ix_transactions_id'), ['id'], unique=False)
@@ -72,8 +82,9 @@ def downgrade() -> None:
     with op.batch_alter_table('transactions', schema=None) as batch_op:
         batch_op.drop_index(batch_op.f('ix_transactions_id'))
 
-    with op.batch_alter_table('system_settings', schema=None) as batch_op:
-        batch_op.drop_constraint('fk_system_settings_users', type_='foreignkey')
+    if 'fk_system_settings_users' in {fk.get('name') for fk in inspect(op.get_bind()).get_foreign_keys('system_settings')}:
+        with op.batch_alter_table('system_settings', schema=None) as batch_op:
+            batch_op.drop_constraint('fk_system_settings_users', type_='foreignkey')
 
     with op.batch_alter_table('suppliers', schema=None) as batch_op:
         batch_op.drop_index(batch_op.f('ix_suppliers_id'))

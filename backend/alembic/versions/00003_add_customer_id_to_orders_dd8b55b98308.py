@@ -9,6 +9,7 @@ from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy import inspect
 
 
 # revision identifiers, used by Alembic.
@@ -16,6 +17,41 @@ revision: str = 'dd8b55b98308'
 down_revision: Union[str, Sequence[str], None] = '3e9803fe76a2'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
+
+
+def _existing_indexes(table_name: str) -> set:
+    try:
+        return {ix["name"] for ix in inspect(op.get_bind()).get_indexes(table_name)}
+    except Exception:
+        return set()
+
+
+def _index_exists(index_name: str, table_name: str) -> bool:
+    return index_name in _existing_indexes(table_name)
+
+
+def create_index_if_not_exists(index_name: str, table_name: str, columns: list, unique: bool = False) -> None:
+    if not _index_exists(index_name, table_name):
+        op.create_index(op.f(index_name), table_name, columns, unique=unique)
+
+
+def drop_index_if_exists(index_name: str, table_name: str) -> None:
+    if _index_exists(index_name, table_name):
+        op.drop_index(op.f(index_name), table_name=table_name)
+
+
+def _drop_fk_on_column(table_name: str, column_name: str) -> None:
+    """Find and drop the FK constraint on table_name whose constrained
+    column is column_name, by its real (reflected) name -- portable
+    across SQLite and PostgreSQL, unlike passing None. Safe no-op if no
+    matching FK currently exists."""
+    bind = op.get_bind()
+    for fk in inspect(bind).get_foreign_keys(table_name):
+        if column_name in fk.get("constrained_columns", []):
+            name = fk.get("name")
+            if name:
+                op.drop_constraint(name, table_name, type_="foreignkey")
+            return
 
 
 def upgrade() -> None:
@@ -35,7 +71,7 @@ def upgrade() -> None:
                existing_type=sa.TEXT(),
                type_=sa.String(),
                existing_nullable=True)
-    op.create_index(op.f('ix_expenses_id'), 'expenses', ['id'], unique=False)
+    create_index_if_not_exists('ix_expenses_id', 'expenses', ['id'])
     op.alter_column('ingredients', 'id',
                existing_type=sa.INTEGER(),
                nullable=False,
@@ -68,8 +104,8 @@ def upgrade() -> None:
                existing_type=sa.REAL(),
                type_=sa.Float(),
                existing_nullable=True)
-    op.create_index(op.f('ix_ingredients_id'), 'ingredients', ['id'], unique=False)
-    op.create_index(op.f('ix_ingredients_name'), 'ingredients', ['name'], unique=False)
+    create_index_if_not_exists('ix_ingredients_id', 'ingredients', ['id'])
+    create_index_if_not_exists('ix_ingredients_name', 'ingredients', ['name'])
     op.alter_column('recipe_items', 'id',
                existing_type=sa.INTEGER(),
                nullable=False,
@@ -82,11 +118,11 @@ def upgrade() -> None:
                existing_type=sa.REAL(),
                type_=sa.Float(),
                existing_nullable=True)
-    op.create_index(op.f('ix_recipe_items_id'), 'recipe_items', ['id'], unique=False)
-    op.drop_constraint(None, 'recipe_items', type_='foreignkey')
+    create_index_if_not_exists('ix_recipe_items_id', 'recipe_items', ['id'])
+    _drop_fk_on_column('recipe_items', 'ingredient_id')
     op.create_foreign_key(None, 'recipe_items', 'ingredients', ['ingredient_id'], ['id'])
-    op.drop_index(op.f('ix_suppliers_name'), table_name='suppliers')
-    op.create_index(op.f('ix_suppliers_name'), 'suppliers', ['name'], unique=False)
+    drop_index_if_exists('ix_suppliers_name', 'suppliers')
+    create_index_if_not_exists('ix_suppliers_name', 'suppliers', ['name'])
     op.alter_column('system_settings', 'key',
                existing_type=sa.TEXT(),
                type_=sa.String(),
@@ -114,8 +150,8 @@ def upgrade() -> None:
                existing_type=sa.TEXT(),
                type_=sa.String(),
                existing_nullable=True)
-    op.create_index(op.f('ix_users_id'), 'users', ['id'], unique=False)
-    op.create_index(op.f('ix_users_username'), 'users', ['username'], unique=True)
+    create_index_if_not_exists('ix_users_id', 'users', ['id'])
+    create_index_if_not_exists('ix_users_username', 'users', ['username'], unique=True)
     # ### end Alembic commands ###
 
 
@@ -153,11 +189,11 @@ def downgrade() -> None:
                existing_type=sa.String(),
                type_=sa.TEXT(),
                nullable=True)
-    op.drop_index(op.f('ix_suppliers_name'), table_name='suppliers')
-    op.create_index(op.f('ix_suppliers_name'), 'suppliers', ['name'], unique=1)
-    op.drop_constraint(None, 'recipe_items', type_='foreignkey')
+    drop_index_if_exists('ix_suppliers_name', 'suppliers')
+    create_index_if_not_exists('ix_suppliers_name', 'suppliers', ['name'])
+    _drop_fk_on_column('recipe_items', 'ingredient_id')
     op.create_foreign_key(None, 'recipe_items', 'ingredients_old', ['ingredient_id'], ['id'])
-    op.drop_index(op.f('ix_recipe_items_id'), table_name='recipe_items')
+    drop_index_if_exists('ix_recipe_items_id', 'recipe_items')
     op.alter_column('recipe_items', 'quantity',
                existing_type=sa.Float(),
                type_=sa.REAL(),
