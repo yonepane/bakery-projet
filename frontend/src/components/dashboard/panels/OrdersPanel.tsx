@@ -2,10 +2,14 @@ import { useTranslation } from 'react-i18next';
 import React, { useMemo } from 'react';
 import { useDashboard } from '../DashboardContext';
 import { Calendar, Crown, FileText, Plus, Zap } from 'lucide-react';
+import { Table, TableHeader, TableBody, TableRow, Th, Td } from '../../ui/Table';
+import { openWhatsApp } from '../../../lib/whatsapp';
+import { useOrderMutations } from '../../../hooks/useOrderMutations';
 
 const OrdersPanel: React.FC = () => {
   const { isDarkMode, orders, inventory, setShowBookingModal, setBookingForm, bookingForm, fetchData, api, addToast, } = useDashboard();
   const { t } = useTranslation();
+  const { updateOrderStatus } = useOrderMutations();
 
 
   // VIP Clienteling: count orders per customer to detect repeat customers
@@ -44,21 +48,19 @@ const OrdersPanel: React.FC = () => {
           </button>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-left">
-            <thead>
-              <tr className={`border-b text-[10px] font-black uppercase tracking-[0.3em] ${isDarkMode ? 'border-white/5 text-cream/40' : 'border-slate-100 text-slate-400'}`}>
-                <th className="px-8 py-6">{t('customer_identity')}</th>
-                <th className="px-8 py-6">{t('pickup_schedule')}</th>
-                <th className="px-8 py-6">{t('fulfillment_status')}</th>
-                <th className="px-8 py-6 text-right">{t('connect')}</th>
-              </tr>
-            </thead>
-            <tbody className={`divide-y ${isDarkMode ? 'divide-white/5' : 'divide-slate-100'}`}>
+          <Table>
+            <TableHeader isDarkMode={isDarkMode}>
+              <Th>{t('customer_identity')}</Th>
+              <Th>{t('pickup_schedule')}</Th>
+              <Th>{t('fulfillment_status')}</Th>
+              <Th className="text-right">{t('connect')}</Th>
+            </TableHeader>
+            <TableBody isDarkMode={isDarkMode}>
               {orders.map(order => {
                 const vip = isVIP(order);
                 return (
-                  <tr key={order.id} className={`group hover:bg-white/[0.02] transition-colors ${vip ? (isDarkMode ? 'bg-gold/[0.02]' : 'bg-amber-50/50') : ''}`}>
-                    <td className="px-8 py-6">
+                  <TableRow key={order.id} className={vip ? (isDarkMode ? 'bg-gold/[0.02]' : 'bg-amber-50/50') : ''} isDarkMode={isDarkMode}>
+                    <Td>
                       <div className="flex items-center gap-3">
                         {vip && (
                           <div className={`flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center shadow-[0_0_12px_rgba(212,175,55,0.3)] ${isDarkMode ? 'bg-gold/15' : 'bg-amber-100'}`}>
@@ -82,44 +84,42 @@ const OrdersPanel: React.FC = () => {
                           )}
                         </div>
                       </div>
-                    </td>
-                    <td className="px-8 py-6">
+                    </Td>
+                    <Td>
                       <div className="flex items-center gap-3">
                         <Calendar size={14} className="text-gold opacity-40" />
                         <p className={`text-sm font-bold ${isDarkMode ? 'text-white/60' : 'text-slate-600'}`}>
                           {new Date(order.pickup_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
                         </p>
                       </div>
-                    </td>
-                    <td className="px-8 py-6">
+                    </Td>
+                    <Td>
                       <select value={order.status}
-                        onChange={async (e) => { await api.patch(`/orders/${order.id}/status?status=${e.target.value}`, null); addToast(`Order ${e.target.value.toUpperCase()}`, 'success'); fetchData(); }}
+                        onChange={(e) => updateOrderStatus.execute({ orderId: order.id, status: e.target.value })}
                         className={`appearance-none cursor-pointer px-4 py-2 text-[10px] font-black uppercase tracking-widest rounded-xl border transition-all outline-none ${isDarkMode ? 'bg-black/80 border-gold/20 text-gold hover:bg-gold hover:text-charcoal' : 'bg-slate-50 border-slate-200 text-slate-900 hover:bg-slate-900 hover:text-white'}`}>
                         <option value="pending" className={isDarkMode ? 'bg-[#0a0a0b] text-gold' : ''}>{t('pending')}</option>
                         <option value="baking" className={isDarkMode ? 'bg-[#0a0a0b] text-gold' : ''}>{t('baking')}</option>
                         <option value="ready" className={isDarkMode ? 'bg-[#0a0a0b] text-gold' : ''}>{t('ready')}</option>
                         <option value="picked_up" className={isDarkMode ? 'bg-[#0a0a0b] text-gold' : ''}>{t('picked_up')}</option>
                       </select>
-                    </td>
-                    <td className="px-8 py-6 text-right">
+                    </Td>
+                    <Td className="text-right">
                       <button onClick={() => {
-                        const cleanPhone = (order.customer_phone || '').replace(/\D/g, '');
-                        if (cleanPhone.length >= 8) {
-                          window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(`Bonjour ${order.customer_name}${vip ? ' 👑' : ''}, votre commande BakeryOS est maintenant ${order.status.toUpperCase()}! 🥐`)}`, '_blank', 'noopener,noreferrer');
-                        }
+                        const msg = `Bonjour ${order.customer_name}${vip ? ' 👑' : ''}, votre commande BakeryOS est maintenant ${order.status.toUpperCase()}! 🥐`;
+                        openWhatsApp(order.customer_phone || '', msg);
                       }}
                         className={`p-4 rounded-2xl transition-all ${isDarkMode ? 'bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500 hover:text-black' : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white'}`} title={vip ? 'Message VIP Client via WhatsApp' : 'Share via WhatsApp'}>
                         <Zap size={18} fill="currentColor" />
                       </button>
-                    </td>
-                  </tr>
+                    </Td>
+                  </TableRow>
                 );
               })}
               {orders.length === 0 && (
-                <tr><td colSpan={4} className="py-20 text-center opacity-10"><FileText size={48} className="mx-auto mb-4" /><p className="font-black text-[10px] uppercase tracking-widest">{t('no_active_bookings')}</p></td></tr>
+                <TableRow isDarkMode={isDarkMode}><Td colSpan={4} className="py-20 text-center opacity-10"><FileText size={48} className="mx-auto mb-4" /><p className="font-black text-[10px] uppercase tracking-widest">{t('no_active_bookings')}</p></Td></TableRow>
               )}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
       </div>
     </div>

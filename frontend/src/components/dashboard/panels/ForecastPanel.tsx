@@ -2,6 +2,7 @@ import React from 'react';
 import { useDashboard } from '../DashboardContext';
 import { useTranslation } from 'react-i18next';
 import { TrendingUp, Package, Truck, AlertTriangle, Clock, Zap, Loader2 } from 'lucide-react';
+import { TabStrip } from '../../ui/TabStrip';
 import type {
   ForecastItem,
   ProductionSuggestion,
@@ -152,27 +153,18 @@ const ForecastPanel: React.FC = () => {
       </div>
 
       {/* Tab Navigation */}
-      <div className={`flex gap-1 rounded-xl border p-1 ${isDarkMode ? 'bg-[#1a1a1c] border-white/5' : 'bg-slate-50 border-slate-200'}`}>
-        {[
-          { id: 'forecast', label: t('demand_forecast'), icon: TrendingUp },
-          { id: 'production', label: t('production_plan'), icon: Package },
-          { id: 'purchasing', label: t('purchase_orders'), icon: Truck },
-          { id: 'expiring', label: t('expiring_stock_usage'), icon: AlertTriangle },
-        ].map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id as any)}
-            className={`flex items-center gap-2 px-5 py-3 rounded-lg text-sm font-bold uppercase tracking-widest transition-all ${
-              activeTab === tab.id
-                ? (isDarkMode ? 'bg-gold text-charcoal shadow-gold-glow' : 'bg-gold text-charcoal shadow-lg')
-                : (isDarkMode ? 'text-cream/60 hover:text-white' : 'text-slate-500 hover:text-slate-900')
-            }`}
-          >
-            <tab.icon size={14} />
-            {tab.label}
-          </button>
-        ))}
-      </div>
+      <TabStrip
+        variant="panel"
+        tabs={[
+          { value: 'forecast', label: t('demand_forecast'), icon: TrendingUp },
+          { value: 'production', label: t('production_plan'), icon: Package },
+          { value: 'purchasing', label: t('purchase_orders'), icon: Truck },
+          { value: 'expiring', label: t('expiring_stock_usage'), icon: AlertTriangle },
+        ]}
+        active={activeTab}
+        onChange={(v) => setActiveTab(v as any)}
+        isDarkMode={isDarkMode}
+      />
 
       {/* Content */}
       <div className={`rounded-2xl border overflow-hidden transition-colors ${isDarkMode ? 'bg-[#0a0a0b] border-white/5 shadow-glass backdrop-blur-xl' : 'bg-white border-slate-200 shadow-xl'}`}>

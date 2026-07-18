@@ -1,18 +1,22 @@
 import React from 'react';
-import { Package, Loader2 } from 'lucide-react';
+import { Package } from 'lucide-react';
 import type { ProductionTabProps } from './ForecastPanel.types';
+import { Table, TableHeader, TableBody, TableRow, Th, Td } from '../../ui/Table';
+import { LoadingSpinner } from '../../ui/LoadingSpinner';
+import { EmptyState } from '../../ui/EmptyState';
 
 export const ProductionTab = (props: ProductionTabProps) => {
   const { suggestions, loading, isDarkMode, t, formatPrice } = props;
-  if (loading) return <div className="h-[400px] flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin text-gold" /></div>;
+  if (loading) return <LoadingSpinner />;
 
   if (!suggestions.length) {
     return (
-      <div className="p-12 text-center">
-        <Package className={`w-16 h-16 mx-auto mb-4 ${isDarkMode ? 'text-white/10' : 'text-slate-200'}`} />
-        <h3 className={`text-xl font-bold ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{t('no_production_needed')}</h3>
-        <p className={`mt-2 ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>{t('stock_covers_demand')}</p>
-      </div>
+      <EmptyState
+        icon={Package}
+        title={t('no_production_needed')}
+        subtitle={t('stock_covers_demand')}
+        isDarkMode={isDarkMode}
+      />
     );
   }
 
@@ -22,35 +26,33 @@ export const ProductionTab = (props: ProductionTabProps) => {
         {t('production_plan_for', { defaultValue: 'Production Plan for' })} {new Date().toLocaleDateString()}
       </h2>
       <div className="overflow-x-auto">
-        <table className="w-full text-left">
-          <thead>
-            <tr className={`border-b text-[10px] font-black uppercase tracking-[0.2em] ${isDarkMode ? 'border-white/5 text-cream/40' : 'border-slate-100 text-slate-400'}`}>
-              <th className="px-6 py-4">{t('product')}</th>
-              <th className="px-6 py-4 text-center">{t('demand')}</th>
-              <th className="px-6 py-4 text-center">{t('current_stock')}</th>
-              <th className="px-6 py-4 text-center">{t('to_produce')}</th>
-              <th className="px-6 py-4">{t('ingredient_readiness')}</th>
-              <th className="px-6 py-4 text-right">{t('estimated_cost')}</th>
-            </tr>
-          </thead>
-          <tbody className={`${isDarkMode ? 'divide-white/5' : 'divide-slate-100'}`}>
+        <Table>
+          <TableHeader isDarkMode={isDarkMode}>
+            <Th className="px-6 py-4">{t('product')}</Th>
+            <Th className="px-6 py-4 text-center">{t('demand')}</Th>
+            <Th className="px-6 py-4 text-center">{t('current_stock')}</Th>
+            <Th className="px-6 py-4 text-center">{t('to_produce')}</Th>
+            <Th className="px-6 py-4">{t('ingredient_readiness')}</Th>
+            <Th className="px-6 py-4 text-right">{t('estimated_cost')}</Th>
+          </TableHeader>
+          <TableBody isDarkMode={isDarkMode}>
             {suggestions.map(s => (
-              <tr key={s.product_id} className="group hover:bg-white/[0.02] transition-colors">
-                <td className="px-6 py-4">
+              <TableRow key={s.product_id} isDarkMode={isDarkMode}>
+                <Td className="px-6 py-4">
                   <p className={`font-bold text-sm ${isDarkMode ? 'text-cream' : 'text-slate-900'}`}>{s.product_name}</p>
-                </td>
-                <td className="px-6 py-4 text-center">
+                </Td>
+                <Td className="px-6 py-4 text-center">
                   <span className={`font-bold text-sm ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{s.demand}</span>
-                </td>
-                <td className="px-6 py-4 text-center">
+                </Td>
+                <Td className="px-6 py-4 text-center">
                   <span className={`text-sm ${isDarkMode ? 'text-cream/60' : 'text-slate-500'}`}>{s.current_stock}</span>
-                </td>
-                <td className="px-6 py-4 text-center">
+                </Td>
+                <Td className="px-6 py-4 text-center">
                   <span className={`font-bold text-lg ${s.net_production > 0 ? 'text-emerald-400' : 'text-slate-400'}`}>
                     {s.net_production > 0 ? '+' : ''}{s.net_production}
                   </span>
-                </td>
-                <td className="px-6 py-4">
+                </Td>
+                <Td className="px-6 py-4">
                   <div className="flex flex-wrap gap-1.5">
                     {s.lot_usage.slice(0, 3).map(lu => (
                       <span
@@ -70,16 +72,16 @@ export const ProductionTab = (props: ProductionTabProps) => {
                       </span>
                     )}
                   </div>
-                </td>
-                <td className="px-6 py-4 text-right">
+                </Td>
+                <Td className="px-6 py-4 text-right">
                   <span className={`text-lg font-bold ${isDarkMode ? 'text-gold' : 'text-slate-900'}`}>
                     {formatPrice(s.lot_usage.reduce((sum, lu) => sum + lu.required_qty * 0.5, 0))}
                   </span>
-                </td>
-              </tr>
+                </Td>
+              </TableRow>
             ))}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
     </div>
   );

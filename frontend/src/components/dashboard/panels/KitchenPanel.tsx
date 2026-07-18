@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { useDashboard } from '../DashboardContext';
 import type { Product } from '../types';
 import { Calendar, CheckCircle, FileText, Zap, Croissant, Cake, AlertTriangle } from 'lucide-react';
+import { openWhatsApp } from '../../../lib/whatsapp';
 
 const KitchenPanel: React.FC = () => {
   const { isDarkMode, planner, inventory, orders, api, addToast, fetchData,
@@ -154,12 +155,9 @@ const KitchenPanel: React.FC = () => {
                     await api.patch(`/orders/${order.id}/status?status=${e.target.value}`, null);
                     if (e.target.value === 'ready') {
                       addToast(`Order for ${order.customer_name} is Ready!`, "success");
-                      const msg = encodeURIComponent(`Bonjour ${order.customer_name}, votre commande chez BakeryOS est prête! 🥐`);
+                      const msg = `Bonjour ${order.customer_name}, votre commande chez BakeryOS est prête! 🥐`;
                       if (order.customer_phone) {
-                        const cleanPhone = order.customer_phone.replace(/\D/g, '');
-                        if (cleanPhone.length >= 8) {
-                          window.open(`https://wa.me/${cleanPhone}?text=${msg}`, '_blank', 'noopener,noreferrer');
-                        }
+                        openWhatsApp(order.customer_phone, msg);
                       }
                     }
                     fetchData();

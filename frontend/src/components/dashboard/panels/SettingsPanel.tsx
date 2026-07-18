@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import React from 'react';
 import { useDashboard } from '../DashboardContext';
+import { useSettingsMutations } from '../../../hooks/useSettingsMutations';
 
 const ToggleSwitch: React.FC<{ checked: boolean; onChange: () => void; isDarkMode: boolean }> = ({ checked, onChange, isDarkMode }) => (
   <button
@@ -50,6 +51,7 @@ const SettingsPanel: React.FC = () => {
   setIsDarkMode, addToast, fetchData, api,
   sidebarHoverMode = false, setSidebarHoverMode, } = useDashboard();
   const { t } = useTranslation();
+  const { saveSettings } = useSettingsMutations();
 
   const [form, setForm] = React.useState<SettingsFormState>({
     bakery_name:          settings?.bakery_name      || '',
@@ -81,8 +83,7 @@ const SettingsPanel: React.FC = () => {
 
   const handleSave = async () => {
     try {
-      await api.put('/settings', { ...form, language: lang, theme: isDarkMode ? 'dark' : 'light' });
-      fetchData();
+      await saveSettings.execute({ ...form, language: lang, theme: isDarkMode ? 'dark' : 'light' });
       addToast(t('settings_saved'), 'success');
     } catch {
       addToast(t('failed_to_save_settings'), 'error');

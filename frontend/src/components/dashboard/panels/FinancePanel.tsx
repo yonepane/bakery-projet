@@ -8,7 +8,8 @@ import { useTranslation } from 'react-i18next';
 import React, { useState } from 'react';
 import { useDashboard } from '../DashboardContext';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { FileText, TrendingDown, TrendingUp, Briefcase, FileClock, Table, Plus } from 'lucide-react';
+import { FileText, TrendingDown, TrendingUp, Briefcase, FileClock, Table as TableIcon, Plus } from 'lucide-react';
+import { Table, TableHeader, TableBody, TableRow, Th, Td } from '../../ui/Table';
 import http from '../../../lib/http';
 
 import { deriveAccountingMetrics } from '../utils';
@@ -221,7 +222,7 @@ const FinancePanel: React.FC = () => {
           <button
             onClick={() => openReport('excel')}
             className={`flex items-center gap-3 px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${isDarkMode ? 'bg-emerald-500 text-white shadow-[0_0_15px_rgba(16,185,129,0.3)]' : 'bg-emerald-600 text-white'}`}>
-            <Table size={16} /> {t('export_excel')}
+            <TableIcon size={16} /> {t('export_excel')}
           </button>
         </div>
       </div>
@@ -396,19 +397,17 @@ const FinancePanel: React.FC = () => {
         </div>
 
         <div className={`rounded-[2.5rem] border overflow-hidden transition-colors ${isDarkMode ? 'glass-panel' : 'bg-white border-slate-200 shadow-xl'}`}>
-          <table className="w-full text-left">
-            <thead>
-              <tr className={`border-b text-[10px] font-black uppercase tracking-[0.2em] ${isDarkMode ? 'border-black/60 text-cream/40' : 'border-black/10 text-slate-400'}`}>
-                <th className="px-8 py-6">{t('date')}</th>
-                <th className="px-8 py-6">{t('supplier_ref')}</th>
-                <th className="px-8 py-6">{t('category')}</th>
-                <th className="px-8 py-6">{t('tax_vat')}</th>
-                <th className="px-8 py-6">{t('status')}</th>
-                <th className="px-8 py-6 text-right">{t('amount')}</th>
-                <th className="px-8 py-6 text-right">{t('actions')}</th>
-              </tr>
-            </thead>
-            <tbody>
+          <Table>
+            <TableHeader isDarkMode={isDarkMode}>
+              <Th className="px-8 py-6">{t('date')}</Th>
+              <Th className="px-8 py-6">{t('supplier_ref')}</Th>
+              <Th className="px-8 py-6">{t('category')}</Th>
+              <Th className="px-8 py-6">{t('tax_vat')}</Th>
+              <Th className="px-8 py-6">{t('status')}</Th>
+              <Th className="px-8 py-6 text-right">{t('amount')}</Th>
+              <Th className="px-8 py-6 text-right">{t('actions')}</Th>
+            </TableHeader>
+            <TableBody isDarkMode={isDarkMode}>
               {(filteredExpenses || []).map((exp: any) => {
                 const suppName = exp.supplier?.name || (exp.supplier_id ? `Supplier #${exp.supplier_id}` : 'None');
                 const tvaRateStr = exp.tva_rate !== undefined ? `${exp.tva_rate}%` : 'Legacy';
@@ -419,22 +418,22 @@ const FinancePanel: React.FC = () => {
                 else statusBadge = 'bg-rose-500/10 text-rose-400 border border-rose-500/20';
 
                 return (
-                  <tr key={exp.id} className={`border-b last:border-0 ${
+                  <TableRow key={exp.id} className={`last:border-0 ${
                     isDarkMode ? 'border-black/50 hover:bg-white/5' : 'border-black/5 hover:bg-slate-50'
-                  } transition-colors`}>
-                    <td className="px-8 py-5 font-bold text-sm">{new Date(exp.date).toLocaleDateString()}</td>
-                    <td className="px-8 py-5">
+                  }`} isDarkMode={isDarkMode}>
+                    <Td className="font-bold text-sm">{new Date(exp.date).toLocaleDateString()}</Td>
+                    <Td>
                       <div className="font-bold text-sm">{suppName}</div>
                       {exp.invoice_ref && (
                         <div className="text-[10px] opacity-40 font-mono mt-0.5">Ref: {exp.invoice_ref}</div>
                       )}
-                    </td>
-                    <td className="px-8 py-5">
+                    </Td>
+                    <Td>
                       <span className={`text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full ${
                         isDarkMode ? 'bg-white/5 text-cream/70' : 'bg-slate-100 text-slate-600'
                       }`}>{exp.category}</span>
-                    </td>
-                    <td className="px-8 py-5">
+                    </Td>
+                    <Td>
                       <div className="text-sm font-semibold">{tvaRateStr} TVA</div>
                       <div className="text-[10px] mt-0.5">
                         {exp.is_tva_deductible ? (
@@ -443,8 +442,8 @@ const FinancePanel: React.FC = () => {
                           <span className="text-white/30 uppercase tracking-wider text-[9px]">{t('non_deductible')}</span>
                         )}
                       </div>
-                    </td>
-                    <td className="px-8 py-5">
+                    </Td>
+                    <Td>
                       <span className={`text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded-full ${statusBadge}`}>
                         {exp.status}
                       </span>
@@ -453,16 +452,16 @@ const FinancePanel: React.FC = () => {
                           Paid: {formatPrice(exp.amount_paid || 0)}
                         </div>
                       )}
-                    </td>
-	                    <td className="px-8 py-5 text-right">
+                    </Td>
+	                    <Td className="text-right">
 	                      <div className="font-bold text-sm text-rose-500">
 	                        -{formatPrice(exp.amount_ttc || exp.amount)}
 	                      </div>
 	                      <div className="text-[10px] opacity-40 mt-0.5">
 	                        {`HT: ${formatPrice(exp.amount_ht || exp.amount / 1.10)}`}
 	                      </div>
-	                    </td>
-                    <td className="px-8 py-5 text-right">
+	                    </Td>
+                    <Td className="text-right">
                       <div className="flex items-center justify-end gap-2">
                         <button
                           onClick={() => openEditExpense(exp)}
@@ -483,19 +482,19 @@ const FinancePanel: React.FC = () => {
                           {t('delete')}
                         </button>
                       </div>
-                    </td>
-                  </tr>
+                    </Td>
+                  </TableRow>
                 );
               })}
               {(!expenses || expenses.length === 0) && (
-                <tr>
-                  <td colSpan={7} className="py-20 text-center opacity-20 font-black uppercase tracking-widest text-[10px]">
+                <TableRow isDarkMode={isDarkMode}>
+                  <Td colSpan={7} className="py-20 text-center opacity-20 font-black uppercase tracking-widest text-[10px]">
                     {t('no_expenses_logged')}
-                  </td>
-                </tr>
+                  </Td>
+                </TableRow>
               )}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
       </div>
     </div>

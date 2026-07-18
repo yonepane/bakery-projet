@@ -5,6 +5,7 @@ import type { Product } from '../types';
 import { Edit2, Plus, Trash2 } from 'lucide-react';
 import { parseQtyString } from '../utils';
 import SemiFinishedPanel from './SemiFinishedPanel';
+import { Table, TableHeader, TableBody, TableRow, Th, Td } from '../../ui/Table';
 
 const InventoryPanel: React.FC = () => {
   const { isDarkMode, inventory, editMode, formatPrice,
@@ -35,20 +36,18 @@ const InventoryPanel: React.FC = () => {
           <h3 className={`text-xl font-bold luxury-font uppercase ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{t('finished_goods')}</h3>
           {editMode && <button onClick={() => setShowAddProduct(true)} className={`p-2 rounded-lg ${isDarkMode ? 'bg-gold/10 text-gold' : 'bg-slate-100 text-slate-900'}`}><Plus size={16} /></button>}
         </div>
-        <table className="w-full text-left">
-          <thead>
-            <tr className={`border-b text-[10px] font-black uppercase tracking-[0.2em] ${isDarkMode ? 'border-white/5 text-cream/40' : 'border-slate-100 text-slate-400'}`}>
-              <th className="px-8 py-6">{t('entity')}</th>
-              <th className="px-8 py-6">{t('stock')}</th>
-              <th className="px-8 py-6 text-right">{t('price_value')}</th>
-            </tr>
-          </thead>
-          <tbody className={`divide-y ${isDarkMode ? 'divide-white/5' : 'divide-slate-100'}`}>
+        <Table>
+          <TableHeader isDarkMode={isDarkMode}>
+            <Th className="px-8 py-6">{t('entity')}</Th>
+            <Th className="px-8 py-6">{t('stock')}</Th>
+            <Th className="px-8 py-6 text-right">{t('price_value')}</Th>
+          </TableHeader>
+          <TableBody isDarkMode={isDarkMode}>
             {inventory.products.map((p: Product) => {
               const totalValue = p.stock * p.price;
               return (
-                <tr key={p.id} className="group hover:bg-white/[0.02] transition-colors">
-                  <td className="px-8 py-6">
+                <TableRow key={p.id} isDarkMode={isDarkMode}>
+                  <Td className="px-8 py-6">
                     <div className="flex items-center gap-4">
                       <span className="text-3xl">{p.icon}</span>
                       <div>
@@ -62,8 +61,8 @@ const InventoryPanel: React.FC = () => {
                         )}
                       </div>
                     </div>
-                  </td>
-                  <td className="px-8 py-6">
+                  </Td>
+                  <Td className="px-8 py-6">
                     <div className="flex items-center gap-3">
                       <button onClick={() => handleAdjustStock('product', p.id, -1)} className={`w-6 h-6 rounded-md flex items-center justify-center text-xs ${isDarkMode ? 'bg-white/5 hover:bg-rose-500/20 text-rose-500' : 'bg-slate-100 hover:bg-rose-100 text-rose-600'}`}>-</button>
                       <span className={`font-bold text-sm min-w-[3ch] text-center ${p.stock < 10 ? 'text-rose-500' : ''}`}>{p.stock}</span>
@@ -80,8 +79,8 @@ const InventoryPanel: React.FC = () => {
                         })}
                         className={`w-6 h-6 rounded-md flex items-center justify-center text-xs ${isDarkMode ? 'bg-white/5 hover:bg-emerald-500/20 text-emerald-500' : 'bg-slate-100 hover:bg-emerald-100 text-emerald-600'}`}>+</button>
                     </div>
-                  </td>
-                  <td className="px-8 py-6 text-right">
+                  </Td>
+                  <Td className="px-8 py-6 text-right">
                     <div className="flex flex-col items-end gap-2">
                       <div className="flex items-center gap-3">
                         <span className={`text-sm font-bold ${isDarkMode ? 'text-gold' : 'text-slate-900'}`}>{formatPrice(p.price)}</span>
@@ -111,12 +110,12 @@ const InventoryPanel: React.FC = () => {
                       </div>
                       <span className={`text-[9px] uppercase tracking-widest font-bold ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>{t('total_value')} <span className={isDarkMode ? 'text-cream' : 'text-slate-900'}>{formatPrice(totalValue)}</span></span>
                     </div>
-                  </td>
-                </tr>
+                  </Td>
+                </TableRow>
               );
             })}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
 
       {/* Raw Materials */}
@@ -129,25 +128,23 @@ const InventoryPanel: React.FC = () => {
             </button>
           )}
         </div>
-        <table className="w-full text-left table-fixed">
+        <Table className="table-fixed">
           <colgroup>
             <col className="w-[35%]" />
             <col className="w-[30%]" />
             <col className="w-[20%]" />
             {editMode && <col className="w-[15%]" />}
           </colgroup>
-          <thead>
-            <tr className={`border-b text-[10px] font-black uppercase tracking-[0.2em] ${isDarkMode ? 'border-white/5 text-cream/40' : 'border-slate-100 text-slate-400'}`}>
-              <th className="px-4 py-5 pl-8">{t('ingredient')}</th>
-              <th className="px-4 py-5">{t('stock_level')}</th>
-              <th className="px-4 py-5">{t('supplier')}</th>
-              {editMode && <th className="px-4 py-5 pr-6 text-right">{t('actions')}</th>}
-            </tr>
-          </thead>
-          <tbody className={`divide-y ${isDarkMode ? 'divide-white/5' : 'divide-slate-100'}`}>
+          <TableHeader isDarkMode={isDarkMode}>
+            <Th className="px-4 py-5 pl-8">{t('ingredient')}</Th>
+            <Th className="px-4 py-5">{t('stock_level')}</Th>
+            <Th className="px-4 py-5">{t('supplier')}</Th>
+            {editMode && <Th className="px-4 py-5 pr-6 text-right">{t('actions')}</Th>}
+          </TableHeader>
+          <TableBody isDarkMode={isDarkMode}>
             {sortedMaterialEntries.map(([name, data]: [string, any]) => (
-              <tr key={name} className="group hover:bg-white/[0.02] transition-colors">
-                <td className="px-4 py-5 pl-8">
+              <TableRow key={name} isDarkMode={isDarkMode}>
+                <Td className="px-4 py-5 pl-8">
                   <p className={`font-bold truncate ${isDarkMode ? 'text-cream' : 'text-slate-900'}`}>{name}</p>
                   <p className={`text-[10px] uppercase font-bold tracking-widest ${isDarkMode ? 'text-gold/60' : 'text-slate-400'}`}>{formatPrice(data.price)}/{data.unit}</p>
                   {(data.is_organic || (data.allergens && data.allergens.length > 0)) && (
@@ -158,8 +155,8 @@ const InventoryPanel: React.FC = () => {
                       ))}
                     </div>
                   )}
-                </td>
-                <td className="px-4 py-5 font-bold">
+                </Td>
+                <Td className="px-4 py-5 font-bold">
                   <div className="flex items-center gap-2">
                     <button onClick={() => handleAdjustStock('material', name, -100)} className={`w-6 h-6 rounded-md flex items-center justify-center text-xs shrink-0 ${isDarkMode ? 'bg-white/5 hover:bg-rose-500/20 text-rose-500' : 'bg-slate-100 hover:bg-rose-100 text-rose-600'}`}>-</button>
                     <span className={`font-bold text-sm min-w-[4ch] text-center ${data.stock < data.min_threshold ? 'text-rose-500' : (isDarkMode ? 'text-gold' : 'text-slate-900')}`}>{data.stock}</span>
@@ -178,12 +175,12 @@ const InventoryPanel: React.FC = () => {
                     >+</button>
                     <span className="text-[10px] opacity-40 shrink-0">{data.unit}</span>
                   </div>
-                </td>
-                <td className="px-4 py-5">
+                </Td>
+                <Td className="px-4 py-5">
                   <span className={`text-[10px] font-black uppercase tracking-widest truncate block ${isDarkMode ? 'text-cream/20' : 'text-slate-300'}`}>{(data as any).supplier || 'Standard'}</span>
-                </td>
+                </Td>
                 {editMode && (
-                  <td className="px-4 py-5 pr-6 text-right">
+                  <Td className="px-4 py-5 pr-6 text-right">
                     <div className="flex items-center justify-end gap-2">
                       <button
                         onClick={() => startEditingMaterial(name, data)}
@@ -200,12 +197,12 @@ const InventoryPanel: React.FC = () => {
                         <Trash2 size={13} />
                       </button>
                     </div>
-                  </td>
+                  </Td>
                 )}
-              </tr>
+              </TableRow>
             ))}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
 
       {/* Location Board */}
@@ -238,42 +235,40 @@ const InventoryPanel: React.FC = () => {
               <div key={loc.id} className="space-y-4">
                 <h4 className={`text-sm font-bold uppercase tracking-widest ${isDarkMode ? 'text-gold' : 'text-slate-900'}`}>{loc.name} {loc.branch_name ? `(${loc.branch_name})` : ''}</h4>
                 {balances.length > 0 ? (
-                  <table className="w-full text-left table-fixed">
-                    <thead>
-                      <tr className={`border-b text-[10px] font-black uppercase tracking-[0.2em] ${isDarkMode ? 'border-white/5 text-cream/40' : 'border-slate-100 text-slate-400'}`}>
-                        <th className="py-2">Item</th>
-                        <th className="py-2">Lot</th>
-                        <th className="py-2">Status</th>
-                        <th className="py-2 text-right">Quantity</th>
-                      </tr>
-                    </thead>
-                    <tbody className={`divide-y ${isDarkMode ? 'divide-white/5' : 'divide-slate-100'}`}>
+                  <Table className="table-fixed">
+                    <TableHeader isDarkMode={isDarkMode}>
+                      <Th className="py-2">Item</Th>
+                      <Th className="py-2">Lot</Th>
+                      <Th className="py-2">Status</Th>
+                      <Th className="py-2 text-right">Quantity</Th>
+                    </TableHeader>
+                    <TableBody isDarkMode={isDarkMode}>
                       {balances.map(b => (
-                        <tr key={b.id} className="group hover:bg-white/[0.02] transition-colors">
-                          <td className="py-3">
+                        <TableRow key={b.id} isDarkMode={isDarkMode}>
+                          <Td className="py-3">
                             <p className={`font-bold text-sm ${isDarkMode ? 'text-cream' : 'text-slate-900'}`}>{b.lot?.item_name}</p>
                             <p className={`text-[10px] uppercase font-bold tracking-widest ${isDarkMode ? 'text-gold/60' : 'text-slate-400'}`}>{b.lot?.item_type}</p>
-                          </td>
-                          <td className="py-3">
+                          </Td>
+                          <Td className="py-3">
                             {b.lot?.lot_code ? (
                               <span className={`text-[10px] font-mono p-1 rounded ${isDarkMode ? 'bg-white/5 text-cream/60' : 'bg-slate-100 text-slate-600'}`}>{b.lot.lot_code}</span>
                             ) : (
                               <span className={`text-[10px] text-slate-400`}>N/A</span>
                             )}
-                          </td>
-                          <td className="py-3">
+                          </Td>
+                          <Td className="py-3">
                             <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-full ${statusColors[b.lot?.status || 'active'] || statusColors.active}`}>
                               {b.lot?.status || 'active'}
                             </span>
-                          </td>
-                          <td className="py-3 text-right">
+                          </Td>
+                          <Td className="py-3 text-right">
                             <span className={`font-bold text-sm ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{b.quantity}</span>
                             {b.lot?.unit && <span className={`text-[10px] ml-1 ${isDarkMode ? 'text-white/40' : 'text-slate-400'}`}>{b.lot.unit}</span>}
-                          </td>
-                        </tr>
+                          </Td>
+                        </TableRow>
                       ))}
-                    </tbody>
-                  </table>
+                    </TableBody>
+                  </Table>
                 ) : (
                   <p className={`text-sm ${isDarkMode ? 'text-white/40' : 'text-slate-400'}`}>No stock in this location.</p>
                 )}

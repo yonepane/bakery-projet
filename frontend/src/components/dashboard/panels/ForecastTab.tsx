@@ -1,34 +1,32 @@
 import React from 'react';
-import { Loader2, TrendingUp } from 'lucide-react';
+import { TrendingUp } from 'lucide-react';
 import { SummaryCard } from './ForecastSummaryCard';
 import { InsightCard } from './ForecastInsightCard';
 import type { ForecastTabProps } from './ForecastPanel.types';
+import { Table, TableHeader, TableBody, TableRow, Th, Td } from '../../ui/Table';
+import { LoadingSpinner } from '../../ui/LoadingSpinner';
+import { EmptyState } from '../../ui/EmptyState';
 
 export const ForecastTab = (props: ForecastTabProps) => {
   const { forecasts, loading, isDarkMode, t, targetDate, confidenceColor, confidenceLabel } = props;
 
   if (loading) {
     return (
-      <div className="h-[400px] flex flex-col items-center justify-center gap-4">
-        <Loader2 className="w-10 h-10 animate-spin text-gold" />
-        <p className={`text-sm ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>
-          {t('calculating_forecast', { defaultValue: 'Calculating demand forecast...' })}
-        </p>
-      </div>
+      <LoadingSpinner
+        message={t('calculating_forecast', { defaultValue: 'Calculating demand forecast...' })}
+        isDarkMode={isDarkMode}
+      />
     );
   }
 
   if (!forecasts.length) {
     return (
-      <div className="p-12 text-center">
-        <TrendingUp className={`w-16 h-16 mx-auto mb-4 ${isDarkMode ? 'text-white/10' : 'text-slate-200'}`} />
-        <h3 className={`text-xl font-bold ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
-          {t('no_forecast_data', { defaultValue: 'No forecast data available' })}
-        </h3>
-        <p className={`mt-2 ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>
-          {t('no_forecast_data_desc', { defaultValue: 'Add sales history to generate forecasts' })}
-        </p>
-      </div>
+      <EmptyState
+        icon={TrendingUp}
+        title={t('no_forecast_data', { defaultValue: 'No forecast data available' })}
+        subtitle={t('no_forecast_data_desc', { defaultValue: 'Add sales history to generate forecasts' })}
+        isDarkMode={isDarkMode}
+      />
     );
   }
 
@@ -77,36 +75,34 @@ export const ForecastTab = (props: ForecastTabProps) => {
 
       {/* Forecast Table */}
       <div className="overflow-x-auto">
-        <table className="w-full text-left">
-          <thead>
-            <tr className={`border-b text-[10px] font-black uppercase tracking-[0.2em] ${isDarkMode ? 'border-white/5 text-cream/40' : 'border-slate-100 text-slate-400'}`}>
-              <th className="px-6 py-4">{t('product')}</th>
-              <th className="px-6 py-4 text-center">{t('confidence')}</th>
-              <th className="px-6 py-4 text-center">{t('data_points')}</th>
-              <th className="px-6 py-4">{t('weekday_breakdown')}</th>
-              <th className="px-6 py-4 text-right">{t('horizon_qty')}</th>
-            </tr>
-          </thead>
-          <tbody className={`divide-y ${isDarkMode ? 'divide-white/5' : 'divide-slate-100'}`}>
+        <Table>
+          <TableHeader isDarkMode={isDarkMode}>
+            <Th className="px-6 py-4">{t('product')}</Th>
+            <Th className="px-6 py-4 text-center">{t('confidence')}</Th>
+            <Th className="px-6 py-4 text-center">{t('data_points')}</Th>
+            <Th className="px-6 py-4">{t('weekday_breakdown')}</Th>
+            <Th className="px-6 py-4 text-right">{t('horizon_qty')}</Th>
+          </TableHeader>
+          <TableBody isDarkMode={isDarkMode}>
             {forecasts.map(f => (
-              <tr key={f.product_id} className={`group hover:bg-white/[0.02] transition-colors ${isDarkMode ? '' : 'hover:bg-slate-50'}`}>
-                <td className="px-6 py-4">
+              <TableRow key={f.product_id} className={isDarkMode ? '' : 'hover:bg-slate-50'} isDarkMode={isDarkMode}>
+                <Td className="px-6 py-4">
                   <p className={`font-bold text-sm ${isDarkMode ? 'text-cream' : 'text-slate-900'}`}>{f.product_name}</p>
                   <p className={`text-[10px] uppercase tracking-widest ${isDarkMode ? 'text-gold/60' : 'text-slate-400'}`}>
                     ID: {f.product_id}
                   </p>
-                </td>
-                <td className="px-6 py-4 text-center">
+                </Td>
+                <Td className="px-6 py-4 text-center">
                   <span className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest ${confidenceColor(f.confidence)}`}>
                     {confidenceLabel(f.confidence)}
                   </span>
-                </td>
-                <td className="px-6 py-4 text-center">
+                </Td>
+                <Td className="px-6 py-4 text-center">
                   <span className={`text-sm font-mono ${isDarkMode ? 'text-cream/60' : 'text-slate-500'}`}>
                     {f.data_points}
                   </span>
-                </td>
-                <td className="px-6 py-4">
+                </Td>
+                <Td className="px-6 py-4">
                   <div className="flex flex-wrap gap-1.5">
                     {Object.entries(f.weekday_forecast).map(([day, qty]) => (
                       <span
@@ -121,19 +117,19 @@ export const ForecastTab = (props: ForecastTabProps) => {
                       </span>
                     ))}
                   </div>
-                </td>
-                <td className="px-6 py-4 text-right">
+                </Td>
+                <Td className="px-6 py-4 text-right">
                   <span className={`text-xl font-bold ${isDarkMode ? 'text-gold' : 'text-slate-900'}`}>
                     {f.horizon_qty}
                   </span>
                   <span className={`ml-2 text-[10px] uppercase tracking-widest ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>
                     {t('units')}
                   </span>
-                </td>
-              </tr>
+                </Td>
+              </TableRow>
             ))}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
 
       {/* Insights */}

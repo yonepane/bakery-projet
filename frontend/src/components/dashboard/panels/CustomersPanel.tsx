@@ -3,10 +3,14 @@ import React, { useState } from 'react';
 import { useDashboard } from '../DashboardContext';
 import { Users, Plus, Star, Phone, Mail, Trash2, X } from 'lucide-react';
 import type { Customer } from '../types';
+import { PanelHeader } from '../../ui/PanelHeader';
+import { CustomerModal } from '../modals/CustomerModal';
+import { useCustomerMutations } from '../../../hooks/useCustomerMutations';
 
 const CustomersPanel: React.FC = () => {
   const { isDarkMode, customers, api, addToast, fetchData, showConfirm } = useDashboard();
   const { t } = useTranslation();
+  const { saveCustomer, deleteCustomer } = useCustomerMutations();
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
@@ -17,21 +21,12 @@ const CustomersPanel: React.FC = () => {
       addToast(t('name_is_required'), "error");
       return;
     }
-    try {
-      if (editingCustomer) {
-        await api.patch(`/customers/${editingCustomer.id}`, formData);
-        addToast(t('customer_updated'), "success");
-      } else {
-        await api.post('/customers', formData);
-        addToast(t('customer_created'), "success");
-      }
-      setShowAddModal(false);
-      setEditingCustomer(null);
-      setFormData({ name: '', phone: '', email: '' });
-      fetchData();
-    } catch (e: any) {
-      addToast(editingCustomer ? "Update failed" : "Creation failed", "error");
-    }
+    
+    await saveCustomer.execute({ editingCustomer, formData });
+    
+    setShowAddModal(false);
+    setEditingCustomer(null);
+    setFormData({ name: '', phone: '', email: '' });
   };
 
   const openEdit = (customer: Customer) => {
@@ -105,22 +100,15 @@ const CustomersPanel: React.FC = () => {
                   {t('edit_profile')}
                 </button>
                 <button
-                  onClick={() => showConfirm({
-                    title: 'Delete Customer',
-                    message: `Remove ${customer.name} from the CRM? This cannot be undone if they have no transaction history.`,
-                    type: 'danger',
-                    confirmText: 'Delete',
-                    onConfirm: async () => {
-                      try {
-                        await api.delete(`/customers/${customer.id}`);
-                        addToast(t('customer_removed'), 'success');
-                        fetchData();
-                      } catch (e: any) {
-                        const detail = e.response?.data?.detail || 'Delete failed';
-                        addToast(detail, 'error');
-                      }
-                    },
-                  })}
+                  onClick={() => {
+                    showConfirm({
+                      title: t('confirm_delete') || 'Confirm Delete',
+                      message: t('confirm_delete_customer') || 'Remove this member?',
+                      type: 'danger',
+                      confirmText: 'Delete',
+                      onConfirm: () => deleteCustomer.execute(customer.id)
+                    });
+                  }}
                   className={`p-4 rounded-2xl text-[10px] font-black transition-all ${
                     isDarkMode
                       ? 'bg-rose-500/10 text-rose-400 hover:bg-rose-500/20'
@@ -142,62 +130,15 @@ const CustomersPanel: React.FC = () => {
         )}
       </div>
 
-      {showAddModal && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-black/80 backdrop-blur-xl animate-in fade-in duration-300">
-          <div className="w-full max-w-md p-10 luxury-panel">
-            <div className="flex justify-between items-start mb-10">
-              <h3 className={`text-2xl font-bold luxury-font uppercase tracking-tighter ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
-                {editingCustomer ? 'Edit Profile' : 'New Member'}
-              </h3>
-              <button onClick={() => setShowAddModal(false)} className="p-4 rounded-full bg-white/5 hover:bg-white/10 transition-colors">
-                <X size={24} />
-              </button>
-            </div>
-
-            <div className="space-y-8">
-              <div>
-                <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">{t('full_name')}</label>
-                <input
-                  type="text"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder={t('e_g_jean_dupont')}
-                  className={`w-full bg-transparent border-b text-lg font-bold py-4 outline-none ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`}
-                />
-              </div>
-
-              <div>
-                <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">{t('phone_number')}</label>
-                <input
-                  type="text"
-                  value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  placeholder="+212..."
-                  className={`w-full bg-transparent border-b text-lg font-bold py-4 outline-none ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`}
-                />
-              </div>
-
-              <div>
-                <label className="text-[10px] font-black uppercase tracking-widest text-gold block mb-2">{t('email_address')}</label>
-                <input
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  placeholder={t('customer_email_com')}
-                  className={`w-full bg-transparent border-b text-lg font-bold py-4 outline-none ${isDarkMode ? 'border-white/10 text-cream' : 'border-slate-200 text-slate-900'}`}
-                />
-              </div>
-
-              <button
-                onClick={handleSave}
-                className={`w-full py-6 rounded-[2rem] font-black text-xs uppercase tracking-[0.2em] transition-all ${isDarkMode ? 'bg-gold text-charcoal shadow-gold-glow hover:scale-105' : 'bg-slate-900 text-white shadow-xl'}`}
-              >
-                {editingCustomer ? 'Update Member' : 'Register Member'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <CustomerModal
+        isOpen={showAddModal}
+        onClose={() => setShowAddModal(false)}
+        isDarkMode={isDarkMode}
+        editingCustomer={editingCustomer}
+        formData={formData}
+        setFormData={setFormData}
+        onSave={handleSave}
+      />
     </div>
   );
 };

@@ -2,6 +2,7 @@ import React from 'react';
 import { useDashboard } from '../DashboardContext';
 import { Plus, Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { Table, TableHeader, TableBody, TableRow, Th, Td } from '../../ui/Table';
 
 const StaffPanel: React.FC = () => {
   const { isDarkMode, staff, handleDeleteStaff, setShowAddStaff } = useDashboard();
@@ -19,27 +20,31 @@ const StaffPanel: React.FC = () => {
       </button>
     </div>
     <div className={`rounded-[2.5rem] border overflow-hidden transition-colors ${isDarkMode ? 'glass-panel' : 'bg-white border-slate-200 shadow-xl'}`}>
-      <table className="w-full text-left">
-        <thead>
-          <tr className={`border-b text-[10px] font-black uppercase tracking-[0.2em] ${isDarkMode ? 'border-white/5 text-cream/40' : 'border-slate-100 text-slate-400'}`}>
-            <th className="px-8 py-6">{t('username')}</th>
-            <th className="px-8 py-6">{t('role')}</th>
-            <th className="px-8 py-6 text-right">{t('actions')}</th>
-          </tr>
-        </thead>
-        <tbody>
+      <Table>
+        <TableHeader isDarkMode={isDarkMode}>
+          <Th className="px-8 py-6">{t('username')}</Th>
+          <Th className="px-8 py-6">{t('role')}</Th>
+          <Th className="px-8 py-6 text-right">{t('actions')}</Th>
+        </TableHeader>
+        <TableBody isDarkMode={isDarkMode}>
           {staff.map((member) => (
-            <tr key={member.id} className={`border-b last:border-0 ${isDarkMode ? 'border-white/5 hover:bg-white/5' : 'border-slate-50 hover:bg-slate-50'} transition-colors`}>
-              <td className="px-8 py-6 font-bold text-sm">{member.username}</td>
-              <td className="px-8 py-6"><span className="text-[10px] font-black uppercase tracking-widest bg-white/5 px-3 py-1 rounded-full">{member.role}</span></td>
-              <td className="px-8 py-6 text-right">
+            <TableRow key={member.id} isDarkMode={isDarkMode}>
+              <Td className="font-bold text-sm">{member.username}</Td>
+              <Td><span className="text-[10px] font-black uppercase tracking-widest bg-white/5 px-3 py-1 rounded-full">{member.role}</span></Td>
+              <Td className="text-right">
                 <button onClick={() => handleDeleteStaff(member.username)} className="text-rose-500/20 hover:text-rose-500 transition-colors p-2"><Trash2 size={16} /></button>
-              </td>
-            </tr>
+              </Td>
+            </TableRow>
           ))}
-          {staff.length === 0 && <tr><td colSpan={3} className="py-20 text-center opacity-10 font-black uppercase tracking-widest text-[10px]">{t('no_staff_yet')}</td></tr>}
-        </tbody>
-      </table>
+          {staff.length === 0 && (
+            <TableRow isDarkMode={isDarkMode}>
+              <Td colSpan={3} className="py-20 text-center opacity-10 font-black uppercase tracking-widest text-[10px]">
+                {t('no_staff_yet')}
+              </Td>
+            </TableRow>
+          )}
+        </TableBody>
+      </Table>
     </div>
   </div>
   );

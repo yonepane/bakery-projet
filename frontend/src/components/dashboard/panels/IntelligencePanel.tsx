@@ -1,8 +1,9 @@
 import { useTranslation } from 'react-i18next';
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useDashboard } from '../DashboardContext';
 import type { Product } from '../types';
-import { Brain, TrendingUp, TrendingDown, Zap, Trophy, Star, Sparkles, ArrowUpRight, Activity, Coins, ShieldAlert, Layers, Percent } from 'lucide-react';
+import { Brain, TrendingUp, TrendingDown, Zap, Trophy, Star, Sparkles, ArrowUpRight, Activity, Coins, ShieldAlert, Layers, Percent, Target, ArrowRight, ArrowDownRight } from 'lucide-react';
+import { Table, TableHeader, TableBody, TableRow, Th, Td } from '../../ui/Table';
 
 const IntelligencePanel: React.FC = () => {
   const { isDarkMode, profitReport, inventory, formatPrice, analytics } = useDashboard();
@@ -318,58 +319,56 @@ const IntelligencePanel: React.FC = () => {
         <div className={`p-8 border-b ${isDarkMode ? 'border-white/5' : 'border-slate-100'}`}>
           <h3 className={`text-xl font-bold luxury-font uppercase ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{t('per_product_profitability')}</h3>
         </div>
-        <table className="w-full text-left">
-          <thead>
-            <tr className={`border-b text-[10px] font-black uppercase tracking-[0.2em] ${isDarkMode ? 'border-white/5 text-cream/40' : 'border-slate-100 text-slate-400'}`}>
-              <th className="px-8 py-5">{t('product')}</th>
-              <th className="px-8 py-5 text-right">{t('sell_price')}</th>
-              <th className="px-8 py-5 text-right">{t('unit_cost')}</th>
-              <th className="px-8 py-5 text-right">{t('margin')}</th>
-              <th className="px-8 py-5 text-right">{t('signal')}</th>
-            </tr>
-          </thead>
-          <tbody className={`divide-y ${isDarkMode ? 'divide-white/5' : 'divide-slate-100'}`}>
+        <Table>
+          <TableHeader isDarkMode={isDarkMode}>
+            <Th className="px-8 py-5">{t('product')}</Th>
+            <Th className="px-8 py-5 text-right">{t('sell_price')}</Th>
+            <Th className="px-8 py-5 text-right">{t('unit_cost')}</Th>
+            <Th className="px-8 py-5 text-right">{t('margin')}</Th>
+            <Th className="px-8 py-5 text-right">{t('signal')}</Th>
+          </TableHeader>
+          <TableBody isDarkMode={isDarkMode}>
             {normalizedReport.map((p: { name: string; icon: string; sellPrice: number; unitCost: number; margin: number; roi: number }, i: number) => {
               const isHealthy = p.margin >= 25;
               return (
-                <tr key={i} className="group hover:bg-white/[0.02] transition-colors">
-                  <td className="px-8 py-5">
+                <TableRow key={i} isDarkMode={isDarkMode}>
+                  <Td className="px-8 py-5">
                     <div className="flex items-center gap-3">
                       <span className="text-2xl">{p.icon}</span>
                       <p className={`font-bold ${isDarkMode ? 'text-cream' : 'text-slate-900'}`}>{p.name}</p>
                     </div>
-                  </td>
-                  <td className="px-8 py-5 text-right">
+                  </Td>
+                  <Td className="px-8 py-5 text-right">
                     <span className={`font-bold ${isDarkMode ? 'text-gold' : 'text-slate-900'}`}>{formatPrice(p.sellPrice)}</span>
-                  </td>
-                  <td className="px-8 py-5 text-right">
+                  </Td>
+                  <Td className="px-8 py-5 text-right">
                     <span className="font-bold text-rose-400">{formatPrice(p.unitCost)}</span>
-                  </td>
-                  <td className="px-8 py-5 text-right">
+                  </Td>
+                  <Td className="px-8 py-5 text-right">
                     <div className="flex flex-col items-end gap-1">
                       <span className={`font-bold text-sm ${isHealthy ? 'text-emerald-400' : 'text-rose-400'}`}>{p.margin.toFixed(1)}%</span>
                       <div className={`h-1 rounded-full w-16 ${isDarkMode ? 'bg-white/5' : 'bg-slate-100'}`}>
                         <div className={`h-1 rounded-full transition-all ${isHealthy ? 'bg-emerald-400' : 'bg-rose-400'}`} style={{ width: `${Math.min(p.margin, 100)}%` }} />
                       </div>
                     </div>
-                  </td>
-                  <td className="px-8 py-5 text-right">
+                  </Td>
+                  <Td className="px-8 py-5 text-right">
                     {isHealthy
                       ? <div className="flex items-center justify-end gap-2 text-emerald-500 text-[10px] font-black uppercase tracking-widest"><TrendingUp size={14} /> {t('healthy')}</div>
                       : <div className="flex items-center justify-end gap-2 text-rose-500 text-[10px] font-black uppercase tracking-widest"><TrendingDown size={14} /> {t('low_margin')}</div>
                     }
-                  </td>
-                </tr>
+                  </Td>
+                </TableRow>
               );
             })}
             {normalizedReport.length === 0 && (
-              <tr><td colSpan={5} className="px-8 py-20 text-center">
+              <TableRow isDarkMode={isDarkMode}><Td colSpan={5} className="px-8 py-20 text-center">
                 <Brain size={48} className="mx-auto mb-4 opacity-10" />
                 <p className="text-[10px] font-black uppercase tracking-widest opacity-20">{t('no_products_found_add_products')}</p>
-              </td></tr>
+              </Td></TableRow>
             )}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
     </div>
   );

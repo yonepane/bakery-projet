@@ -2,6 +2,8 @@ import { useTranslation } from 'react-i18next';
 import React from 'react';
 import { useDashboard } from '../DashboardContext';
 import { CheckCircle, Edit2, FileText, Package, Plus, Radio, Trash2, Truck } from 'lucide-react';
+import { openWhatsApp } from '../../../lib/whatsapp';
+import { calcOrderTotal } from '../utils';
 
 const PurchasingPanel: React.FC = () => {
   const { isDarkMode, purchasingSuggestions, purchaseOrders, suppliers, selectedSupplierId,
@@ -9,9 +11,6 @@ const PurchasingPanel: React.FC = () => {
   handleDeletePO, openPOModal, addToast, setShowAddSupplier, setEditingSupplier,
   setNewSupplier, handleDeleteSupplier, } = useDashboard();
   const { t } = useTranslation();
-  const getOrderTotal = (po: any) => (po.items || []).reduce((sum: number, item: any) => (
-    sum + (Number(item.qty) || 0) * (Number(item.price) || 0)
-  ), 0);
   const getSupplierName = (supplierId: number | null | undefined) => (
     suppliers.find(s => s.id === supplierId)?.name || 'No supplier'
   );
@@ -32,10 +31,9 @@ const PurchasingPanel: React.FC = () => {
               <button
                 onClick={() => {
                   const items = purchasingSuggestions.map(s => `• ${s.name}: +${s.suggested_buy}${s.unit}`).join('\n');
-                  const msg = encodeURIComponent(`🥖 BakeryOS RFQ Request\n\nBonjour, nous recherchons des offres pour les ingrédients suivants:\n\n${items}\n\nMerci de nous envoyer vos meilleurs prix dès que possible.`);
+                  const msg = `🥖 BakeryOS RFQ Request\n\nBonjour, nous recherchons des offres pour les ingrédients suivants:\n\n${items}\n\nMerci de nous envoyer vos meilleurs prix dès que possible.`;
                   suppliers.forEach(s => {
-                    const phone = (s.contact_info || '').replace(/\D/g, '');
-                    if (phone.length >= 8) window.open(`https://wa.me/${phone}?text=${msg}`, '_blank', 'noopener,noreferrer');
+                    openWhatsApp(s.contact_info || '', msg);
                   });
                   addToast(`RFQ broadcast sent to ${suppliers.length} suppliers!`, 'success');
                 }}
@@ -125,7 +123,7 @@ const PurchasingPanel: React.FC = () => {
                   </div>
                   <div className="flex flex-col items-end gap-2">
                     <span className={`text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full ${po.status === 'received' ? (isDarkMode ? 'bg-emerald-500/10 text-emerald-500' : 'bg-emerald-100 text-emerald-700') : (isDarkMode ? 'bg-gold/10 text-gold' : 'bg-amber-100 text-amber-700')}`}>{po.status}</span>
-                    <p className={`text-sm font-black ${isDarkMode ? 'text-gold' : 'text-slate-900'}`}>{formatPrice(getOrderTotal(po))}</p>
+                    <p className={`text-sm font-black ${isDarkMode ? 'text-gold' : 'text-slate-900'}`}>{formatPrice(calcOrderTotal(po))}</p>
                     <button onClick={() => handleDeletePO(po.id)} className="p-1.5 rounded-lg text-rose-500/30 hover:text-rose-500 hover:bg-rose-500/10"><Trash2 size={14} /></button>
                   </div>
                 </div>

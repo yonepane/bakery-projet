@@ -45,6 +45,13 @@ const isWithinAccountingRange = (value: string | undefined, accountingRange: Acc
   return date >= start && date <= end;
 };
 
+export const calcOrderTotal = (po: any): number => {
+  return (po.items || []).reduce(
+    (sum: number, item: any) => sum + (Number(item.qty) || 0) * (Number(item.price) || 0),
+    0
+  );
+};
+
 export const deriveAccountingMetrics = ({
   history,
   expenses,
@@ -78,15 +85,7 @@ export const deriveAccountingMetrics = ({
   );
   const draftPurchaseCommitment = filteredPurchaseOrders
     .filter((po: any) => po.status !== 'received')
-    .reduce(
-      (sum: number, po: any) =>
-        sum +
-        po.items.reduce(
-          (poSum: number, item: any) => poSum + (Number(item.qty) || 0) * (Number(item.price) || 0),
-          0,
-        ),
-      0,
-    );
+    .reduce((sum: number, po: any) => sum + calcOrderTotal(po), 0);
   const monthlyNetAfterExpenses = monthlySales - monthlyExpensesTotal;
   const expenseBreakdown = Object.entries(
     filteredExpenses.reduce((acc: Record<string, number>, exp: any) => {

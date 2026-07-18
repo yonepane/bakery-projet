@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { X, Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
 import { SemiFinishedItem } from '../types';
 import { api } from '../../../lib/api';
+import { Modal, ModalHeader } from '../../ui/Modal';
 
 interface RecipeLine {
   ingredient_id: number;
@@ -90,81 +91,79 @@ export const RecipeBuilderModal: React.FC<Props> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-      <div className={`w-full max-w-lg rounded-2xl flex flex-col max-h-[85vh] ${isDarkMode ? 'bg-[#1a1a1c] text-white' : 'bg-white text-slate-900'}`}>
-        {/* Header */}
-        <div className={`p-6 border-b flex justify-between items-center shrink-0 ${isDarkMode ? 'border-white/10' : 'border-slate-100'}`}>
-          <div>
-            <h2 className="text-xl font-bold">Recipe Builder</h2>
-            <p className={`text-sm mt-0.5 ${isDarkMode ? 'text-white/50' : 'text-slate-400'}`}>{item.name}</p>
-          </div>
-          <button onClick={onClose} className={`p-2 rounded-lg transition-colors ${isDarkMode ? 'hover:bg-white/10' : 'hover:bg-slate-100'}`}>
-            <X size={18} />
-          </button>
-        </div>
+    <Modal 
+      isOpen={isOpen} 
+      isDarkMode={isDarkMode} 
+      maxWidth="max-w-lg" 
+      className="flex flex-col max-h-[85vh]"
+    >
+      <ModalHeader 
+        title="Recipe Builder" 
+        subtitle={item.name} 
+        onClose={onClose} 
+        isDarkMode={isDarkMode} 
+        withBorder 
+      />
 
-        {/* Body */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-3">
-          {loading ? (
-            <p className={`text-sm text-center py-8 ${isDarkMode ? 'text-white/40' : 'text-slate-400'}`}>Loading recipe…</p>
-          ) : lines.length === 0 ? (
-            <p className={`text-sm text-center py-8 ${isDarkMode ? 'text-white/40' : 'text-slate-400'}`}>
-              No recipe yet. Click "Add Ingredient" to build one.
-            </p>
-          ) : (
-            lines.map((line, idx) => (
-              <div key={idx} className={`flex items-center gap-3 p-3 rounded-xl ${isDarkMode ? 'bg-white/5' : 'bg-slate-50'}`}>
-                <select
-                  value={line.ingredient_id}
-                  onChange={e => updateIngredient(idx, parseInt(e.target.value))}
-                  className={`flex-1 p-2 rounded-lg text-sm border ${isDarkMode ? 'bg-white/5 border-white/10 text-white' : 'bg-white border-slate-200 text-slate-900'}`}
-                >
-                  {ingredientList.map(ing => (
-                    <option key={ing.id} value={ing.id}>{ing.name}</option>
-                  ))}
-                </select>
-                <input
-                  type="number"
-                  step="0.001"
-                  min="0.001"
-                  value={line.quantity}
-                  onChange={e => updateQuantity(idx, parseFloat(e.target.value))}
-                  className={`w-24 p-2 rounded-lg text-sm border text-right ${isDarkMode ? 'bg-white/5 border-white/10 text-white' : 'bg-white border-slate-200 text-slate-900'}`}
-                />
-                <span className={`text-xs w-8 shrink-0 ${isDarkMode ? 'text-white/40' : 'text-slate-400'}`}>{line.unit}</span>
-                <button
-                  onClick={() => removeLine(idx)}
-                  className="text-rose-400 hover:text-rose-500 transition-colors"
-                  title="Remove line"
-                >
-                  <Trash2 size={14} />
-                </button>
-              </div>
-            ))
-          )}
-        </div>
-
-        {/* Footer */}
-        <div className={`p-6 border-t flex gap-3 shrink-0 ${isDarkMode ? 'border-white/10' : 'border-slate-100'}`}>
-          <button
-            onClick={addLine}
-            disabled={ingredientList.length === 0}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-colors ${
-              isDarkMode
-                ? 'bg-white/5 text-white hover:bg-white/10 disabled:opacity-40'
-                : 'bg-slate-100 text-slate-700 hover:bg-slate-200 disabled:opacity-40'
-            }`}
-          >
-            <Plus size={14} /> Add Ingredient
-          </button>
-          <button
-            onClick={handleSave}
-            className="flex-1 py-2 bg-gold text-black font-bold rounded-xl text-sm hover:bg-gold/90 transition-colors"
-          >
-            Save Recipe
-          </button>
-        </div>
+      <div className="flex-1 overflow-y-auto p-6 space-y-3">
+        {loading ? (
+          <p className={`text-sm text-center py-8 ${isDarkMode ? 'text-white/40' : 'text-slate-400'}`}>Loading recipe…</p>
+        ) : lines.length === 0 ? (
+          <p className={`text-sm text-center py-8 ${isDarkMode ? 'text-white/40' : 'text-slate-400'}`}>
+            No recipe yet. Click "Add Ingredient" to build one.
+          </p>
+        ) : (
+          lines.map((line, idx) => (
+            <div key={idx} className={`flex items-center gap-3 p-3 rounded-xl ${isDarkMode ? 'bg-white/5' : 'bg-slate-50'}`}>
+              <select
+                value={line.ingredient_id}
+                onChange={e => updateIngredient(idx, parseInt(e.target.value))}
+                className={`flex-1 p-2 rounded-lg text-sm border ${isDarkMode ? 'bg-white/5 border-white/10 text-white' : 'bg-white border-slate-200 text-slate-900'}`}
+              >
+                {ingredientList.map(ing => (
+                  <option key={ing.id} value={ing.id}>{ing.name}</option>
+                ))}
+              </select>
+              <input
+                type="number"
+                step="0.001"
+                min="0.001"
+                value={line.quantity}
+                onChange={e => updateQuantity(idx, parseFloat(e.target.value))}
+                className={`w-24 p-2 rounded-lg text-sm border text-right ${isDarkMode ? 'bg-white/5 border-white/10 text-white' : 'bg-white border-slate-200 text-slate-900'}`}
+              />
+              <span className={`text-xs w-8 shrink-0 ${isDarkMode ? 'text-white/40' : 'text-slate-400'}`}>{line.unit}</span>
+              <button
+                onClick={() => removeLine(idx)}
+                className="text-rose-400 hover:text-rose-500 transition-colors"
+                title="Remove line"
+              >
+                <Trash2 size={14} />
+              </button>
+            </div>
+          ))
+        )}
       </div>
-    </div>
+
+      <div className={`p-6 border-t flex gap-3 shrink-0 ${isDarkMode ? 'border-white/10' : 'border-slate-100'}`}>
+        <button
+          onClick={addLine}
+          disabled={ingredientList.length === 0}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-colors ${
+            isDarkMode
+              ? 'bg-white/5 text-white hover:bg-white/10 disabled:opacity-40'
+              : 'bg-slate-100 text-slate-700 hover:bg-slate-200 disabled:opacity-40'
+          }`}
+        >
+          <Plus size={14} /> Add Ingredient
+        </button>
+        <button
+          onClick={handleSave}
+          className="flex-1 py-2 bg-gold text-black font-bold rounded-xl text-sm hover:bg-gold/90 transition-colors"
+        >
+          Save Recipe
+        </button>
+      </div>
+    </Modal>
   );
 };

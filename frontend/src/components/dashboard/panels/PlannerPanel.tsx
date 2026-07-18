@@ -3,12 +3,14 @@ import React from 'react';
 import { useDashboard } from '../DashboardContext';
 import type { Product } from '../types';
 import { FileText, Plus, Trash2, Zap } from 'lucide-react';
+import { usePlannerMutations } from '../../../hooks/usePlannerMutations';
 
 const PlannerPanel: React.FC = () => {
   const { isDarkMode, inventory, planner, setPlanner, formatPrice,
   isForecasting, handleSmartForecast, handleProduce, displayUnit, openSelector, getDownloadToken, API_BASE,
   wasteRecords, api, addToast, fetchData, } = useDashboard();
   const { t } = useTranslation();
+  const { savePlan } = usePlannerMutations();
 
   const resourceForecast = Object.entries(
     planner.filter((p: { status: string }) => p.status === 'pending').reduce((acc: Record<string, number>, item: { product_id: string; quantity: number }) => {
@@ -36,13 +38,7 @@ const PlannerPanel: React.FC = () => {
             </button>
             <button
               onClick={async () => {
-                try {
-                  await api.post('/planner', planner);
-                  addToast(t('plan_saved_to_cloud'), "success");
-                  fetchData();
-                } catch (e) {
-                  addToast(t('failed_to_save_plan'), "error");
-                }
+                await savePlan.execute(planner);
               }}
               className={`flex items-center gap-3 px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${isDarkMode ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 hover:bg-emerald-500 hover:text-white' : 'bg-emerald-50 text-emerald-600 border border-emerald-100 hover:bg-emerald-100 shadow-sm'}`}>
               {t('save_plan')}

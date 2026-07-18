@@ -1,18 +1,21 @@
 import React from 'react';
-import { AlertTriangle, Loader2 } from 'lucide-react';
+import { AlertTriangle } from 'lucide-react';
 import type { ExpiringTabProps } from './ForecastPanel.types';
+import { LoadingSpinner } from '../../ui/LoadingSpinner';
+import { EmptyState } from '../../ui/EmptyState';
 
 export const ExpiringTab = (props: ExpiringTabProps) => {
   const { suggestions, loading, isDarkMode, t, formatPrice } = props;
-  if (loading) return <div className="h-[400px] flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin text-gold" /></div>;
+  if (loading) return <LoadingSpinner />;
 
   if (!suggestions.length) {
     return (
-      <div className="p-12 text-center">
-        <AlertTriangle className={`w-16 h-16 mx-auto mb-4 ${isDarkMode ? 'text-white/10' : 'text-slate-200'}`} />
-        <h3 className={`text-xl font-bold ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{t('no_expiring_stock')}</h3>
-        <p className={`mt-2 ${isDarkMode ? 'text-cream/40' : 'text-slate-400'}`}>{t('all_stock_fresh')}</p>
-      </div>
+      <EmptyState
+        icon={AlertTriangle}
+        title={t('no_expiring_stock')}
+        subtitle={t('all_stock_fresh')}
+        isDarkMode={isDarkMode}
+      />
     );
   }
 
