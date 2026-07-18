@@ -228,8 +228,6 @@ const DashboardInner: React.FC = () => {
   const [simPrices, setSimPrices] = useState<Record<string, number>>({});
   const [simulatedInflations, setSimulatedInflations] = useState<Record<string, number>>({});
   const [simulationResult, setSimulationResult] = useState<SimulationResult[]>([]);
-  const [runSimulation, setRunSimulation] = useState(() => {});
-  const [saveSimulation, setSaveSimulation] = useState(() => {});
 
   // Format price using active currency and live rates
   const formatPrice = useCallback((amount: number) => formatMoney(amount, activeCurrency, liveRates), [activeCurrency, liveRates]);
@@ -240,7 +238,7 @@ const DashboardInner: React.FC = () => {
   useEffect(() => {
     const handleOnline = () => {
       setIsOnline(true);
-      processSyncQueue().then(() => fetchTabData(activeTab));
+      processSyncQueue().then(() => fetchTabData(activeTab)).catch((err) => console.error('Sync on reconnect failed:', err));
     };
     const handleOffline = () => setIsOnline(false);
 
@@ -954,8 +952,12 @@ const DashboardInner: React.FC = () => {
                       </div>
                       <button
                           onClick={async () => {
-                              const dlToken = await getDownloadToken();
-                              openDocument(`${API_BASE}/transactions/${lastTransaction.transaction_id}/receipt?format=pdf&paper=80mm&token=${dlToken}`, `receipt-${lastTransaction.transaction_id}.pdf`);
+                              try {
+                                  const dlToken = await getDownloadToken();
+                                  openDocument(`${API_BASE}/transactions/${lastTransaction.transaction_id}/receipt?format=pdf&paper=80mm&token=${dlToken}`, `receipt-${lastTransaction.transaction_id}.pdf`);
+                              } catch (err) {
+                                  addToast(t('failed_to_download_file'), 'error');
+                              }
                           }}
                           className={`w-full py-3 rounded-xl font-bold text-sm ${isDarkMode ? 'bg-gold text-charcoal shadow-gold-glow' : 'bg-slate-900 text-white'}`}
                       >

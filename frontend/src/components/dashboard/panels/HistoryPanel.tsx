@@ -199,8 +199,12 @@ const HistoryPanel: React.FC = () => {
                           {!isRefunded && (
                             <button
                               onClick={async () => {
-                                const dlToken = await getDownloadToken();
-                                openDocument(`${API_BASE}/transactions/${tx.id}/receipt?format=pdf&paper=80mm&token=${dlToken}`, `receipt-${tx.id}.pdf`);
+                                try {
+                                  const dlToken = await getDownloadToken();
+                                  openDocument(`${API_BASE}/transactions/${tx.id}/receipt?format=pdf&paper=80mm&token=${dlToken}`, `receipt-${tx.id}.pdf`);
+                                } catch (err) {
+                                  addToast(t('failed_to_download_file'), 'error');
+                                }
                               }}
                               className={`p-2 rounded-lg transition-all ${isDarkMode ? 'bg-gold/10 text-gold hover:bg-gold/20' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
                               title={t('print_receipt')}

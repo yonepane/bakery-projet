@@ -46,8 +46,12 @@ const PlannerPanel: React.FC = () => {
             <button
               onClick={() => openSelector({ title: 'Production Sheet', label: 'Sheet Date', value: new Date().toISOString().split('T')[0], type: 'date',
                 onConfirm: async (date: string) => {
-                  const dlToken = await getDownloadToken();
-                  window.open(`${API_BASE}/planner/prep-sheet?date=${encodeURIComponent(date)}&token=${encodeURIComponent(dlToken)}`, '_blank', 'noopener,noreferrer');
+                  try {
+                    const dlToken = await getDownloadToken();
+                    window.open(`${API_BASE}/planner/prep-sheet?date=${encodeURIComponent(date)}&token=${encodeURIComponent(dlToken)}`, '_blank', 'noopener,noreferrer');
+                  } catch (err) {
+                    addToast(t('failed_to_download_file'), 'error');
+                  }
                 }
               })}
               className={`flex items-center gap-3 px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${isDarkMode ? 'bg-gold/10 text-gold border border-gold/20 hover:bg-gold hover:text-charcoal' : 'bg-slate-900 text-white shadow-xl'}`}>

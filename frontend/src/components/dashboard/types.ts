@@ -112,8 +112,6 @@ export interface DashboardSharedProps {
   simulatedInflations: Record<string, number>;
   setSimulatedInflations: (p: Record<string, number>) => void;
   simulationResult: SimulationResult[];
-  runSimulation: () => void;
-  saveSimulation: () => void;
   isForecasting: boolean;
   handleSmartForecast: (date: string) => void;
   handleProduce: (productId: string, qty: number) => void;

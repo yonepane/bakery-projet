@@ -45,7 +45,7 @@ export const RecipeBuilderModal: React.FC<Props> = ({
   useEffect(() => {
     if (isOpen && item) {
       setLoading(true);
-      api.get(`/api/semi-finished/${item.id}/recipe`)
+      api.get(`/semi-finished/${item.id}/recipe`)
         .then(res => setLines(res.data?.items || []))
         .catch(() => setLines([]))
         .finally(() => setLoading(false));

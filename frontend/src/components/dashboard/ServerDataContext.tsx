@@ -378,7 +378,7 @@ export const ServerDataProvider: React.FC<ServerDataProviderProps> = ({
   }, [user]);
 
   useEffect(() => {
-    const handleOnline = () => { processSyncQueue().then(() => fetchTabData(activeTab)); };
+    const handleOnline = () => { processSyncQueue().then(() => fetchTabData(activeTab)).catch((err) => console.error('Sync on reconnect failed:', err)); };
     window.addEventListener('online', handleOnline);
     return () => window.removeEventListener('online', handleOnline);
   }, [activeTab, fetchTabData]);

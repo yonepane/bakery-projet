@@ -312,6 +312,7 @@
   "failed_to_delete_expense": "Failed to delete expense",
   "failed_to_delete_material": "Failed to delete material",
   "failed_to_delete_product": "Failed to delete product",
+  "failed_to_download_file": "Failed to download file",
   "failed_to_log_expense": "Failed to log expense",
   "failed_to_post_note": "Failed to post note",
   "failed_to_receive_goods": "Failed to receive goods",

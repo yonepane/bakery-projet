@@ -37,7 +37,7 @@ export function useKitchenMutations(deps: MutationDeps & { fetchTabData?: (tab: 
   const { fetchData, addToast, fetchTabData } = deps;
 
   const { execute: handleAdvanceStage, isLoading: isUpdating } = useMutation(
-    async (batchId: string, newStage: KitchenBatch['stage']) => api.put(`/api/kitchen/batches/${batchId}/stage`, { stage: newStage }),
+    async (batchId: string, newStage: KitchenBatch['stage']) => api.put(`/kitchen/batches/${batchId}/stage`, { stage: newStage }),
     { 
       refetch: () => fetchTabData ? fetchTabData('kitchen_board') : fetchData(), 
       addToast, 

@@ -32,6 +32,7 @@ const DashboardPanel: React.FC = () => {
   openDocument,
   getDownloadToken,
   handleResetSession,
+  addToast,
   API_BASE, } = useDashboard();
   const { t } = useTranslation();
 
@@ -305,8 +306,12 @@ const DashboardPanel: React.FC = () => {
               onClick={async () => {
                 const year = new Date().getFullYear();
                 const month = new Date().getMonth() + 1;
-                const dlToken = await getDownloadToken();
-                openDocument(`${API_BASE}/reports/monthly?month=${month}&year=${year}&format=pdf&token=${dlToken}`, `monthly-report-${year}-${month}.pdf`);
+                try {
+                  const dlToken = await getDownloadToken();
+                  openDocument(`${API_BASE}/reports/monthly?month=${month}&year=${year}&format=pdf&token=${dlToken}`, `monthly-report-${year}-${month}.pdf`);
+                } catch (err) {
+                  addToast(t('failed_to_download_file'), 'error');
+                }
               }}
               className={`flex-1 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest border transition-all ${isDarkMode ? 'border-gold/20 text-gold hover:bg-gold hover:text-charcoal' : 'bg-slate-900 text-white shadow-xl'}`}
             >
