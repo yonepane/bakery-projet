@@ -12,7 +12,12 @@ config = context.config
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
 if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+    # disable_existing_loggers defaults to True, which silently disables
+    # any logger created before this point (e.g. bootstrap.py's own
+    # logger) unless it's explicitly listed in alembic.ini's [loggers].
+    # That caused init_db()'s success/critical-error log lines to go
+    # completely silent after the first Alembic command ran in-process.
+    fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 import os
 import sys

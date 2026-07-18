@@ -56,6 +56,26 @@ def create_index_if_not_exists(index_name: str, table_name: str, columns: list, 
         op.create_index(op.f(index_name), table_name, columns, unique=unique)
 
 
+def _drop_fk_on_column(table_name: str, column_name: str) -> None:
+    """Find and drop the FK constraint on table_name whose constrained
+    column is column_name, by its real (reflected) name.
+
+    Passing None as a constraint name to op.drop_constraint() only works
+    on SQLite, where render_as_batch=True recreates the whole table from
+    reflected state rather than emitting a literal DROP CONSTRAINT. On
+    PostgreSQL there is no such fallback -- the name must be real. This
+    is a safe no-op if no matching FK currently exists (e.g. an earlier
+    step in this same migration already removed it).
+    """
+    bind = op.get_bind()
+    for fk in inspect(bind).get_foreign_keys(table_name):
+        if column_name in fk.get("constrained_columns", []):
+            name = fk.get("name")
+            if name:
+                op.drop_constraint(name, table_name, type_="foreignkey")
+            return
+
+
 def upgrade() -> None:
     """Upgrade schema."""
     # The original autogenerate produced index/table drops against legacy
@@ -142,7 +162,7 @@ def upgrade() -> None:
                    existing_type=sa.REAL(),
                    type_=sa.Float(),
                    existing_nullable=True)
-        op.drop_constraint(None, 'recipe_items', type_='foreignkey')
+        _drop_fk_on_column('recipe_items', 'ingredient_id')
         # system_settings
         op.alter_column('system_settings', 'key',
                    existing_type=sa.TEXT(),
@@ -228,7 +248,7 @@ def downgrade() -> None:
     if 'ix_suppliers_name' not in _existing_indexes('suppliers'):
         op.create_index(op.f('ix_suppliers_name'), 'suppliers', ['name'], unique=1)
     if not is_sqlite:
-        op.drop_constraint(None, 'recipe_items', type_='foreignkey')
+        _drop_fk_on_column('recipe_items', 'ingredient_id')
         op.create_foreign_key(None, 'recipe_items', 'ingredients_old', ['ingredient_id'], ['id'])
     drop_index_if_exists('ix_recipe_items_id', 'recipe_items')
     if not is_sqlite:
