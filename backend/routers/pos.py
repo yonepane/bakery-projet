@@ -531,7 +531,7 @@ async def get_receipt(
         total=tx.total_revenue,
         currency=currency,
         paper=normalized_paper,
-        receipt_footer=settings.receipt_footer if settings else "",
+        receipt_footer=settings.get("receipt_footer", ""),
     )
     return HTMLResponse(content=html_content)
 

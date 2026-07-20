@@ -9,7 +9,7 @@ from typing import Optional, Literal
 
 from sqlalchemy.orm import Session
 
-from bakeryos_backend import models
+import models
 
 
 # Event type constants

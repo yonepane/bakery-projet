@@ -11,6 +11,7 @@ from typing import Any, Dict, List
 
 import sqlalchemy.orm
 from fastapi import HTTPException
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from sqlalchemy import literal_column
 from sqlalchemy.orm import joinedload

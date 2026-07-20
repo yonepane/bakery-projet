@@ -187,7 +187,7 @@ def get_analytics_dashboard(
     return result
 
 
-def get_get_alerts(
+def get_alerts(
     db: sqlalchemy.orm.Session,
     owner_id: int,
 ):
@@ -461,7 +461,7 @@ def get_enhanced_forecast(
     products = _load_products_with_recipes(db, owner_id)
 
     # Get current stock + lot balances for production suggestions
-    from services.stock import get_stock_lot_balances
+    from services.operations import get_stock_lot_balances
     lot_balances = get_stock_lot_balances(db, owner_id)
 
     # Build lot balance lookup: ingredient_id -> list of {qty, expires_at, lot_id}
@@ -551,7 +551,7 @@ def get_production_suggestions(
     stock_map = {p.id: p.stock or 0 for p in products}
 
     # Lot balances for ingredients (FEFO)
-    from services.stock import get_stock_lot_balances
+    from services.operations import get_stock_lot_balances
     lot_balances = get_stock_lot_balances(db, owner_id)
     lot_balances_by_ing: dict[int, list] = defaultdict(list)
     for bal in lot_balances:
@@ -669,7 +669,7 @@ def get_purchase_suggestions(
                 ingredient_requirements[item.ingredient.id] += item.quantity * s["suggested_production_qty"]
 
     # Current lot balances
-    from services.stock import get_stock_lot_balances
+    from services.operations import get_stock_lot_balances
     lot_balances = get_stock_lot_balances(db, owner_id)
     ing_lot_balances: dict[int, list] = defaultdict(list)
     for bal in lot_balances:
@@ -727,7 +727,7 @@ def get_purchase_suggestions(
     }
 
 
-def get_get_expiring_stock_usage_suggestions(
+def get_expiring_stock_usage(
     db: sqlalchemy.orm.Session,
     owner_id: int,
     days_ahead: int = 7,
@@ -736,7 +736,7 @@ def get_get_expiring_stock_usage_suggestions(
     Suggest products to produce that consume expiring ingredient lots.
     For each expiring lot, find recipes that use it and suggest production.
     """
-    from services.stock import get_stock_lot_balances
+    from services.operations import get_stock_lot_balances
 
     lot_balances = get_stock_lot_balances(db, owner_id)
     now = datetime.now(timezone.utc)
