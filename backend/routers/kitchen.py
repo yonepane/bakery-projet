@@ -13,11 +13,13 @@ try:
     from database import get_db
     import models
     from services.stock import apply_stock_delta, find_movements_by_client_mutation
+    from services.production import consume_recipe_ingredients
 except ImportError:
     from auth import get_current_user, get_effective_owner_id, requires_roles
     from database import get_db
     import models
     from services.stock import apply_stock_delta, find_movements_by_client_mutation
+    from services.production import consume_recipe_ingredients
 
 
 router = APIRouter(tags=["kitchen"])
@@ -188,33 +190,20 @@ async def update_batch_stage(
         if not product:
             raise HTTPException(status_code=400, detail="Product not found")
 
-        required_inputs = []
-        for item in product.recipe_items:
-            required = item.quantity * batch.quantity
-            if item.ingredient_id and item.ingredient:
-                if item.ingredient.stock < required:
-                    raise HTTPException(status_code=400, detail=f"Insufficient {item.ingredient.name}")
-                required_inputs.append(("ingredient", item.ingredient, required))
-            elif item.semi_finished_id and item.semi_finished:
-                if item.semi_finished.stock < required:
-                    raise HTTPException(status_code=400, detail=f"Insufficient {item.semi_finished.name}")
-                required_inputs.append(("semi_finished", item.semi_finished, required))
-
-        for item_type, db_item, required in required_inputs:
-            apply_stock_delta(
-                db,
-                owner_id=owner_id,
-                item_type=item_type,
-                item=db_item,
-                quantity_delta=-required,
-                movement_type=f"{item_type}_input" if item_type == "semi_finished" else "production_input",
-                source_type="production_batch",
-                source_id=batch.id,
-                reason=f"Consumed for batch {batch.id}",
-                created_by_user_id=current_user.id,
-                client_mutation_id=x_client_mutation_id,
-                picking_strategy="fefo",
-            )
+        consume_recipe_ingredients(
+            db=db,
+            owner_id=owner_id,
+            recipe_items=product.recipe_items,
+            batch_quantity=batch.quantity,
+            movement_type_ingredient="production_input",
+            movement_type_sf="semi_finished_input",
+            source_type="production_batch",
+            source_id=batch.id,
+            reason=f"Consumed for batch {batch.id}",
+            user_id=current_user.id,
+            client_mutation_id=x_client_mutation_id,
+            is_kitchen_bake=True,
+        )
 
         batch.started_at = now
         _capture_version_on_bake(db, owner_id, product.id, batch)

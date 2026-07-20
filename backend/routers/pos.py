@@ -23,8 +23,10 @@ try:
     from auth import get_current_user, get_effective_owner_id, requires_roles
     from database import get_db
     from schemas import ProductionBatch, SaleRequest
-    from services.core import calculate_product_cost, get_user_settings
+    from services.core import calculate_product_cost, get_user_settings, get_recipe_item_cost
+    from services.customers import award_loyalty_points, deduct_loyalty_points
     from services.stock import apply_stock_delta, find_movements_by_client_mutation
+    from services.production import consume_recipe_ingredients
     from services.pdf import build_monthly_report_pdf, build_receipt_pdf
     from services.excel import build_monthly_report_excel
     from ..routers.intelligence import _analytics_cache
@@ -33,8 +35,10 @@ except ImportError:
     from auth import get_current_user, get_effective_owner_id, requires_roles
     from database import get_db
     from schemas import ProductionBatch, SaleRequest
-    from services.core import calculate_product_cost, get_user_settings
+    from services.core import calculate_product_cost, get_user_settings, get_recipe_item_cost
+    from services.customers import award_loyalty_points, deduct_loyalty_points
     from services.stock import apply_stock_delta, find_movements_by_client_mutation
+    from services.production import consume_recipe_ingredients
     from services.pdf import build_monthly_report_pdf, build_receipt_pdf
     from services.excel import build_monthly_report_excel
     try:
@@ -107,7 +111,7 @@ async def produce(
     product = (
         db.query(models.Product)
         .options(
-            joinedload(models.Product.recipe_items).joinedload(models.RecipeItem.ingredient)
+            joinedload(models.Product.recipe_items)
         )
         .filter(
             models.Product.id == batch.product_id,
@@ -118,69 +122,22 @@ async def produce(
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
 
-    # Collect required ingredient and semi-finished IDs
-    ingredient_ids = [item.ingredient_id for item in product.recipe_items if item.ingredient_id]
-    semi_finished_ids = [item.semi_finished_id for item in product.recipe_items if item.semi_finished_id]
-
-    ingredients_map = {
-        ing.id: ing
-        for ing in db.query(models.Ingredient).filter(
-            models.Ingredient.id.in_(ingredient_ids),
-            models.Ingredient.owner_id == owner_id,
-        ).all()
-    } if ingredient_ids else {}
-
-    sf_map = {
-        sf.id: sf
-        for sf in db.query(models.SemiFinishedItem).filter(
-            models.SemiFinishedItem.id.in_(semi_finished_ids),
-            models.SemiFinishedItem.owner_id == owner_id,
-        ).all()
-    } if semi_finished_ids else {}
-
-    production_cost = 0
-    required_inputs = []  # tuples of (item_type, db_item, required_qty)
-    for item in product.recipe_items:
-        if item.ingredient_id:
-            ing = ingredients_map.get(item.ingredient_id)
-            factor = 1000.0 if ing and ing.unit in ['kg', 'L', 'l'] else 1.0
-            required = (item.quantity / factor) * batch.quantity
-            if not ing or ing.stock < required:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Insufficient {ing.name if ing else 'Ingredient'}",
-                )
-            required_inputs.append(("ingredient", ing, required))
-            production_cost += required * ing.price
-        elif item.semi_finished_id:
-            sf = sf_map.get(item.semi_finished_id)
-            factor = 1000.0 if sf and sf.unit in ['kg', 'L', 'l'] else 1.0
-            required = (item.quantity / factor) * batch.quantity
-            if not sf or sf.stock < required:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Insufficient {sf.name if sf else 'Semi-finished component'}",
-                )
-            required_inputs.append(("semi_finished", sf, required))
-            production_cost += required * (getattr(sf, "cost", 0.0) or 0.0)
-
-    # Record the production event in transaction history.
     tx_id = str(uuid.uuid4())[:12].upper()
-    for item_type, db_item, required in required_inputs:
-        apply_stock_delta(
-            db,
-            owner_id=owner_id,
-            item_type=item_type,
-            item=db_item,
-            quantity_delta=-required,
-            movement_type=f"{item_type}_input" if item_type == "semi_finished" else "production_input",
-            source_type="transaction",
-            source_id=tx_id,
-            reason=f"Consumed for production {tx_id}",
-            created_by_user_id=current_user.id,
-            client_mutation_id=client_mutation_id,
-            picking_strategy="fefo",
-        )
+    
+    production_cost = consume_recipe_ingredients(
+        db=db,
+        owner_id=owner_id,
+        recipe_items=product.recipe_items,
+        batch_quantity=batch.quantity,
+        movement_type_ingredient="production_input",
+        movement_type_sf="semi_finished_input",
+        source_type="transaction",
+        source_id=tx_id,
+        reason=f"Consumed for production {tx_id}",
+        user_id=current_user.id,
+        client_mutation_id=client_mutation_id,
+        is_kitchen_bake=False,
+    )
 
     kitchen = db.query(models.StockLocation).filter(
         models.StockLocation.owner_id == owner_id,
@@ -341,14 +298,8 @@ async def complete_sale(
     db.add(transaction)
     
     # Award loyalty points (1 point per 1 unit of currency spent)
-    cid = req.customer_id
-    if cid and cid.strip():
-        customer = db.query(models.Customer).filter(
-            models.Customer.id == cid,
-            models.Customer.owner_id == owner_id,
-        ).first()
-        if customer:
-            customer.points += int(total_revenue)
+    if req.customer_id:
+        award_loyalty_points(db, owner_id, req.customer_id, int(total_revenue))
 
     db.commit()
 
@@ -424,13 +375,7 @@ async def refund_transaction(
 
     # Deduct loyalty points that were awarded at time of sale.
     if tx.customer_id:
-        customer = db.query(models.Customer).filter(
-            models.Customer.id == tx.customer_id,
-            models.Customer.owner_id == owner_id,
-        ).first()
-        if customer:
-            points_to_remove = int(tx.total_revenue)
-            customer.points = max(0, customer.points - points_to_remove)
+        deduct_loyalty_points(db, owner_id, tx.customer_id, int(tx.total_revenue))
 
     # Mark refunded — keep the record for audit purposes.
     tx.status = "refunded"
