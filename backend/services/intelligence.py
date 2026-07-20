@@ -22,11 +22,13 @@ try:
     from auth import get_effective_owner_id, requires_roles
     from database import get_db
     from services.core import calculate_product_cost, get_user_settings
+    from services.finance_summary import compute_financial_summary_for_period
 except ImportError:
     import models
     from auth import get_effective_owner_id, requires_roles
     from database import get_db
     from services.core import calculate_product_cost, get_user_settings
+    from services.finance_summary import compute_financial_summary_for_period
 
 import json
 
@@ -68,17 +70,13 @@ def get_analytics_dashboard(
     if cached and (time.time() - cached[0]) < _CACHE_TTL:
         return cached[1]
 
-    # --- single bulk fetch for all three tables ---
-    transactions = (
-        db.query(models.Transaction)
-        .filter(models.Transaction.owner_id == owner_id)
-        .all()
-    )
-    waste_records = (
-        db.query(models.WasteRecord)
-        .filter(models.WasteRecord.owner_id == owner_id)
-        .all()
-    )
+    # Get transactions older than 30 days ago up to now?
+    # Original logic just grabbed ALL transactions for the whole dashboard...
+    # But let's keep all transactions since original logic fetched all.
+    # Wait, original fetched ALL transactions without date limit.
+    # We can pass an arbitrary old date like 2000-01-01 to now for the summary,
+    # or just replicate active_transactions since `compute_financial_summary_for_period` applies a date filter.
+    
     settings_data = get_user_settings(db, owner_id)
 
     reset_setting = (
@@ -96,24 +94,18 @@ def get_analytics_dashboard(
         now = datetime.now()
         last_reset = datetime(now.year, now.month, now.day)
 
-    # Only count completed (non-refunded) sales in all financial summaries.
-    active_transactions = [
-        t for t in transactions
-        if not (t.type == "sale" and getattr(t, "status", "completed") == "refunded")
-    ]
+    summary = compute_financial_summary_for_period(db, owner_id, datetime.min.replace(tzinfo=timezone.utc), datetime.max.replace(tzinfo=timezone.utc))
 
-    total_revenue = sum(t.total_revenue for t in active_transactions if t.type == "sale")
-    total_cost = sum(t.total_cost for t in active_transactions if t.type == "sale") + sum(
-        w.loss_cost for w in waste_records
-    )
+    active_transactions = [t for t in summary["transactions"] if t.type == "sale" and getattr(t, "status", "completed") != "refunded"]
+    
+    total_revenue = summary["total_revenue"]
+    total_cost = summary["total_cogs"] + summary["total_waste"]
 
     session_txs = [t for t in active_transactions if t.timestamp >= last_reset]
-    session_waste = [w for w in waste_records if w.date >= last_reset]
+    session_waste = [w for w in summary["waste_records"] if w.date >= last_reset]
 
-    today_revenue = sum(t.total_revenue for t in session_txs if t.type == "sale")
-    today_cost = sum(t.total_cost for t in session_txs if t.type == "sale") + sum(
-        w.loss_cost for w in session_waste
-    )
+    today_revenue = sum(t.total_revenue for t in session_txs)
+    today_cost = sum(t.total_cost for t in session_txs) + sum(w.loss_cost for w in session_waste)
 
     # Build daily chart data entirely in Python — no extra DB calls.
     # Use utcnow() consistently so the day boundaries match the UTC timestamps

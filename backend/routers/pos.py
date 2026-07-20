@@ -29,6 +29,7 @@ try:
     from services.production import consume_recipe_ingredients
     from services.pdf import build_monthly_report_pdf, build_receipt_pdf
     from services.excel import build_monthly_report_excel
+    from services.finance_summary import compute_financial_summary_for_period
     from ..routers.intelligence import _analytics_cache
 except ImportError:
     import models
@@ -41,7 +42,9 @@ except ImportError:
     from services.production import consume_recipe_ingredients
     from services.pdf import build_monthly_report_pdf, build_receipt_pdf
     from services.excel import build_monthly_report_excel
+    from services.finance_summary import compute_financial_summary_for_period
     try:
+
         from routers.intelligence import _analytics_cache
     except ImportError:
         _analytics_cache = {}
@@ -496,32 +499,17 @@ async def get_monthly_report(
     """Return a month-end financial summary as PDF or printable HTML."""
     start_date = datetime(year, month, 1)
     end_date = datetime(year + 1, 1, 1) if month == 12 else datetime(year, month + 1, 1)
+    summary = compute_financial_summary_for_period(db, owner_id, start_date, end_date)
 
-    transactions = db.query(models.Transaction).filter(
-        models.Transaction.owner_id == owner_id,
-        models.Transaction.timestamp >= start_date,
-        models.Transaction.timestamp < end_date,
-    ).all()
-
-    waste_records = db.query(models.WasteRecord).filter(
-        models.WasteRecord.owner_id == owner_id,
-        models.WasteRecord.date >= start_date,
-        models.WasteRecord.date < end_date,
-    ).all()
-
-    expenses = db.query(models.Expense).filter(
-        models.Expense.owner_id == owner_id,
-        models.Expense.date >= start_date,
-        models.Expense.date < end_date,
-    ).all()
-
-    total_revenue = sum(t.total_revenue for t in transactions if t.type == "sale")
-    total_cogs = sum(t.total_cost for t in transactions if t.type == "sale")
-    total_waste = sum(w.loss_cost for w in waste_records)
-    total_overhead = sum(e.amount for e in expenses)
-
-    net_profit = total_revenue - total_cogs - total_waste - total_overhead
-    margin = (net_profit / total_revenue * 100) if total_revenue > 0 else 0
+    transactions = summary["transactions"]
+    waste_records = summary["waste_records"]
+    expenses = summary["expenses"]
+    total_revenue = summary["total_revenue"]
+    total_cogs = summary["total_cogs"]
+    total_waste = summary["total_waste"]
+    total_overhead = summary["total_overhead"]
+    net_profit = summary["net_profit"]
+    margin = summary["margin"]
 
     settings = get_user_settings(db, owner_id)
     currency = settings.get("currency", "MAD")

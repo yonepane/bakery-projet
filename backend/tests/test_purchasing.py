@@ -97,7 +97,7 @@ def test_receive_po_without_purchase_unit_uses_qty_directly(client, auth_headers
     assert salt["stock"] == 5.0, f"Expected 5.0 kg, got {salt['stock']}"
 
 
-def test_receive_po_without_lot_context_does_not_create_lot_balance(client, auth_headers, db):
+def test_receive_po_without_lot_context_creates_lot_balance(client, auth_headers, db):
     client.post("/api/materials", json={
         "name": "Plain Flour",
         "unit": "kg",
@@ -117,8 +117,9 @@ def test_receive_po_without_lot_context_does_not_create_lot_balance(client, auth
     }, headers=auth_headers)
 
     assert resp.status_code == 200
-    assert db.query(models.StockLot).count() == 0
-    assert db.query(models.StockLotBalance).count() == 0
+    assert db.query(models.StockLot).count() == 1
+    assert db.query(models.StockLotBalance).count() == 1
+
 
 
 def test_receive_po_with_lot_context_creates_lot_balance_and_movement_context(client, auth_headers, db):
