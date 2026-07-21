@@ -8,30 +8,39 @@ except ImportError:
     import models
 
 
+def get_recipe_item_cost(quantity: float, ingredient=None, semi_finished=None, use_cached_sf_cost: bool = False) -> float:
+    """Calculate the cost of a recipe item (ingredient or semi-finished).
+    Preserves the legacy inline unit conversion (divide by 1000 for kg/L).
+    """
+    if ingredient:
+        factor = 1000.0 if getattr(ingredient, 'unit', '') in ("kg", "L", "l") else 1.0
+        required = quantity / factor
+        return required * (getattr(ingredient, 'price', 0.0) or 0.0)
+    elif semi_finished:
+        factor = 1000.0 if getattr(semi_finished, 'unit', '') in ("kg", "L", "l") else 1.0
+        required = quantity / factor
+        if use_cached_sf_cost:
+            return required * (getattr(semi_finished, 'cost', 0.0) or 0.0)
+        return required * _cost_semi_finished(semi_finished)
+    return 0.0
+
 def _cost_semi_finished(sf_item: "models.SemiFinishedItem") -> float:
     """Recursively compute the ingredient cost for one unit of a semi-finished item."""
     total = 0.0
     for ri in sf_item.recipe_items:
-        if ri.ingredient:
-            total += ri.quantity * ri.ingredient.price
+        total += get_recipe_item_cost(ri.quantity, ingredient=ri.ingredient)
     return total
 
-
-def calculate_product_cost(product: "models.Product") -> float:
-    """Calculate the ingredient cost to produce one unit of a product.
-
-    Correctly handles:
-    - Ingredient recipe lines (price is per base unit, quantity is in base unit)
-    - Semi-finished recipe lines (costed via their own ingredient recipes)
-    - yield_qty: total batch cost divided by units produced
-    """
+def calculate_product_cost(product: "models.Product", use_cached_sf_cost: bool = False) -> float:
+    """Calculate the theoretical ingredient cost to produce one unit of a product."""
     batch_cost = 0.0
     for item in product.recipe_items:
-        if getattr(item, 'ingredient_id', None) and getattr(item, 'ingredient', None):
-            batch_cost += item.quantity * item.ingredient.price
-        elif getattr(item, 'semi_finished_id', None) and getattr(item, 'semi_finished', None):
-            sf_cost_per_unit = _cost_semi_finished(item.semi_finished)
-            batch_cost += item.quantity * sf_cost_per_unit
+        batch_cost += get_recipe_item_cost(
+            item.quantity, 
+            ingredient=getattr(item, 'ingredient', None),
+            semi_finished=getattr(item, 'semi_finished', None),
+            use_cached_sf_cost=use_cached_sf_cost
+        )
     yield_qty = (getattr(product, 'yield_qty', None) or 1)
     return batch_cost / yield_qty
 

@@ -57,7 +57,60 @@ def _compute_sf_cost(sf: "models.SemiFinishedItem") -> float:
     return total
 
 
+# ── Financial Aggregation ───────────────────────────────────────────────────────
+
+def compute_financial_summary_for_period(
+    db: sqlalchemy.orm.Session,
+    owner_id: int,
+    start_date: datetime,
+    end_date: datetime,
+) -> dict:
+    """Compute revenue, cogs, waste, and overhead for a given period."""
+    transactions = db.query(models.Transaction).filter(
+        models.Transaction.owner_id == owner_id,
+        models.Transaction.timestamp >= start_date,
+        models.Transaction.timestamp < end_date,
+    ).all()
+
+    waste_records = db.query(models.WasteRecord).filter(
+        models.WasteRecord.owner_id == owner_id,
+        models.WasteRecord.date >= start_date,
+        models.WasteRecord.date < end_date,
+    ).all()
+
+    expenses = db.query(models.Expense).filter(
+        models.Expense.owner_id == owner_id,
+        models.Expense.date >= start_date,
+        models.Expense.date < end_date,
+    ).all()
+
+    active_transactions = [
+        t for t in transactions
+        if not (t.type == "sale" and getattr(t, "status", "completed") == "refunded")
+    ]
+
+    total_revenue = sum(t.total_revenue for t in active_transactions if t.type == "sale")
+    total_cogs = sum(t.total_cost for t in active_transactions if t.type == "sale")
+    total_waste = sum(w.loss_cost for w in waste_records)
+    total_overhead = sum(e.amount for e in expenses)
+    net_profit = total_revenue - total_cogs - total_waste - total_overhead
+    margin = (net_profit / total_revenue * 100) if total_revenue > 0 else 0
+
+    return {
+        "transactions": transactions,
+        "waste_records": waste_records,
+        "expenses": expenses,
+        "total_revenue": total_revenue,
+        "total_cogs": total_cogs,
+        "total_waste": total_waste,
+        "total_overhead": total_overhead,
+        "net_profit": net_profit,
+        "margin": margin,
+    }
+
+
 # ── Stock Valuation ─────────────────────────────────────────────────────────────
+
 
 def compute_stock_valuation(db: sqlalchemy.orm.Session, owner_id: int) -> dict:
     now = _now_fn()

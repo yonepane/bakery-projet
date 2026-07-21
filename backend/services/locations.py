@@ -54,3 +54,13 @@ def ensure_default_stock_locations(
         .order_by(models.StockLocation.id.asc())
         .all()
     )
+
+
+def get_default_warehouse(
+    db: sqlalchemy.orm.Session,
+    *,
+    owner_id: int,
+) -> int:
+    locations = ensure_default_stock_locations(db, owner_id=owner_id)
+    warehouse = next((loc for loc in locations if loc.type == "warehouse"), None)
+    return (warehouse or locations[0]).id

@@ -20,6 +20,20 @@ except ImportError:
 ItemType = Literal["ingredient", "product", "semi_finished"]
 
 
+def parse_optional_datetime(value: str | None, field_name: str) -> datetime | None:
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=f"Invalid {field_name}") from exc
+
+
+def make_receive_lot_code(po_id: str, item_name: str, current_received: float, next_received: float) -> str:
+    safe_name = "".join(ch.lower() if ch.isalnum() else "-" for ch in item_name).strip("-")
+    return f"{po_id}-{safe_name}-{current_received:g}-{next_received:g}"[:120]
+
+
 def find_movements_by_client_mutation(
     db: sqlalchemy.orm.Session,
     *,
@@ -37,6 +51,55 @@ def find_movements_by_client_mutation(
     if movement_type:
         query = query.filter(models.StockMovement.movement_type == movement_type)
     return query.order_by(models.StockMovement.id.asc()).all()
+
+
+def handle_idempotency(
+    db: sqlalchemy.orm.Session,
+    *,
+    owner_id: int,
+    client_mutation_id: str | None,
+    movement_type: str,
+) -> dict | None:
+    """Check for prior movements and return an idempotent response if found."""
+    if not client_mutation_id:
+        return None
+    prior = find_movements_by_client_mutation(
+        db, owner_id=owner_id, client_mutation_id=client_mutation_id, movement_type=movement_type
+    )
+    if prior:
+        return {"success": True, "idempotent": True}
+    return None
+
+
+def resolve_item(
+    db: sqlalchemy.orm.Session,
+    *,
+    owner_id: int,
+    item_type: ItemType,
+    item_id: str | int,
+):
+    """Resolve an item entity by its type and ID."""
+    if item_type == "ingredient":
+        return db.query(models.Ingredient).filter(
+            models.Ingredient.name == str(item_id), models.Ingredient.owner_id == owner_id
+        ).first()
+    elif item_type == "product":
+        return db.query(models.Product).filter(
+            models.Product.id == str(item_id), models.Product.owner_id == owner_id
+        ).first()
+    elif item_type == "semi_finished":
+        try:
+            sf_id = int(item_id)
+        except ValueError:
+            raise HTTPException(
+                status_code=400,
+                detail="semi_finished item_id must be a numeric id (e.g. '3')",
+            )
+        return db.query(models.SemiFinishedItem).filter(
+            models.SemiFinishedItem.id == sf_id,
+            models.SemiFinishedItem.owner_id == owner_id,
+        ).first()
+    raise HTTPException(status_code=400, detail="Invalid item_type")
 
 
 def apply_stock_delta(
@@ -215,3 +278,85 @@ def apply_stock_delta(
     )
     db.add(movement)
     return movement
+
+
+def receive_purchased_item(
+    db: sqlalchemy.orm.Session,
+    *,
+    owner_id: int,
+    po_id: str,
+    item,
+    received_qty: float,
+    current_received_qty: float,
+    price: float | None = None,
+    location_id: int | None = None,
+    lot_code: str | None = None,
+    supplier_lot_code: str | None = None,
+    expires_at_str: str | None = None,
+    current_user_id: int | None = None,
+    client_mutation_id: str | None = None,
+):
+    from services.locations import get_default_warehouse
+
+    if received_qty <= 0:
+        return
+
+    ratio = item.purchase_to_base_ratio if item.purchase_to_base_ratio else 1.0
+    stock_delta = received_qty * ratio
+    
+    expires_at = parse_optional_datetime(expires_at_str, "expires_at")
+    final_location_id = location_id or get_default_warehouse(db, owner_id=owner_id)
+    
+    next_received = current_received_qty + received_qty
+    final_lot_code = lot_code or make_receive_lot_code(po_id, item.name, current_received_qty, next_received)
+    
+    unit_cost = float(price) / ratio if price is not None and ratio else float(price) if price is not None else float(item.price)
+
+    lot = db.query(models.StockLot).filter(
+        models.StockLot.owner_id == owner_id,
+        models.StockLot.item_type == "ingredient",
+        models.StockLot.item_id == item.name,
+        models.StockLot.lot_code == final_lot_code,
+    ).first()
+
+    if lot is None:
+        lot = models.StockLot(
+            owner_id=owner_id,
+            item_type="ingredient",
+            item_id=item.name,
+            item_name_snapshot=item.name,
+            lot_code=final_lot_code,
+            supplier_lot_code=supplier_lot_code,
+            source_type="purchase_order",
+            source_id=po_id,
+            received_at=datetime.now(timezone.utc),
+            expires_at=expires_at,
+            unit_snapshot=item.unit,
+            unit_cost_snapshot=unit_cost,
+            status="active",
+        )
+        db.add(lot)
+        db.flush()
+
+    apply_stock_delta(
+        db,
+        owner_id=owner_id,
+        item_type="ingredient",
+        item=item,
+        quantity_delta=stock_delta,
+        movement_type="purchase_receive",
+        source_type="purchase_order",
+        source_id=po_id,
+        reason=f"Received {received_qty:g} purchase unit(s) from PO {po_id}",
+        created_by_user_id=current_user_id,
+        client_mutation_id=client_mutation_id,
+        location_id=final_location_id,
+        lot_id=lot.id,
+        expires_at=expires_at,
+        unit_cost=unit_cost,
+        correlation_id=client_mutation_id,
+    )
+    
+    if price is not None:
+        item.price = float(price)
+        item.last_purchase_price = float(price)

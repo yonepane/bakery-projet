@@ -21,6 +21,8 @@ try:
         SemiFinishedProduceRequest,
     )
     from services.stock import apply_stock_delta, find_movements_by_client_mutation
+    from services.core import get_recipe_item_cost
+    from services.production import consume_recipe_ingredients
 except ImportError:
     from auth import get_current_user, get_effective_owner_id, requires_roles
     from database import get_db
@@ -35,6 +37,8 @@ except ImportError:
         SemiFinishedProduceRequest,
     )
     from services.stock import apply_stock_delta, find_movements_by_client_mutation
+    from services.core import get_recipe_item_cost
+    from services.production import consume_recipe_ingredients
 
 
 router = APIRouter()
@@ -306,47 +310,23 @@ async def produce_semi_finished(
     if not sf_item:
         raise HTTPException(status_code=404, detail="Semi-finished item not found")
 
-    # Gather ingredient requirements
-    ingredient_ids = [r.ingredient_id for r in sf_item.recipe_items if r.ingredient_id]
-    ingredients_map = {
-        ing.id: ing
-        for ing in db.query(models.Ingredient).filter(
-            models.Ingredient.id.in_(ingredient_ids),
-            models.Ingredient.owner_id == owner_id,
-        ).all()
-    }
-
-    production_cost = 0.0
-    required_inputs = []
-    for recipe_row in sf_item.recipe_items:
-        if not recipe_row.ingredient_id:
-            continue
-        ing = ingredients_map.get(recipe_row.ingredient_id)
-        factor = 1000.0 if ing and ing.unit in ("kg", "L", "l") else 1.0
-        required = (recipe_row.quantity / factor) * batch.quantity
-        if not ing or ing.stock < required:
-            name = ing.name if ing else "Ingredient"
-            raise HTTPException(status_code=400, detail=f"Insufficient {name}")
-        required_inputs.append((ing, required))
-        production_cost += required * ing.price
-
-    # Record the production batch
     tx_id = str(uuid.uuid4())[:12].upper()
-    for ing, required in required_inputs:
-        apply_stock_delta(
-            db,
-            owner_id=owner_id,
-            item_type="ingredient",
-            item=ing,
-            quantity_delta=-required,
-            movement_type="semi_finished_input",
-            source_type="semi_finished_batch",
-            source_id=tx_id,
-            reason=f"Consumed for semi-finished batch {tx_id}",
-            created_by_user_id=current_user.id,
-            client_mutation_id=client_mutation_id,
-            picking_strategy="fefo",
-        )
+    
+    production_cost = consume_recipe_ingredients(
+        db=db,
+        owner_id=owner_id,
+        recipe_items=None,
+        batch_quantity=batch.quantity,
+        movement_type_ingredient="semi_finished_input",
+        movement_type_sf="semi_finished_input",
+        source_type="semi_finished_batch",
+        source_id=tx_id,
+        reason=f"Consumed for semi-finished batch {tx_id}",
+        user_id=current_user.id,
+        client_mutation_id=client_mutation_id,
+        is_kitchen_bake=False,
+        sf_recipe_items=sf_item.recipe_items,
+    )
 
     from datetime import timedelta
     kitchen = db.query(models.StockLocation).filter(

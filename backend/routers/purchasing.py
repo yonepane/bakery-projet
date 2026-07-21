@@ -14,36 +14,17 @@ try:
     from database import get_db
     from schemas import POCreate, POReceive, SupplierCreate
     from services.locations import ensure_default_stock_locations
-    from services.stock import apply_stock_delta, find_movements_by_client_mutation
+    from services.locations import ensure_default_stock_locations
+    from services.stock import apply_stock_delta, find_movements_by_client_mutation, receive_purchased_item, handle_idempotency
 except ImportError:
     import models
     from auth import get_current_user, get_effective_owner_id, requires_roles
     from database import get_db
     from schemas import POCreate, POReceive, SupplierCreate
     from services.locations import ensure_default_stock_locations
-    from services.stock import apply_stock_delta, find_movements_by_client_mutation
+    from services.stock import apply_stock_delta, find_movements_by_client_mutation, receive_purchased_item, handle_idempotency
 
 router = APIRouter()
-
-
-def _parse_optional_datetime(value: str | None, field_name: str) -> datetime | None:
-    if not value:
-        return None
-    try:
-        return datetime.fromisoformat(value.replace("Z", "+00:00"))
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=f"Invalid {field_name}") from exc
-
-
-def _default_receive_location_id(db: sqlalchemy.orm.Session, *, owner_id: int) -> int:
-    locations = ensure_default_stock_locations(db, owner_id=owner_id)
-    warehouse = next((loc for loc in locations if loc.type == "warehouse"), None)
-    return (warehouse or locations[0]).id
-
-
-def _make_receive_lot_code(po_id: str, item_name: str, current_received: float, next_received: float) -> str:
-    safe_name = "".join(ch.lower() if ch.isalnum() else "-" for ch in item_name).strip("-")
-    return f"{po_id}-{safe_name}-{current_received:g}-{next_received:g}"[:120]
 
 
 @router.get("/api/purchasing/suggest", dependencies=[Depends(requires_roles(["owner"]))])
@@ -277,14 +258,10 @@ async def receive_po(
     if not po:
         raise HTTPException(status_code=404, detail="Order not found")
     client_mutation_id = payload.client_mutation_id or x_client_mutation_id
-    prior = find_movements_by_client_mutation(
-        db,
-        owner_id=owner_id,
-        client_mutation_id=client_mutation_id,
-        movement_type="purchase_receive",
-    )
-    if prior:
-        return {"success": True, "status": po.status, "idempotent": True}
+    idem = handle_idempotency(db, owner_id=owner_id, client_mutation_id=client_mutation_id, movement_type="purchase_receive")
+    if idem:
+        idem["status"] = po.status
+        return idem
 
     items_by_name = {item["name"]: item for item in po.items}
 
@@ -312,72 +289,22 @@ async def receive_po(
         if delta_received > 0:
             ing = ings_map.get(received.name)
             if ing:
-                ratio = ing.purchase_to_base_ratio if ing.purchase_to_base_ratio else 1.0
-                stock_delta = delta_received * ratio
-                lot = None
-                location_id = None
-                expires_at = None
-                unit_cost = None
-                has_lot_context = bool(
-                    received.lot_code
-                    or received.supplier_lot_code
-                    or received.expires_at
-                    or received.location_id
-                )
-                if has_lot_context:
-                    expires_at = _parse_optional_datetime(received.expires_at, "expires_at")
-                    location_id = received.location_id or _default_receive_location_id(db, owner_id=owner_id)
-                    lot_code = received.lot_code or _make_receive_lot_code(
-                        po.id,
-                        received.name,
-                        current_received,
-                        next_received,
-                    )
-                    unit_cost = float(item.get("price", ing.price)) / ratio if ratio else float(item.get("price", ing.price))
-                    lot = db.query(models.StockLot).filter(
-                        models.StockLot.owner_id == owner_id,
-                        models.StockLot.item_type == "ingredient",
-                        models.StockLot.item_id == ing.name,
-                        models.StockLot.lot_code == lot_code,
-                    ).first()
-                    if lot is None:
-                        lot = models.StockLot(
-                            owner_id=owner_id,
-                            item_type="ingredient",
-                            item_id=ing.name,
-                            item_name_snapshot=ing.name,
-                            lot_code=lot_code,
-                            supplier_lot_code=received.supplier_lot_code,
-                            source_type="purchase_order",
-                            source_id=po.id,
-                            received_at=datetime.now(timezone.utc),
-                            expires_at=expires_at,
-                            unit_snapshot=ing.unit,
-                            unit_cost_snapshot=unit_cost,
-                            status="active",
-                        )
-                        db.add(lot)
-                        db.flush()
-                apply_stock_delta(
+                receive_purchased_item(
                     db,
                     owner_id=owner_id,
-                    item_type="ingredient",
+                    po_id=po.id,
                     item=ing,
-                    quantity_delta=stock_delta,
-                    movement_type="purchase_receive",
-                    source_type="purchase_order",
-                    source_id=po.id,
-                    reason=f"Received {delta_received:g} purchase unit(s) from PO {po.id}",
-                    created_by_user_id=current_user.id,
+                    received_qty=delta_received,
+                    current_received_qty=current_received,
+                    price=received.price if received.price is not None else float(item.get("price", ing.price)),
+                    location_id=received.location_id,
+                    lot_code=received.lot_code,
+                    supplier_lot_code=received.supplier_lot_code,
+                    expires_at_str=received.expires_at,
+                    current_user_id=current_user.id,
                     client_mutation_id=client_mutation_id,
-                    location_id=location_id,
-                    lot_id=lot.id if lot else None,
-                    expires_at=expires_at,
-                    unit_cost=unit_cost,
-                    correlation_id=client_mutation_id,
                 )
-                ing.price = float(item.get("price", ing.price))
-                ing.last_purchase_price = float(item.get("price", ing.price))
+                item["price"] = ing.price
 
     po.items = list(items_by_name.values())
     received_complete = all(float(item.get("received_qty", 0)) >= float(item.get("qty", 0)) for item in po.items)
@@ -406,14 +333,9 @@ async def update_po_status(
     ).first()
     if not po:
         raise HTTPException(status_code=404, detail="Order not found")
-    prior = find_movements_by_client_mutation(
-        db,
-        owner_id=owner_id,
-        client_mutation_id=x_client_mutation_id,
-        movement_type="purchase_receive",
-    )
-    if prior:
-        return {"success": True, "idempotent": True}
+    idem = handle_idempotency(db, owner_id=owner_id, client_mutation_id=x_client_mutation_id, movement_type="purchase_receive")
+    if idem:
+        return idem
 
     if status == "received" and po.status != "received":
         # Bulk-fetch all ingredients mentioned in PO items in one query.
@@ -429,24 +351,18 @@ async def update_po_status(
             ing = ings_map.get(item["name"])
             if ing:
                 delta = max(0, float(item["qty"]) - float(item.get("received_qty", 0)))
-                ratio = ing.purchase_to_base_ratio if ing.purchase_to_base_ratio else 1.0
-                stock_delta = delta * ratio
-                if stock_delta > 0:
-                    apply_stock_delta(
+                if delta > 0:
+                    receive_purchased_item(
                         db,
                         owner_id=owner_id,
-                        item_type="ingredient",
+                        po_id=po.id,
                         item=ing,
-                        quantity_delta=stock_delta,
-                        movement_type="purchase_receive",
-                        source_type="purchase_order",
-                        source_id=po.id,
-                        reason=f"Marked PO {po.id} received",
-                        created_by_user_id=current_user.id,
+                        received_qty=delta,
+                        current_received_qty=float(item.get("received_qty", 0)),
+                        price=float(item["price"]),
+                        current_user_id=current_user.id,
                         client_mutation_id=x_client_mutation_id,
                     )
-                ing.price = float(item["price"])
-                ing.last_purchase_price = float(item["price"])
                 item["received_qty"] = float(item["qty"])
 
     po.status = status

@@ -11,6 +11,7 @@ from typing import Any, Dict, List
 
 import sqlalchemy.orm
 from fastapi import HTTPException
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from sqlalchemy import literal_column
 from sqlalchemy.orm import joinedload
@@ -18,8 +19,8 @@ from sqlalchemy.orm import joinedload
 import models
 from schemas import WasteCreate, StockTransferRequest
 from services.core import calculate_product_cost
-from services.locations import ensure_default_stock_locations
-from services.stock import apply_stock_delta, find_movements_by_client_mutation
+from services.locations import ensure_default_stock_locations, get_default_warehouse
+from services.stock import apply_stock_delta, find_movements_by_client_mutation, resolve_item, handle_idempotency
 
 # ── Simple type aliases exposed to the router ─────────────────────────────────
 PlanList = List[Dict[str, Any]]
@@ -34,19 +35,12 @@ def record_waste(
     current_user: models.User,
     x_client_mutation_id: str | None = None,
 ):
-    prior = find_movements_by_client_mutation(
-        db,
-        owner_id=owner_id,
-        client_mutation_id=waste.client_mutation_id,
-        movement_type="waste",
-    )
-    if prior:
-        return {"success": True, "idempotent": True}
+    client_mutation_id = waste.client_mutation_id or x_client_mutation_id
+    idem = handle_idempotency(db, owner_id=owner_id, client_mutation_id=client_mutation_id, movement_type="waste")
+    if idem:
+        return idem
 
-    product = db.query(models.Product).filter(
-        models.Product.id == waste.product_id,
-        models.Product.owner_id == owner_id,
-    ).first()
+    product = resolve_item(db, owner_id=owner_id, item_type="product", item_id=waste.product_id)
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
 
@@ -184,11 +178,11 @@ def transfer_stock(
 ):
     """Transfer stock between locations."""
     client_mutation_id = transfer.client_mutation_id or x_client_mutation_id
-    prior = find_movements_by_client_mutation(
+    idem = handle_idempotency(
         db, owner_id=owner_id, client_mutation_id=client_mutation_id, movement_type="transfer_out"
     )
-    if prior:
-        return {"success": True, "idempotent": True}
+    if idem:
+        return idem
 
     if transfer.quantity <= 0:
         raise HTTPException(status_code=400, detail="Quantity must be positive")
@@ -196,23 +190,7 @@ def transfer_stock(
         raise HTTPException(status_code=400, detail="Locations must be different")
 
     # Resolve item
-    item = None
-    if transfer.item_type == "ingredient":
-        item = db.query(models.Ingredient).filter(models.Ingredient.name == transfer.item_id, models.Ingredient.owner_id == owner_id).first()
-    elif transfer.item_type == "product":
-        item = db.query(models.Product).filter(models.Product.id == transfer.item_id, models.Product.owner_id == owner_id).first()
-    elif transfer.item_type == "semi_finished":
-        try:
-            sf_id = int(transfer.item_id)
-        except ValueError:
-            raise HTTPException(
-                status_code=400,
-                detail="semi_finished item_id must be a numeric id (e.g. '3')",
-            )
-        item = db.query(models.SemiFinishedItem).filter(
-            models.SemiFinishedItem.id == sf_id,
-            models.SemiFinishedItem.owner_id == owner_id,
-        ).first()
+    item = resolve_item(db, owner_id=owner_id, item_type=transfer.item_type, item_id=transfer.item_id)
 
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
