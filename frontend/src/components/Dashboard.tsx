@@ -151,7 +151,7 @@ const DashboardInner: React.FC = () => {
     handleUpdateProductField, handleUpdateProductIngredients, handleCleanupProducts,
     handleAddExpense, handleUpdateExpense, handleDeleteExpense,
     handleAddSupplier, handleDeleteSupplier, handleCreatePO, handleReceivePO, handleDeletePO,
-    handleAddStaff, handleDeleteStaff, handleProduce, handlePlanBatch, handleCompletePlan,
+    handleAddStaff, handleDeleteStaff,
     handleSaveRecipe, handleProduceBatch, handleCreateSemiFinished, handleAdvanceStage, isKitchenUpdating,
     // Simulator
     isForecasting, handleSmartForecast,

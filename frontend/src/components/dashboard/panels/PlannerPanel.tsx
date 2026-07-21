@@ -7,10 +7,10 @@ import { usePlannerMutations } from '../../../hooks/usePlannerMutations';
 
 const PlannerPanel: React.FC = () => {
   const { isDarkMode, inventory, planner, setPlanner, formatPrice,
-  isForecasting, handleSmartForecast, handleProduce, displayUnit, openSelector, getDownloadToken, API_BASE,
+  isForecasting, handleSmartForecast, displayUnit, openSelector, getDownloadToken, API_BASE,
   wasteRecords, api, addToast, fetchData, } = useDashboard();
   const { t } = useTranslation();
-  const { savePlan } = usePlannerMutations();
+  const { savePlan, handleProduce } = usePlannerMutations();
 
   const resourceForecast = Object.entries(
     planner.filter((p: { status: string }) => p.status === 'pending').reduce((acc: Record<string, number>, item: { product_id: string; quantity: number }) => {

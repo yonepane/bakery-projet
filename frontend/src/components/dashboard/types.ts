@@ -114,7 +114,6 @@ export interface DashboardSharedProps {
   simulationResult: SimulationResult[];
   isForecasting: boolean;
   handleSmartForecast: (date: string) => void;
-  handleProduce: (productId: string, qty: number) => void;
   setPlanner: (p: PlanItem[]) => void;
   setSelectedProduct: (p: Product | null) => void;
 
@@ -152,7 +151,6 @@ export interface DashboardSharedProps {
   handleCreateLocation: (payload: { name: string; type: string; branch_name?: string }) => void;
   handleTransferStock: (payload: { item_type: string; item_id: string; from_location_id: number; to_location_id: number; quantity: number; lot_id?: number | null }) => void;
   handleResetSession: () => void;
-  handleCompletePlan: (planId: string) => void;
 
   // ─── Helpers ──────────────────────────────────────────────────────────────
   formatPrice: (v: number) => string;

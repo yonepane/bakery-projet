@@ -4,11 +4,13 @@ import { useDashboard } from '../DashboardContext';
 import type { Product } from '../types';
 import { Calendar, CheckCircle, FileText, Zap, Croissant, Cake, AlertTriangle } from 'lucide-react';
 import { openWhatsApp } from '../../../lib/whatsapp';
+import { usePlannerMutations } from '../../../hooks/usePlannerMutations';
 
 const KitchenPanel: React.FC = () => {
   const { isDarkMode, planner, inventory, orders, api, addToast, fetchData,
-  setSelectedProduct, handleCompletePlan, } = useDashboard();
+  setSelectedProduct, } = useDashboard();
   const { t } = useTranslation();
+  const { handleCompletePlan } = usePlannerMutations();
 
   const [activeCategory, setActiveCategory] = useState<'breads_viennoiserie' | 'patisserie'>('breads_viennoiserie');
 

@@ -9,7 +9,6 @@ import { useProductMutations } from './hooks/useProductMutations';
 import { useExpenseMutations } from './hooks/useExpenseMutations';
 import { usePurchasingMutations } from './hooks/usePurchasingMutations';
 import { useStaffMutations } from './hooks/useStaffMutations';
-import { usePlannerMutations } from './hooks/usePlannerMutations';
 import { useSemiFinishedMutations } from './hooks/useSemiFinishedMutations';
 import { useKitchenMutations } from './hooks/useKitchenMutations';
 import { useTabFetcher } from './TabFetcherContext';
@@ -40,9 +39,6 @@ interface MutationContextValue {
   handleDeleteStaff: ReturnType<typeof useStaffMutations>['handleDeleteStaff'];
   handleDeleteShiftLog: ReturnType<typeof useStaffMutations>['handleDeleteShiftLog'];
   handleSaveGeneralNote: ReturnType<typeof useStaffMutations>['handleSaveGeneralNote'];
-  handleProduce: ReturnType<typeof usePlannerMutations>['handleProduce'];
-  handlePlanBatch: ReturnType<typeof usePlannerMutations>['handlePlanBatch'];
-  handleCompletePlan: ReturnType<typeof usePlannerMutations>['handleCompletePlan'];
   handleSaveRecipe: ReturnType<typeof useSemiFinishedMutations>['handleSaveRecipe'];
   handleProduceBatch: ReturnType<typeof useSemiFinishedMutations>['handleProduceBatch'];
   handleCreateSemiFinished: ReturnType<typeof useSemiFinishedMutations>['handleCreateSemiFinished'];
@@ -76,7 +72,6 @@ export const MutationProvider: React.FC<MutationProviderProps> = ({ children }) 
   const expenseMutations = useExpenseMutations(baseDeps);
   const purchasingMutations = usePurchasingMutations(baseDeps);
   const staffMutations = useStaffMutations(baseDeps);
-  const plannerMutations = usePlannerMutations(baseDeps);
   const sfMutations = useSemiFinishedMutations(semiFinishedDeps);
   const kitchenMutations = useKitchenMutations(kitchenDeps);
 
@@ -87,7 +82,6 @@ export const MutationProvider: React.FC<MutationProviderProps> = ({ children }) 
       ...expenseMutations,
       ...purchasingMutations,
       ...staffMutations,
-      ...plannerMutations,
       ...sfMutations,
       handleAdvanceStage: kitchenMutations.handleAdvanceStage,
       isKitchenUpdating: kitchenMutations.isUpdating,
