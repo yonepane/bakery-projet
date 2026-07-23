@@ -3,6 +3,7 @@ import React, { useMemo } from 'react';
 import { useUISelector, useServerDataSelector } from '../DashboardContext';
 import type { Product } from '../types';
 import { Brain, TrendingUp, TrendingDown, Zap, Trophy, Star, Sparkles, ArrowUpRight, Activity, Coins, ShieldAlert, Layers, Percent, Target, ArrowRight, ArrowDownRight } from 'lucide-react';
+import { calculateMarginPercent, calculateMarkupPercent } from '../../../domains/pricing/margins';
 import { Table, TableHeader, TableBody, TableRow, Th, Td } from '../../ui/Table';
 
 const IntelligencePanel: React.FC = () => {
@@ -37,7 +38,7 @@ const IntelligencePanel: React.FC = () => {
     sell_price: p.price,
     cost_price: p.live_cost || 0,
     unit_cost: p.live_cost || 0,
-    margin_percentage: p.price > 0 ? `${((p.price - (p.live_cost || 0)) / p.price * 100).toFixed(1)}%` : '0%',
+    margin_percentage: p.price > 0 ? `${calculateMarginPercent(p.price, p.live_cost || 0).toFixed(1)}%` : '0%',
   }))).map((p: any) => ({
     name: p.product_name || p.name || 'Unknown',
     icon: p.icon || '🥐',
@@ -165,9 +166,7 @@ const IntelligencePanel: React.FC = () => {
 
       {/* Star product callout */}
       {topProduct && (() => {
-        const computedRoi = topProduct.unitCost > 0
-          ? ((topProduct.sellPrice - topProduct.unitCost) / topProduct.unitCost) * 100
-          : 0;
+        const computedRoi = calculateMarkupPercent(topProduct.sellPrice, topProduct.unitCost);
         const totalSegments = 16;
         const filledSegments = Math.round((topProduct.margin / 100) * totalSegments);
 

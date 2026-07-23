@@ -4,6 +4,8 @@ import { useUISelector, useServerDataSelector, useModalSelector, useMutationSele
 import type { Product } from '../types';
 import { Edit2, Plus, Trash2, X, Copy } from 'lucide-react';
 import { parseQtyString } from '../utils';
+import { calculateRecipeMaterialCost, calculateRecipeLaborCost, calculateIngredientCost } from '../../../domains/recipes/costing';
+import { calculateMarginPercent } from '../../../domains/pricing/margins';
 
 const FichePanel: React.FC = () => {
   const { isDarkMode, editMode, formatPrice } = useUISelector();
@@ -28,23 +30,15 @@ const FichePanel: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
         {inventory.products.map((p: Product) => {
           // Real-time Margin Logic with Labor Cost Engine
-          const materialCost = p.ingredients.reduce((sum: number, ing: { name: string; quantity: number }) => {
-            const mat = inventory.materials[ing.name];
-            const factor = mat && ['kg', 'L', 'l'].includes(mat.unit) ? 1000 : 1;
-            const basePrice = mat ? mat.price : 0;
-            const inflationMult = 1 + ((simulatedInflations[ing.name] || 0) / 100);
-            return sum + ((ing.quantity / factor) * basePrice * inflationMult);
-          }, 0) || p.live_cost || 0;
+          const materialCost = calculateRecipeMaterialCost(p.ingredients, inventory.materials, simulatedInflations) || p.live_cost || 0;
 
           // Labor cost: (prep_time + cook_time) / 60 * hourly_wage / yield_qty
           const hourlyWage = Number(settings?.hourly_wage) || 0;
-          const totalMinutes = (p.prep_time || 0) + (p.cook_time || 0);
-          const laborCostPerBatch = (totalMinutes / 60) * Number(hourlyWage);
-          const laborCostPerUnit = p.yield_qty > 0 ? laborCostPerBatch / p.yield_qty : 0;
+          const laborCostPerUnit = calculateRecipeLaborCost(p.prep_time, p.cook_time, hourlyWage, p.yield_qty);
           const realCost = materialCost + laborCostPerUnit;
 
           const currentSimPrice = simPrices[p.id] ?? p.price;
-          const margin = currentSimPrice > 0 ? (((currentSimPrice - realCost) / currentSimPrice) * 100).toFixed(1) : 0;
+          const margin = currentSimPrice > 0 ? calculateMarginPercent(currentSimPrice, realCost).toFixed(1) : 0;
           const isLowMargin = Number(margin) < 65;
 
           return (
@@ -59,12 +53,10 @@ const FichePanel: React.FC = () => {
                       <button onClick={() => {
                         const sorted = [...p.ingredients].sort((a: { name: string; quantity: number }, b: { name: string; quantity: number }) => {
                           const matA = inventory.materials[a.name];
-                          const factorA = matA && ['kg', 'L', 'l'].includes(matA.unit) ? 1000 : 1;
-                          const costA = (matA?.price || 0) * (a.quantity/factorA) * (1 + ((simulatedInflations[a.name] || 0) / 100));
+                          const costA = matA ? calculateIngredientCost(a.quantity, matA.price || 0, matA.unit, simulatedInflations[a.name]) : 0;
                           
                           const matB = inventory.materials[b.name];
-                          const factorB = matB && ['kg', 'L', 'l'].includes(matB.unit) ? 1000 : 1;
-                          const costB = (matB?.price || 0) * (b.quantity/factorB) * (1 + ((simulatedInflations[b.name] || 0) / 100));
+                          const costB = matB ? calculateIngredientCost(b.quantity, matB.price || 0, matB.unit, simulatedInflations[b.name]) : 0;
                           return costB - costA;
                         });
                         if (sorted.length > 0) {

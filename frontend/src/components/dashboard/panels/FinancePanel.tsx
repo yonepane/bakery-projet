@@ -12,6 +12,8 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { FileText, TrendingDown, TrendingUp, Briefcase, FileClock, Table as TableIcon, Plus } from 'lucide-react';
 import { Table, TableHeader, TableBody, TableRow, Th, Td } from '../../ui/Table';
 import http from '../../../lib/http';
+import { getTvaRate, calculateHt, calculateTvaAmount } from '../../../domains/finance/tva';
+import { calculateProfit, calculateMarginPercent } from '../../../domains/pricing/margins';
 
 import { deriveAccountingMetrics } from '../utils';
 
@@ -91,16 +93,12 @@ const FinancePanel: React.FC = () => {
     let totalTva = 0;
     if (tx.items && Array.isArray(tx.items)) {
       tx.items.forEach((item: any) => {
-        const name = (item.name || '').toLowerCase();
-        const isBread = name.includes('pain') || name.includes('bread') || name.includes('baguette');
-        const rate = isBread ? 0 : 0.10;
         const itemRevenue = (Number(item.qty) || 0) * (Number(item.price) || 0);
-        const ht = itemRevenue / (1 + rate);
-        totalTva += itemRevenue - ht;
+        totalTva += calculateTvaAmount(itemRevenue, getTvaRate(item.name));
       });
     } else {
       const totalRevenue = Number(tx.total_revenue) || 0;
-      totalTva = totalRevenue - (totalRevenue / 1.10);
+      totalTva = calculateTvaAmount(totalRevenue, 0.10);
     }
     return totalTva;
   };
@@ -116,14 +114,11 @@ const FinancePanel: React.FC = () => {
         let txHt = 0;
         if (tx.items && Array.isArray(tx.items)) {
           tx.items.forEach((item: any) => {
-            const name = (item.name || '').toLowerCase();
-            const isBread = name.includes('pain') || name.includes('bread') || name.includes('baguette');
-            const rate = isBread ? 0 : 0.10;
             const itemRevenue = (Number(item.qty) || 0) * (Number(item.price) || 0);
-            txHt += itemRevenue / (1 + rate);
+            txHt += calculateHt(itemRevenue, getTvaRate(item.name));
           });
         } else {
-          txHt = (Number(tx.total_revenue) || 0) / 1.10;
+          txHt = calculateHt(Number(tx.total_revenue) || 0, 0.10);
         }
         return sum + txHt;
       }, 0)
@@ -132,10 +127,7 @@ const FinancePanel: React.FC = () => {
   const displayCOGS = isHT
   ? filteredSales.reduce((sum: number, s: any) => {
       const cost = Number(s.cost) || 0;
-      const name = (s.product_name || s.name || '').toLowerCase();
-      const isBread = name.includes('pain') || name.includes('bread') || name.includes('baguette');
-      const rate = isBread ? 0 : 0.10;
-      return sum + (cost / (1 + rate));
+      return sum + calculateHt(cost, getTvaRate(s.product_name || s.name));
     }, 0)
   : totalCOGSRaw;
   const displayExpenses = isHT 
@@ -149,18 +141,15 @@ const FinancePanel: React.FC = () => {
   const displayWaste = isHT
     ? filteredWaste.reduce((sum: number, w: any) => {
         const loss = Number(w.loss_cost) || 0;
-        const name = (w.product_name || '').toLowerCase();
-        const isBread = name.includes('pain') || name.includes('bread') || name.includes('baguette');
-        const rate = isBread ? 0 : 0.10;
-        return sum + (loss / (1 + rate));
+        return sum + calculateHt(loss, getTvaRate(w.product_name));
       }, 0)
     : totalWasteLossRaw;
   
   const displayNetProfit = displayRevenue - displayCOGS - displayWaste - displayExpenses;
   
   // Gross Margin Calculation
-  const grossMarginValue = displayRevenue - displayCOGS;
-  const grossMarginPercent = displayRevenue > 0 ? ((grossMarginValue / displayRevenue) * 100).toFixed(1) + '%' : '0.0%';
+  const grossMarginValue = calculateProfit(displayRevenue, displayCOGS);
+  const grossMarginPercent = calculateMarginPercent(displayRevenue, displayCOGS).toFixed(1) + '%';
 
   // Labor Costs Calculation
   const laborKeywords = ['labor', 'payroll', 'salary', 'salaire', 'wage'];

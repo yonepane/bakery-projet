@@ -6,6 +6,8 @@ import type { Product, Ingredient } from '../types';
 import { FileText, Plus, TrendingUp, X } from 'lucide-react';
 import { BarChart, Bar, XAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { motion } from 'framer-motion';
+import { calculateRecipeMaterialCost } from '../../../domains/recipes/costing';
+import { calculateProfit, calculateMarginPercent } from '../../../domains/pricing/margins';
 
 const PIE_COLORS = ['#d4af37', '#b8860b', '#f3e5ab', '#10b981', '#f43f5e'];
 
@@ -161,19 +163,8 @@ const AnalyticsPanel: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {inventory.products.map((p: Product) => {
               // 1. Calculate Old vs New Cost
-              const oldCost = p.ingredients.reduce((sum: number, ing: { name: string; quantity: number }) => {
-                const mat = inventory.materials[ing.name];
-                const factor = mat && ['kg', 'L', 'l'].includes(mat.unit) ? 1000 : 1;
-                return sum + ((ing.quantity / factor) * (mat ? mat.price : 0));
-              }, 0) || p.live_cost || 0;
-
-              const newCost = p.ingredients.reduce((sum: number, ing: { name: string; quantity: number }) => {
-                const mat = inventory.materials[ing.name];
-                const factor = mat && ['kg', 'L', 'l'].includes(mat.unit) ? 1000 : 1;
-                const basePrice = mat ? mat.price : 0;
-                const inflationMult = 1 + ((simulatedInflations[ing.name] || 0) / 100);
-                return sum + ((ing.quantity / factor) * basePrice * inflationMult);
-              }, 0) || p.live_cost || 0;
+              const oldCost = calculateRecipeMaterialCost(p.ingredients, inventory.materials) || p.live_cost || 0;
+              const newCost = calculateRecipeMaterialCost(p.ingredients, inventory.materials, simulatedInflations) || p.live_cost || 0;
 
               const costDelta = newCost - oldCost;
 
@@ -182,12 +173,12 @@ const AnalyticsPanel: React.FC = () => {
               const priceDelta = currentSimPrice - p.price;
 
               // 3. Profit & Margin Calculations
-              const oldProfit = p.price - oldCost;
-              const newProfit = currentSimPrice - newCost;
+              const oldProfit = calculateProfit(p.price, oldCost);
+              const newProfit = calculateProfit(currentSimPrice, newCost);
               const profitDelta = newProfit - oldProfit;
               
-              const oldMargin = p.price > 0 ? (oldProfit / p.price) * 100 : 0;
-              const newMargin = currentSimPrice > 0 ? (newProfit / currentSimPrice) * 100 : 0;
+              const oldMargin = calculateMarginPercent(p.price, oldCost);
+              const newMargin = calculateMarginPercent(currentSimPrice, newCost);
               
               const isMarginCritical = newMargin < 65;
 
