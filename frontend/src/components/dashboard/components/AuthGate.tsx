@@ -7,6 +7,7 @@ import { GOOGLE_CLIENT_ID } from '../constants';
 import http from '../../../lib/http';
 import { useNotificationSelector, useServerDataSelector } from '../DashboardContext';
 import { type Language } from '../../../i18n';
+import type { UserSession } from '../types';
 import {
   Box, Sun, Moon, ChevronRight, ChevronLeft, ChevronDown,
   CheckCircle, Info, Brain, XCircle, Truck, ChefHat, MessageSquare,
@@ -14,8 +15,8 @@ import {
 } from 'lucide-react';
 
 interface AuthGateProps {
-  user: any;
-  setUser: (u: any) => void;
+  user: UserSession | null;
+  setUser: (u: UserSession | null) => void;
 }
 
 export const AuthGate: React.FC<AuthGateProps> = ({ user, setUser }) => {
