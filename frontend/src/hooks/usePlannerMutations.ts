@@ -1,9 +1,12 @@
 import { useMutation } from './useMutation';
-import { useDashboard } from '../components/dashboard/DashboardContext';
+import { useServerDataSelector, useNotificationSelector } from '../components/dashboard/DashboardContext';
+import { useCart } from '../components/dashboard/CartContext';
 import { useTranslation } from 'react-i18next';
 
 export function usePlannerMutations() {
-  const { api, fetchData, addToast } = useDashboard();
+  const { api } = useCart();
+  const { fetchData } = useServerDataSelector();
+  const { addToast } = useNotificationSelector();
   const { t } = useTranslation();
 
   const savePlan = useMutation(

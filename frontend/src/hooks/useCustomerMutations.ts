@@ -1,8 +1,11 @@
 import { useMutation } from './useMutation';
-import { useDashboard } from '../components/dashboard/DashboardContext';
+import { useServerDataSelector, useNotificationSelector } from '../components/dashboard/DashboardContext';
+import { useCart } from '../components/dashboard/CartContext';
 
 export function useCustomerMutations() {
-  const { api, fetchData, addToast } = useDashboard();
+  const { api } = useCart();
+  const { fetchData } = useServerDataSelector();
+  const { addToast } = useNotificationSelector();
 
   const saveCustomer = useMutation(
     async ({

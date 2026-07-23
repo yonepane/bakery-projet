@@ -1,13 +1,17 @@
 import { useTranslation } from 'react-i18next';
 import React, { useMemo } from 'react';
-import { useDashboard } from '../DashboardContext';
+import { useUISelector, useServerDataSelector, useNotificationSelector } from '../DashboardContext';
+import { useCart } from '../CartContext';
 import { Calendar, Crown, FileText, Plus, Zap } from 'lucide-react';
 import { Table, TableHeader, TableBody, TableRow, Th, Td } from '../../ui/Table';
 import { openWhatsApp } from '../../../lib/whatsapp';
 import { useOrderMutations } from '../../../hooks/useOrderMutations';
 
 const OrdersPanel: React.FC = () => {
-  const { isDarkMode, orders, inventory, setShowBookingModal, setBookingForm, bookingForm, fetchData, api, addToast, } = useDashboard();
+  const { isDarkMode } = useUISelector();
+  const { orders, inventory, fetchData } = useServerDataSelector();
+  const { api, setShowBookingModal, setBookingForm, bookingForm } = useCart();
+  const { addToast } = useNotificationSelector();
   const { t } = useTranslation();
   const { updateOrderStatus } = useOrderMutations();
 

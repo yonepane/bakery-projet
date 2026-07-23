@@ -1,8 +1,11 @@
 import { useMutation } from './useMutation';
-import { useDashboard } from '../components/dashboard/DashboardContext';
+import { useServerDataSelector, useNotificationSelector } from '../components/dashboard/DashboardContext';
+import { useCart } from '../components/dashboard/CartContext';
 
 export function useOrderMutations() {
-  const { api, fetchData, addToast } = useDashboard();
+  const { api } = useCart();
+  const { fetchData } = useServerDataSelector();
+  const { addToast } = useNotificationSelector();
 
   const updateOrderStatus = useMutation(
     async ({ orderId, status }: { orderId: string; status: string }) => {

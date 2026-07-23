@@ -1,15 +1,18 @@
 import { useTranslation } from 'react-i18next';
 import React from 'react';
-import { useDashboard } from '../DashboardContext';
+import { useUISelector, useServerDataSelector, useModalSelector, useMutationSelector, useNotificationSelector } from '../DashboardContext';
+import { useCart } from '../CartContext';
 import { CheckCircle, Edit2, FileText, Package, Plus, Radio, Trash2, Truck } from 'lucide-react';
 import { openWhatsApp } from '../../../lib/whatsapp';
 import { calcOrderTotal } from '../utils';
 
 const PurchasingPanel: React.FC = () => {
-  const { isDarkMode, purchasingSuggestions, purchaseOrders, suppliers, selectedSupplierId,
-  setSelectedSupplierId, formatPrice, inventory, handleCreatePO, handleReceivePO,
-  handleDeletePO, openPOModal, addToast, setShowAddSupplier, setEditingSupplier,
-  setNewSupplier, handleDeleteSupplier, } = useDashboard();
+  const { isDarkMode, formatPrice } = useUISelector();
+  const { purchasingSuggestions, purchaseOrders, suppliers, selectedSupplierId, setSelectedSupplierId, inventory } = useServerDataSelector();
+  const { setShowAddSupplier, setEditingSupplier, setNewSupplier } = useModalSelector();
+  const { handleCreatePO, handleReceivePO, handleDeletePO, handleDeleteSupplier } = useMutationSelector();
+  const { openPOModal } = useCart();
+  const { addToast } = useNotificationSelector();
   const { t } = useTranslation();
   const getSupplierName = (supplierId: number | null | undefined) => (
     suppliers.find(s => s.id === supplierId)?.name || 'No supplier'

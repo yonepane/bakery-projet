@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import React, { useState, useMemo, useEffect } from 'react';
-import { useDashboard } from '../DashboardContext';
+import { useUISelector, useServerDataSelector, useModalSelector, useNotificationSelector } from '../DashboardContext';
+import { useCart } from '../CartContext';
 import { createPortal } from 'react-dom';
 import { FileText, Search, TrendingUp, TrendingDown, Calendar, RotateCcw, X, AlertTriangle, Trash2 } from 'lucide-react';
 import { Table, TableHeader, TableBody, TableRow, Th, Td } from '../../ui/Table';
@@ -13,7 +14,11 @@ import { RefundModal } from '../modals/RefundModal';
 
 
 const HistoryPanel: React.FC = () => {
-  const { isDarkMode, history, formatPrice, openDocument, getDownloadToken, openSelector, API_BASE, api, fetchData, fetchTabData, addToast, showConfirm } = useDashboard();
+  const { isDarkMode, formatPrice } = useUISelector();
+  const { history, fetchData, fetchTabData } = useServerDataSelector();
+  const { openSelector } = useModalSelector();
+  const { openDocument, getDownloadToken, API_BASE, api } = useCart();
+  const { addToast, showConfirm } = useNotificationSelector();
   const { t } = useTranslation();
 
   const [search, setSearch] = useState('');

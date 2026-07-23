@@ -1,14 +1,18 @@
 import { useTranslation } from 'react-i18next';
 import React, { useState } from 'react';
-import { useDashboard } from '../DashboardContext';
+import { useUISelector, useServerDataSelector, useModalSelector, useNotificationSelector } from '../DashboardContext';
+import { useCart } from '../CartContext';
 import type { Product } from '../types';
 import { Calendar, CheckCircle, FileText, Zap, Croissant, Cake, AlertTriangle } from 'lucide-react';
 import { openWhatsApp } from '../../../lib/whatsapp';
 import { usePlannerMutations } from '../../../hooks/usePlannerMutations';
 
 const KitchenPanel: React.FC = () => {
-  const { isDarkMode, planner, inventory, orders, api, addToast, fetchData,
-  setSelectedProduct, } = useDashboard();
+  const { isDarkMode } = useUISelector();
+  const { planner, inventory, orders, fetchData } = useServerDataSelector();
+  const { api } = useCart();
+  const { addToast } = useNotificationSelector();
+  const { setSelectedProduct } = useModalSelector();
   const { t } = useTranslation();
   const { handleCompletePlan } = usePlannerMutations();
 

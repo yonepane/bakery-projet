@@ -1,5 +1,6 @@
 import React from 'react';
-import { useDashboard } from '../DashboardContext';
+import { useUISelector, useServerDataSelector, useNotificationSelector } from '../DashboardContext';
+import { useCart } from '../CartContext';
 import { useTranslation } from 'react-i18next';
 import { TrendingUp, Package, Truck, AlertTriangle, Clock, Zap, Loader2 } from 'lucide-react';
 import { TabStrip } from '../../ui/TabStrip';
@@ -22,11 +23,10 @@ import { PurchasingTab } from './PurchasingTab';
 import { ExpiringTab } from './ExpiringTab';
 
 const ForecastPanel: React.FC = () => {
-  const { isDarkMode,
-  formatPrice,
-  api,
-  addToast,
-  fetchTabData, } = useDashboard();
+  const { isDarkMode, formatPrice } = useUISelector();
+  const { fetchTabData } = useServerDataSelector();
+  const { api } = useCart();
+  const { addToast } = useNotificationSelector();
   const { t } = useTranslation();
   const [targetDate, setTargetDate] = React.useState(
     new Date().toISOString().split('T')[0]

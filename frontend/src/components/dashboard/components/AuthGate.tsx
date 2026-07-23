@@ -5,7 +5,7 @@ import { GoogleLogin } from '@react-oauth/google';
 import { useTranslation } from 'react-i18next';
 import { GOOGLE_CLIENT_ID } from '../constants';
 import http from '../../../lib/http';
-import { useDashboard } from '../DashboardContext';
+import { useNotificationSelector, useServerDataSelector } from '../DashboardContext';
 import { type Language } from '../../../i18n';
 import {
   Box, Sun, Moon, ChevronRight, ChevronLeft, ChevronDown,
@@ -14,13 +14,14 @@ import {
 } from 'lucide-react';
 
 interface AuthGateProps {
-  user: ReturnType<typeof useDashboard>['user'];
-  setUser: (u: ReturnType<typeof useDashboard>['user']) => void;
+  user: any;
+  setUser: (u: any) => void;
 }
 
 export const AuthGate: React.FC<AuthGateProps> = ({ user, setUser }) => {
   const { t, i18n } = useTranslation();
-  const { addToast, setLoading, fetchData } = useDashboard();
+  const { addToast } = useNotificationSelector();
+  const { setLoading, fetchData } = useServerDataSelector();
 
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
   const [loginForm, setLoginForm] = useState({ username: '', password: '' });

@@ -6,7 +6,8 @@ import { useTranslation } from 'react-i18next';
  * waste deductions, profit-by-product table, and export controls.
  */
 import React, { useState } from 'react';
-import { useDashboard } from '../DashboardContext';
+import { useUISelector, useServerDataSelector, useModalSelector, useMutationSelector, useNotificationSelector } from '../DashboardContext';
+import { useCart } from '../CartContext';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { FileText, TrendingDown, TrendingUp, Briefcase, FileClock, Table as TableIcon, Plus } from 'lucide-react';
 import { Table, TableHeader, TableBody, TableRow, Th, Td } from '../../ui/Table';
@@ -15,11 +16,12 @@ import http from '../../../lib/http';
 import { deriveAccountingMetrics } from '../utils';
 
 const FinancePanel: React.FC = () => {
-  const { isDarkMode, formatPrice, accountingRange, setAccountingRange,
-  history, wasteRecords, purchaseOrders,
-  openDocument, orders, expenses, suppliers,
-  setShowAddExpense, editingExpense, setEditingExpense, handleDeleteExpense,
-  showConfirm, addToast } = useDashboard();
+  const { isDarkMode, formatPrice } = useUISelector();
+  const { history, wasteRecords, purchaseOrders, orders, expenses, suppliers } = useServerDataSelector();
+  const { accountingRange, setAccountingRange, setShowAddExpense, editingExpense, setEditingExpense } = useModalSelector();
+  const { handleDeleteExpense } = useMutationSelector();
+  const { openDocument } = useCart();
+  const { showConfirm, addToast } = useNotificationSelector();
   
   const {
     accountingFeed,

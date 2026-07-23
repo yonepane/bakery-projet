@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import React from 'react';
-import { useDashboard } from '../DashboardContext';
+import { useUISelector, useServerDataSelector, useNotificationSelector } from '../DashboardContext';
+import { useCart } from '../CartContext';
 import { useSettingsMutations } from '../../../hooks/useSettingsMutations';
 
 const ToggleSwitch: React.FC<{ checked: boolean; onChange: () => void; isDarkMode: boolean }> = ({ checked, onChange, isDarkMode }) => (
@@ -47,9 +48,10 @@ interface SettingsFormState {
 
 /* ── Main panel ──────────────────────────────────────────────── */
 const SettingsPanel: React.FC = () => {
-  const { isDarkMode, settings, lang, setLang, activeCurrency, setActiveCurrency,
-  setIsDarkMode, addToast, fetchData, api,
-  sidebarHoverMode = false, setSidebarHoverMode, } = useDashboard();
+  const { isDarkMode, lang, setLang, activeCurrency, setActiveCurrency, setIsDarkMode, sidebarHoverMode = false, setSidebarHoverMode } = useUISelector();
+  const { settings, fetchData } = useServerDataSelector();
+  const { api } = useCart();
+  const { addToast } = useNotificationSelector();
   const { t } = useTranslation();
   const { saveSettings } = useSettingsMutations();
 

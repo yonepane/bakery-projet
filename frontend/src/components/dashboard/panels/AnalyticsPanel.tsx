@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import React, { useMemo } from 'react';
-import { useDashboard } from '../DashboardContext';
+import { useUISelector, useServerDataSelector, useModalSelector, useMutationSelector, useNotificationSelector } from '../DashboardContext';
+import { useCart } from '../CartContext';
 import type { Product, Ingredient } from '../types';
 import { FileText, Plus, TrendingUp, X } from 'lucide-react';
 import { BarChart, Bar, XAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
@@ -23,9 +24,12 @@ const CustomTooltip = ({ active, payload, label, isDarkMode }: { active?: boolea
 };
 
 const AnalyticsPanel: React.FC = () => {
-  const { isDarkMode, analytics, inventory, simPrices, setSimPrices,
-  simulatedInflations, setSimulatedInflations, formatPrice,
-  handleUpdateProductField, api, fetchData, addToast } = useDashboard();
+  const { isDarkMode, formatPrice } = useUISelector();
+  const { analytics, inventory, fetchData } = useServerDataSelector();
+  const { simPrices, setSimPrices, simulatedInflations, setSimulatedInflations } = useModalSelector();
+  const { handleUpdateProductField } = useMutationSelector();
+  const { api } = useCart();
+  const { addToast } = useNotificationSelector();
   const { t } = useTranslation();
 
 

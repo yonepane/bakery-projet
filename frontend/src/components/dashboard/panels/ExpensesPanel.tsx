@@ -1,11 +1,13 @@
 import { useTranslation } from 'react-i18next';
 import React from 'react';
-import { useDashboard } from '../DashboardContext';
+import { useUISelector, useServerDataSelector, useModalSelector } from '../DashboardContext';
 import { Plus, Trash2 } from 'lucide-react';
 import { Table, TableHeader, TableBody, TableRow, Th, Td } from '../../ui/Table';
 
 const ExpensesPanel: React.FC = () => {
-  const { isDarkMode, expenses, formatPrice, setShowAddExpense } = useDashboard();
+  const { isDarkMode, formatPrice } = useUISelector();
+  const { expenses } = useServerDataSelector();
+  const { setShowAddExpense } = useModalSelector();
   const { t } = useTranslation();
   return (
   <div className="space-y-8 animate-in fade-in duration-500">

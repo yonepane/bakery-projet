@@ -1,14 +1,17 @@
 import { useTranslation } from 'react-i18next';
 import React from 'react';
-import { useDashboard } from '../DashboardContext';
+import { useUISelector, useServerDataSelector, useModalSelector, useNotificationSelector } from '../DashboardContext';
+import { useCart } from '../CartContext';
 import type { Product } from '../types';
 import { FileText, Plus, Trash2, Zap } from 'lucide-react';
 import { usePlannerMutations } from '../../../hooks/usePlannerMutations';
 
 const PlannerPanel: React.FC = () => {
-  const { isDarkMode, inventory, planner, setPlanner, formatPrice,
-  isForecasting, handleSmartForecast, displayUnit, openSelector, getDownloadToken, API_BASE,
-  wasteRecords, api, addToast, fetchData, } = useDashboard();
+  const { isDarkMode, formatPrice } = useUISelector();
+  const { inventory, planner, setPlanner, wasteRecords, fetchData } = useServerDataSelector();
+  const { handleSmartForecast, displayUnit, getDownloadToken, API_BASE, api } = useCart();
+  const { openSelector, isForecasting } = useModalSelector();
+  const { addToast } = useNotificationSelector();
   const { t } = useTranslation();
   const { savePlan, handleProduce } = usePlannerMutations();
 

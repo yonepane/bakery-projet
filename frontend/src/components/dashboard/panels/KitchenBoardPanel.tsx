@@ -1,5 +1,5 @@
 import React from 'react';
-import { useDashboard } from '../DashboardContext';
+import { useUISelector, useServerDataSelector, useMutationSelector } from '../DashboardContext';
 import { useTranslation } from 'react-i18next';
 import { ChefHat, Flame, MoveRight, CheckCircle2, ListTodo, Timer, Pause, Layers, Snowflake, Sticker, Package, Sparkles, User } from 'lucide-react';
 import type { KitchenBatch } from '../hooks/useKitchenMutations';
@@ -21,7 +21,9 @@ const STAGES = [
 ] as const;
 
 export const KitchenBoardPanel: React.FC = () => {
-  const { isDarkMode, kitchenBatches: batches, handleAdvanceStage: onAdvanceStage, isKitchenUpdating: isUpdating } = useDashboard();
+  const { isDarkMode } = useUISelector();
+  const { kitchenBatches: batches } = useServerDataSelector();
+  const { handleAdvanceStage: onAdvanceStage, isKitchenUpdating: isUpdating } = useMutationSelector();
   const { t } = useTranslation();
 
   const getNextStage = (current: KitchenBatch['stage']): KitchenBatch['stage'] | null => {

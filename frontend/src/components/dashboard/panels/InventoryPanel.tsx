@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import React from 'react';
-import { useDashboard } from '../DashboardContext';
+import { useUISelector, useServerDataSelector, useModalSelector, useMutationSelector, useNotificationSelector } from '../DashboardContext';
 import type { Product } from '../types';
 import { Edit2, Plus, Trash2 } from 'lucide-react';
 import { parseQtyString } from '../utils';
@@ -8,11 +8,11 @@ import SemiFinishedPanel from './SemiFinishedPanel';
 import { Table, TableHeader, TableBody, TableRow, Th, Td } from '../../ui/Table';
 
 const InventoryPanel: React.FC = () => {
-  const { isDarkMode, inventory, editMode, formatPrice,
-  handleAdjustStock, openSelector, startEditingMaterial, handleDeleteMaterial,
-  setShowAddProduct, setShowAddMaterial, setEditingMaterialName, setNewMaterial,
-  handleUpdateProductPrice, stockLocations, stockLotBalances, semiFinishedItems,
-  setShowTransferModal, addToast, setActiveSFItem, setShowRecipeModal, setShowProduceModal, setActiveCostProduct, setShowCostModal } = useDashboard();
+  const { isDarkMode, editMode, formatPrice } = useUISelector();
+  const { inventory, stockLocations, stockLotBalances, semiFinishedItems } = useServerDataSelector();
+  const { openSelector, startEditingMaterial, setShowAddProduct, setShowAddMaterial, setEditingMaterialName, setNewMaterial, setShowTransferModal, setActiveSFItem, setShowRecipeModal, setShowProduceModal, setActiveCostProduct, setShowCostModal } = useModalSelector();
+  const { handleAdjustStock, handleDeleteMaterial, handleUpdateProductPrice } = useMutationSelector();
+  const { addToast } = useNotificationSelector();
   
   const sortedMaterialEntries = React.useMemo(() => 
     Object.entries(inventory?.materials || {}).sort(([a], [b]) => a.localeCompare(b))

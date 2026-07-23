@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import React, { useState, useEffect } from 'react';
-import { useDashboard } from '../DashboardContext';
+import { useUISelector, useServerDataSelector, useAuthSelector, useModalSelector } from '../DashboardContext';
+import { useCart } from '../CartContext';
 import type { Product } from '../types';
 import { Calendar, Plus, Trash2, Lock, X, CheckCircle, Users, Search } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
@@ -41,9 +42,11 @@ const HoldableButton: React.FC<{ onClick: () => void; className?: string; childr
 };
 
 const POSPanel: React.FC = () => {
-  const { isDarkMode, inventory, cart, setCart, addToCart, finalizeSale, formatPrice,
-  lastTransaction, setShowReceiptModal, setShowBookingModal, setBookingForm, bookingForm, API_BASE,
-  history, api, fetchData, user, customers, openSelector } = useDashboard();
+  const { isDarkMode, formatPrice } = useUISelector();
+  const { inventory, history, fetchData, customers } = useServerDataSelector();
+  const { cart, setCart, addToCart, finalizeSale, lastTransaction, setShowReceiptModal, setShowBookingModal, setBookingForm, bookingForm, API_BASE, api } = useCart();
+  const { user } = useAuthSelector();
+  const { openSelector } = useModalSelector();
   const { t } = useTranslation();
 
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');

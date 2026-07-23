@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { useDashboard } from '../DashboardContext';
+import { useUISelector, useServerDataSelector } from '../DashboardContext';
 import { Activity, ArrowDown, ArrowUp, Boxes, Package, Search } from 'lucide-react';
 import type { StockMovement } from '../types';
 import { Table, TableHeader, TableBody, TableRow, Th, Td } from '../../ui/Table';
@@ -24,7 +24,8 @@ const formatQty = (value: number, unit?: string | null) => {
 const formatMovementType = (value: string) => value.replace(/_/g, ' ');
 
 const StockMovementsPanel: React.FC = () => {
-  const { isDarkMode, stockMovements } = useDashboard();
+  const { isDarkMode } = useUISelector();
+  const { stockMovements } = useServerDataSelector();
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState<'all' | 'product' | 'ingredient'>('all');
   const [movementFilter, setMovementFilter] = useState('all');

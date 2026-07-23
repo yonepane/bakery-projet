@@ -1,12 +1,13 @@
 import { useTranslation } from 'react-i18next';
 import React, { useMemo } from 'react';
-import { useDashboard } from '../DashboardContext';
+import { useUISelector, useServerDataSelector } from '../DashboardContext';
 import type { Product } from '../types';
 import { Brain, TrendingUp, TrendingDown, Zap, Trophy, Star, Sparkles, ArrowUpRight, Activity, Coins, ShieldAlert, Layers, Percent, Target, ArrowRight, ArrowDownRight } from 'lucide-react';
 import { Table, TableHeader, TableBody, TableRow, Th, Td } from '../../ui/Table';
 
 const IntelligencePanel: React.FC = () => {
-  const { isDarkMode, profitReport, inventory, formatPrice, analytics } = useDashboard();
+  const { isDarkMode, formatPrice } = useUISelector();
+  const { profitReport, inventory, analytics } = useServerDataSelector();
   const { t } = useTranslation();
 
   const cardRef = React.useRef<HTMLDivElement>(null);

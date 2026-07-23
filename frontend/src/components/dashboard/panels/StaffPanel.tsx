@@ -1,11 +1,14 @@
 import React from 'react';
-import { useDashboard } from '../DashboardContext';
+import { useUISelector, useServerDataSelector, useMutationSelector, useModalSelector } from '../DashboardContext';
 import { Plus, Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Table, TableHeader, TableBody, TableRow, Th, Td } from '../../ui/Table';
 
 const StaffPanel: React.FC = () => {
-  const { isDarkMode, staff, handleDeleteStaff, setShowAddStaff } = useDashboard();
+  const { isDarkMode } = useUISelector();
+  const { staff } = useServerDataSelector();
+  const { handleDeleteStaff } = useMutationSelector();
+  const { setShowAddStaff } = useModalSelector();
   const { t } = useTranslation();
   
   return (

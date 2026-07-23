@@ -6,7 +6,8 @@ import { useTranslation } from 'react-i18next';
  * the shift-handoff note feed, the monthly PDF generator, and live alerts.
  */
 import React from 'react';
-import { useDashboard } from '../DashboardContext';
+import { useUISelector, useServerDataSelector, useModalSelector, useMutationSelector, useNotificationSelector } from '../DashboardContext';
+import { useCart } from '../CartContext';
 import { motion } from 'framer-motion';
 import {
   AreaChart,
@@ -20,20 +21,12 @@ import {
 import { AlertTriangle, ChevronRight, MessageSquare, Send, Zap, TrendingUp, Coins, Activity, Layers, ShieldCheck } from 'lucide-react';
 
 const DashboardPanel: React.FC = () => {
-  const { isDarkMode,
-  analytics,
-  formatPrice,
-  shiftLogs,
-  generalNote,
-  setGeneralNote,
-  isSavingGeneralNote,
-  handleSaveGeneralNote,
-  handleDeleteShiftLog,
-  openDocument,
-  getDownloadToken,
-  handleResetSession,
-  addToast,
-  API_BASE, } = useDashboard();
+  const { isDarkMode, formatPrice } = useUISelector();
+  const { analytics, shiftLogs } = useServerDataSelector();
+  const { generalNote, setGeneralNote, isSavingGeneralNote } = useModalSelector();
+  const { handleSaveGeneralNote, handleDeleteShiftLog } = useMutationSelector();
+  const { openDocument, getDownloadToken, handleResetSession, API_BASE } = useCart();
+  const { addToast } = useNotificationSelector();
   const { t } = useTranslation();
 
   return (

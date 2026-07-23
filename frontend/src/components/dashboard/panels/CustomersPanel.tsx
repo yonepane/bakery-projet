@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import React, { useState } from 'react';
-import { useDashboard } from '../DashboardContext';
+import { useUISelector, useServerDataSelector, useNotificationSelector } from '../DashboardContext';
+import { useCart } from '../CartContext';
 import { Users, Plus, Star, Phone, Mail, Trash2, X } from 'lucide-react';
 import type { Customer } from '../types';
 import { PanelHeader } from '../../ui/PanelHeader';
@@ -8,7 +9,10 @@ import { CustomerModal } from '../modals/CustomerModal';
 import { useCustomerMutations } from '../../../hooks/useCustomerMutations';
 
 const CustomersPanel: React.FC = () => {
-  const { isDarkMode, customers, api, addToast, fetchData, showConfirm } = useDashboard();
+  const { isDarkMode } = useUISelector();
+  const { customers, fetchData } = useServerDataSelector();
+  const { api } = useCart();
+  const { addToast, showConfirm } = useNotificationSelector();
   const { t } = useTranslation();
   const { saveCustomer, deleteCustomer } = useCustomerMutations();
 

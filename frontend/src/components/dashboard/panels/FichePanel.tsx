@@ -1,15 +1,16 @@
 import { useTranslation } from 'react-i18next';
 import React, { useMemo } from 'react';
-import { useDashboard } from '../DashboardContext';
+import { useUISelector, useServerDataSelector, useModalSelector, useMutationSelector, useNotificationSelector } from '../DashboardContext';
 import type { Product } from '../types';
 import { Edit2, Plus, Trash2, X, Copy } from 'lucide-react';
 import { parseQtyString } from '../utils';
 
 const FichePanel: React.FC = () => {
-  const { isDarkMode, inventory, editMode, formatPrice,
-  handleOpenEditProduct, handleDeleteProduct, handleCleanupProducts,
-  setShowAddProduct, setSelectedProduct, handleUpdateProductField,
-  simulatedInflations, simPrices, addToast, settings, handleDuplicateProduct } = useDashboard();
+  const { isDarkMode, editMode, formatPrice } = useUISelector();
+  const { inventory, settings } = useServerDataSelector();
+  const { handleOpenEditProduct, setShowAddProduct, setSelectedProduct, simulatedInflations, simPrices } = useModalSelector();
+  const { handleDeleteProduct, handleCleanupProducts, handleUpdateProductField, handleDuplicateProduct } = useMutationSelector();
+  const { addToast } = useNotificationSelector();
   const { t } = useTranslation();
 
 

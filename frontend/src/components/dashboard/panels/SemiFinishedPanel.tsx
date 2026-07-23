@@ -1,5 +1,5 @@
 import React from 'react';
-import { useDashboard } from '../DashboardContext';
+
 import { Plus, FlaskConical, ChefHat } from 'lucide-react';
 import { Table, TableHeader, TableBody, TableRow, Th, Td } from '../../ui/Table';
 
